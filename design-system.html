@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>다원이 — 디자인 시스템</title>
+  <meta name="description" content="디자인 토큰 기반으로 구축된 웹서비스 UI — 컬러, 타이포그래피, 컴포넌트 쇼케이스">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body id="top">
+
+  <!-- ===== Header ===== -->
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="#top">
+        <span class="brand-mark">다</span>
+        <span class="brand-name">다원이<span class="brand-sub">Design System</span></span>
+      </a>
+      <nav class="site-nav" aria-label="주요 섹션">
+        <a href="#colors">컬러</a>
+        <a href="#typography">타이포그래피</a>
+        <a href="#foundations">파운데이션</a>
+        <a href="#components">컴포넌트</a>
+        <a href="#preview">미리보기</a>
+      </nav>
+      <button id="themeToggle" class="btn btn-secondary btn-sm" type="button" aria-label="테마 전환">
+        <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+        <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <span class="theme-label">테마</span>
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <!-- ===== Hero ===== -->
+    <section class="hero">
+      <div class="container hero-grid">
+        <div class="hero-copy">
+          <span class="badge badge-brand">Design Tokens v1.0</span>
+          <h1 class="display hero-title">토큰 하나로 완성하는<br>일관된 웹서비스</h1>
+          <p class="body-lg hero-desc">
+            디자인 시스템 JSON에 정의된 컬러·타이포그래피·컴포넌트 토큰을
+            그대로 CSS 변수로 옮긴 실사용 UI입니다. 라이트와 다크 테마를 모두 지원합니다.
+          </p>
+          <div class="hero-actions">
+            <a class="btn btn-primary btn-lg" href="#preview">
+              시작하기
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </a>
+            <a class="btn btn-secondary btn-lg" href="#components">컴포넌트 보기</a>
+          </div>
+          <ul class="hero-facts caption" aria-label="토큰 요약">
+            <li><strong>7</strong> 컬러 팔레트</li>
+            <li><strong>8</strong> 타이포 스케일</li>
+            <li><strong>5</strong> 컴포넌트 세트</li>
+            <li><strong>2</strong> 테마</li>
+          </ul>
+        </div>
+
+        <!-- Hero composed preview card -->
+        <div class="hero-panel" aria-hidden="false">
+          <article class="card hero-card">
+            <header class="hero-card-head">
+              <div>
+                <p class="caption text-muted">이번 주 리포트</p>
+                <h2 class="heading-sm">다원이 앱 성과</h2>
+              </div>
+              <span class="badge badge-success">Live</span>
+            </header>
+            <div class="hero-card-metric">
+              <strong class="display metric-num">12,480</strong>
+              <span class="badge badge-success">+18.2%</span>
+            </div>
+            <p class="body-sm text-muted">지난주 대비 활성 사용자 증가</p>
+            <div class="hero-bars" aria-hidden="true">
+              <span style="--h:36%"></span><span style="--h:52%"></span><span style="--h:44%"></span>
+              <span style="--h:66%"></span><span style="--h:58%"></span><span style="--h:80%"></span>
+              <span style="--h:100%"></span>
+            </div>
+            <div class="hero-card-foot">
+              <button class="btn btn-primary btn-md" type="button">자세히 보기</button>
+              <button class="btn btn-tertiary btn-md" type="button">공유</button>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Colors ===== -->
+    <section id="colors" class="section">
+      <div class="container">
+        <p class="eyebrow caption">Foundation</p>
+        <h2 class="heading-md">컬러</h2>
+        <p class="body-md section-desc">스와치를 클릭하면 HEX 값이 클립보드에 복사됩니다.</p>
+
+        <h3 class="sub-title heading-sm">브랜드</h3>
+        <div class="palette">
+          <button class="sw" data-copy="#FFF0F1" type="button"><span class="sw-color" style="background:#FFF0F1"></span><span class="sw-name">brand-50</span><span class="sw-hex">#FFF0F1</span></button>
+          <button class="sw" data-copy="#FFE0E3" type="button"><span class="sw-color" style="background:#FFE0E3"></span><span class="sw-name">brand-100</span><span class="sw-hex">#FFE0E3</span></button>
+          <button class="sw" data-copy="#FFC2C8" type="button"><span class="sw-color" style="background:#FFC2C8"></span><span class="sw-name">brand-200</span><span class="sw-hex">#FFC2C8</span></button>
+          <button class="sw" data-copy="#FF99A3" type="button"><span class="sw-color" style="background:#FF99A3"></span><span class="sw-name">brand-300</span><span class="sw-hex">#FF99A3</span></button>
+          <button class="sw" data-copy="#FF8591" type="button"><span class="sw-color" style="background:#FF8591"></span><span class="sw-name">brand-400</span><span class="sw-hex">#FF8591</span></button>
+          <button class="sw" data-copy="#FF6B7A" type="button"><span class="sw-color" style="background:#FF6B7A"></span><span class="sw-name">brand-500</span><span class="sw-hex">#FF6B7A</span></button>
+          <button class="sw" data-copy="#FF4255" type="button"><span class="sw-color" style="background:#FF4255"></span><span class="sw-name">brand-600</span><span class="sw-hex">#FF4255</span></button>
+          <button class="sw" data-copy="#FF142C" type="button"><span class="sw-color" style="background:#FF142C"></span><span class="sw-name">brand-700</span><span class="sw-hex">#FF142C</span></button>
+          <button class="sw" data-copy="#E00017" type="button"><span class="sw-color" style="background:#E00017"></span><span class="sw-name">brand-800</span><span class="sw-hex">#E00017</span></button>
+          <button class="sw" data-copy="#AD0012" type="button"><span class="sw-color" style="background:#AD0012"></span><span class="sw-name">brand-900</span><span class="sw-hex">#AD0012</span></button>
+          <button class="sw" data-copy="#70000B" type="button"><span class="sw-color" style="background:#70000B"></span><span class="sw-name">brand-950</span><span class="sw-hex">#70000B</span></button>
+        </div>
+
+        <h3 class="sub-title heading-sm">세컨더리</h3>
+        <div class="palette">
+          <button class="sw" data-copy="#F0F5FF" type="button"><span class="sw-color" style="background:#F0F5FF"></span><span class="sw-name">secondary-50</span><span class="sw-hex">#F0F5FF</span></button>
+          <button class="sw" data-copy="#E0EBFF" type="button"><span class="sw-color" style="background:#E0EBFF"></span><span class="sw-name">secondary-100</span><span class="sw-hex">#E0EBFF</span></button>
+          <button class="sw" data-copy="#C2D7FF" type="button"><span class="sw-color" style="background:#C2D7FF"></span><span class="sw-name">secondary-200</span><span class="sw-hex">#C2D7FF</span></button>
+          <button class="sw" data-copy="#99BCFF" type="button"><span class="sw-color" style="background:#99BCFF"></span><span class="sw-name">secondary-300</span><span class="sw-hex">#99BCFF</span></button>
+          <button class="sw" data-copy="#85AFFF" type="button"><span class="sw-color" style="background:#85AFFF"></span><span class="sw-name">secondary-400</span><span class="sw-hex">#85AFFF</span></button>
+          <button class="sw" data-copy="#6B9EFF" type="button"><span class="sw-color" style="background:#6B9EFF"></span><span class="sw-name">secondary-500</span><span class="sw-hex">#6B9EFF</span></button>
+          <button class="sw" data-copy="#4283FF" type="button"><span class="sw-color" style="background:#4283FF"></span><span class="sw-name">secondary-600</span><span class="sw-hex">#4283FF</span></button>
+          <button class="sw" data-copy="#1465FF" type="button"><span class="sw-color" style="background:#1465FF"></span><span class="sw-name">secondary-700</span><span class="sw-hex">#1465FF</span></button>
+          <button class="sw" data-copy="#004DE0" type="button"><span class="sw-color" style="background:#004DE0"></span><span class="sw-name">secondary-800</span><span class="sw-hex">#004DE0</span></button>
+          <button class="sw" data-copy="#003CAD" type="button"><span class="sw-color" style="background:#003CAD"></span><span class="sw-name">secondary-900</span><span class="sw-hex">#003CAD</span></button>
+          <button class="sw" data-copy="#002770" type="button"><span class="sw-color" style="background:#002770"></span><span class="sw-name">secondary-950</span><span class="sw-hex">#002770</span></button>
+        </div>
+
+        <h3 class="sub-title heading-sm">뉴트럴</h3>
+        <div class="palette">
+          <button class="sw" data-copy="#FFFFFF" type="button"><span class="sw-color sw-bordered" style="background:#FFFFFF"></span><span class="sw-name">neutral-0</span><span class="sw-hex">#FFFFFF</span></button>
+          <button class="sw" data-copy="#FAFAFA" type="button"><span class="sw-color" style="background:#FAFAFA"></span><span class="sw-name">neutral-50</span><span class="sw-hex">#FAFAFA</span></button>
+          <button class="sw" data-copy="#F2F2F2" type="button"><span class="sw-color" style="background:#F2F2F2"></span><span class="sw-name">neutral-100</span><span class="sw-hex">#F2F2F2</span></button>
+          <button class="sw" data-copy="#E6E6E6" type="button"><span class="sw-color" style="background:#E6E6E6"></span><span class="sw-name">neutral-200</span><span class="sw-hex">#E6E6E6</span></button>
+          <button class="sw" data-copy="#D4D4D4" type="button"><span class="sw-color" style="background:#D4D4D4"></span><span class="sw-name">neutral-300</span><span class="sw-hex">#D4D4D4</span></button>
+          <button class="sw" data-copy="#A3A3A3" type="button"><span class="sw-color" style="background:#A3A3A3"></span><span class="sw-name">neutral-400</span><span class="sw-hex">#A3A3A3</span></button>
+          <button class="sw" data-copy="#737373" type="button"><span class="sw-color" style="background:#737373"></span><span class="sw-name">neutral-500</span><span class="sw-hex">#737373</span></button>
+          <button class="sw" data-copy="#525252" type="button"><span class="sw-color" style="background:#525252"></span><span class="sw-name">neutral-600</span><span class="sw-hex">#525252</span></button>
+          <button class="sw" data-copy="#404040" type="button"><span class="sw-color" style="background:#404040"></span><span class="sw-name">neutral-700</span><span class="sw-hex">#404040</span></button>
+          <button class="sw" data-copy="#2E2E2E" type="button"><span class="sw-color" style="background:#2E2E2E"></span><span class="sw-name">neutral-800</span><span class="sw-hex">#2E2E2E</span></button>
+          <button class="sw" data-copy="#1C1C1C" type="button"><span class="sw-color" style="background:#1C1C1C"></span><span class="sw-name">neutral-900</span><span class="sw-hex">#1C1C1C</span></button>
+          <button class="sw" data-copy="#121212" type="button"><span class="sw-color" style="background:#121212"></span><span class="sw-name">neutral-950</span><span class="sw-hex">#121212</span></button>
+        </div>
+
+        <h3 class="sub-title heading-sm">상태</h3>
+        <div class="palette-status">
+          <div class="status-row">
+            <span class="status-label caption">error</span>
+            <div class="palette">
+              <button class="sw" data-copy="#F9B8B3" type="button"><span class="sw-color" style="background:#F9B8B3"></span><span class="sw-name">50</span><span class="sw-hex">#F9B8B3</span></button>
+              <button class="sw" data-copy="#F25A50" type="button"><span class="sw-color" style="background:#F25A50"></span><span class="sw-name">400</span><span class="sw-hex">#F25A50</span></button>
+              <button class="sw" data-copy="#F04438" type="button"><span class="sw-color" style="background:#F04438"></span><span class="sw-name">500</span><span class="sw-hex">#F04438</span></button>
+              <button class="sw" data-copy="#ED2012" type="button"><span class="sw-color" style="background:#ED2012"></span><span class="sw-name">600</span><span class="sw-hex">#ED2012</span></button>
+              <button class="sw" data-copy="#C31A0F" type="button"><span class="sw-color" style="background:#C31A0F"></span><span class="sw-name">700</span><span class="sw-hex">#C31A0F</span></button>
+              <button class="sw" data-copy="#2B0603" type="button"><span class="sw-color" style="background:#2B0603"></span><span class="sw-name">950</span><span class="sw-hex">#2B0603</span></button>
+            </div>
+          </div>
+          <div class="status-row">
+            <span class="status-label caption">warning</span>
+            <div class="palette">
+              <button class="sw" data-copy="#FBCA89" type="button"><span class="sw-color" style="background:#FBCA89"></span><span class="sw-name">50</span><span class="sw-hex">#FBCA89</span></button>
+              <button class="sw" data-copy="#F89B22" type="button"><span class="sw-color" style="background:#F89B22"></span><span class="sw-name">400</span><span class="sw-hex">#F89B22</span></button>
+              <button class="sw" data-copy="#F79009" type="button"><span class="sw-color" style="background:#F79009"></span><span class="sw-name">500</span><span class="sw-hex">#F79009</span></button>
+              <button class="sw" data-copy="#D07907" type="button"><span class="sw-color" style="background:#D07907"></span><span class="sw-name">600</span><span class="sw-hex">#D07907</span></button>
+              <button class="sw" data-copy="#A45F05" type="button"><span class="sw-color" style="background:#A45F05"></span><span class="sw-name">700</span><span class="sw-hex">#A45F05</span></button>
+              <button class="sw" data-copy="#140B01" type="button"><span class="sw-color" style="background:#140B01"></span><span class="sw-name">950</span><span class="sw-hex">#140B01</span></button>
+            </div>
+          </div>
+          <div class="status-row">
+            <span class="status-label caption">info</span>
+            <div class="palette">
+              <button class="sw" data-copy="#B0D5FD" type="button"><span class="sw-color" style="background:#B0D5FD"></span><span class="sw-name">50</span><span class="sw-hex">#B0D5FD</span></button>
+              <button class="sw" data-copy="#479DFB" type="button"><span class="sw-color" style="background:#479DFB"></span><span class="sw-name">400</span><span class="sw-hex">#479DFB</span></button>
+              <button class="sw" data-copy="#2E90FA" type="button"><span class="sw-color" style="background:#2E90FA"></span><span class="sw-name">500</span><span class="sw-hex">#2E90FA</span></button>
+              <button class="sw" data-copy="#067BF9" type="button"><span class="sw-color" style="background:#067BF9"></span><span class="sw-name">600</span><span class="sw-hex">#067BF9</span></button>
+              <button class="sw" data-copy="#0565CC" type="button"><span class="sw-color" style="background:#0565CC"></span><span class="sw-name">700</span><span class="sw-hex">#0565CC</span></button>
+              <button class="sw" data-copy="#01162D" type="button"><span class="sw-color" style="background:#01162D"></span><span class="sw-name">950</span><span class="sw-hex">#01162D</span></button>
+            </div>
+          </div>
+          <div class="status-row">
+            <span class="status-label caption">success</span>
+            <div class="palette">
+              <button class="sw" data-copy="#5EEFAC" type="button"><span class="sw-color" style="background:#5EEFAC"></span><span class="sw-name">50</span><span class="sw-hex">#5EEFAC</span></button>
+              <button class="sw" data-copy="#14CE77" type="button"><span class="sw-color" style="background:#14CE77"></span><span class="sw-name">400</span><span class="sw-hex">#14CE77</span></button>
+              <button class="sw" data-copy="#12B76A" type="button"><span class="sw-color" style="background:#12B76A"></span><span class="sw-name">500</span><span class="sw-hex">#12B76A</span></button>
+              <button class="sw" data-copy="#0E9254" type="button"><span class="sw-color" style="background:#0E9254"></span><span class="sw-name">600</span><span class="sw-hex">#0E9254</span></button>
+              <button class="sw" data-copy="#0A683C" type="button"><span class="sw-color" style="background:#0A683C"></span><span class="sw-name">700</span><span class="sw-hex">#0A683C</span></button>
+              <button class="sw" data-copy="#02130B" type="button"><span class="sw-color" style="background:#02130B"></span><span class="sw-name">950</span><span class="sw-hex">#02130B</span></button>
+            </div>
+          </div>
+        </div>
+
+        <h3 class="sub-title heading-sm">시맨틱 토큰</h3>
+        <p class="body-sm text-muted semantic-note">테마에 따라 자동으로 다시 매핑되는 토큰입니다. 우측 상단에서 테마를 바꿔보세요.</p>
+        <div class="semantic-grid">
+          <div class="card semantic-card">
+            <h4 class="caption semantic-title">배경 background</h4>
+            <div class="tok"><span class="tok-dot" style="background:var(--bg-canvas)"></span><code>bg-canvas</code><span class="tok-val" data-var="--bg-canvas"></span></div>
+            <div class="tok"><span class="tok-dot" style="background:var(--bg-surface)"></span><code>bg-surface</code><span class="tok-val" data-var="--bg-surface"></span></div>
+            <div class="tok"><span class="tok-dot" style="background:var(--bg-subtle)"></span><code>bg-subtle</code><span class="tok-val" data-var="--bg-subtle"></span></div>
+            <div class="tok"><span class="tok-dot" style="background:var(--bg-brand)"></span><code>bg-brand</code><span class="tok-val" data-var="--bg-brand"></span></div>
+            <div class="tok"><span class="tok-dot" style="background:var(--bg-brand-subtle)"></span><code>bg-brand-subtle</code><span class="tok-val" data-var="--bg-brand-subtle"></span></div>
+            <div class="tok"><span class="tok-dot" style="background:var(--bg-danger)"></span><code>bg-danger</code><span class="tok-val" data-var="--bg-danger"></span></div>
+          </div>
+          <div class="card semantic-card">
+            <h4 class="caption semantic-title">텍스트 text</h4>
+            <div class="tok"><span class="tok-dot" style="background:var(--text-primary)"></span><code>text-primary</code><span class="tok-val" data-var="--text-primary"></span></div>
+            <div class="tok"><span class="tok-dot" style="background:var(--text-secondary)"></span><code>text-secondary</code><span class="tok-val" data-var="--text-secondary"></span></div>
+            <div class="tok"><span class="tok-dot" style="background:var(--text-muted)"></span><code>text-muted</code><span class="tok-val" data-var="--text-muted"></span></div>
+            <div class="tok"><span class="tok-dot" style="background:var(--text-brand)"></span><code>text-brand</code><span class="tok-val" data-var="--text-brand"></span></div>
+            <div class="tok"><span class="tok-dot" style="background:var(--text-link)"></span><code>text-link</code><span class="tok-val" data-var="--text-link"></span></div>
+            <div class="tok"><span class="tok-dot" style="background:var(--text-error)"></span><code>text-error</code><span class="tok-val" data-var="--text-error"></span></div>
+          </div>
+          <div class="card semantic-card">
+            <h4 class="caption semantic-title">보더 border</h4>
+            <div class="tok"><span class="tok-dot" style="background:var(--border-default)"></span><code>border-default</code><span class="tok-val" data-var="--border-default"></span></div>
+            <div class="tok"><span class="tok-dot" style="background:var(--border-subtle)"></span><code>border-subtle</code><span class="tok-val" data-var="--border-subtle"></span></div>
+            <div class="tok"><span class="tok-dot" style="background:var(--border-strong)"></span><code>border-strong</code><span class="tok-val" data-var="--border-strong"></span></div>
+            <div class="tok"><span class="tok-dot" style="background:var(--border-brand)"></span><code>border-brand</code><span class="tok-val" data-var="--border-brand"></span></div>
+            <div class="tok"><span class="tok-dot" style="background:var(--border-error)"></span><code>border-error</code><span class="tok-val" data-var="--border-error"></span></div>
+          </div>
+          <div class="card semantic-card">
+            <h4 class="caption semantic-title">상태 status</h4>
+            <div class="tok"><span class="tok-dot" style="background:var(--status-error)"></span><code>status-error</code><span class="tok-val" data-var="--status-error"></span></div>
+            <div class="tok"><span class="tok-dot" style="background:var(--status-warning)"></span><code>status-warning</code><span class="tok-val" data-var="--status-warning"></span></div>
+            <div class="tok"><span class="tok-dot" style="background:var(--status-info)"></span><code>status-info</code><span class="tok-val" data-var="--status-info"></span></div>
+            <div class="tok"><span class="tok-dot" style="background:var(--status-success)"></span><code>status-success</code><span class="tok-val" data-var="--status-success"></span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Typography ===== -->
+    <section id="typography" class="section section-alt">
+      <div class="container">
+        <p class="eyebrow caption">Foundation</p>
+        <h2 class="heading-md">타이포그래피</h2>
+        <p class="body-md section-desc">Pretendard를 기본으로 하는 8단계 타이포 스케일입니다.</p>
+
+        <div class="type-list">
+          <div class="type-row">
+            <div class="type-meta"><code>display</code><span class="caption text-muted">48px · Bold · 1.25 · -0.02em</span></div>
+            <p class="display type-sample">다원이 디자인 시스템</p>
+          </div>
+          <div class="type-row">
+            <div class="type-meta"><code>heading-lg</code><span class="caption text-muted">36px · Bold · 1.25 · -0.02em</span></div>
+            <p class="heading-lg type-sample">일관된 경험을 만드는 토큰</p>
+          </div>
+          <div class="type-row">
+            <div class="type-meta"><code>heading-md</code><span class="caption text-muted">30px · Semibold · 1.375</span></div>
+            <p class="heading-md type-sample">컴포넌트는 토큰으로 그려진다</p>
+          </div>
+          <div class="type-row">
+            <div class="type-meta"><code>heading-sm</code><span class="caption text-muted">24px · Semibold · 1.375</span></div>
+            <p class="heading-sm type-sample">라이트와 다크, 하나의 소스</p>
+          </div>
+          <div class="type-row">
+            <div class="type-meta"><code>body-lg</code><span class="caption text-muted">18px · Regular · 1.5</span></div>
+            <p class="body-lg type-sample">디자인 시스템은 제품 전체에 일관성을 부여합니다. 토큰을 바꾸면 화면 전체가 함께 바뀝니다.</p>
+          </div>
+          <div class="type-row">
+            <div class="type-meta"><code>body-md</code><span class="caption text-muted">16px · Regular · 1.5</span></div>
+            <p class="body-md type-sample">디자인 시스템은 제품 전체에 일관성을 부여합니다. 토큰을 바꾸면 화면 전체가 함께 바뀝니다.</p>
+          </div>
+          <div class="type-row">
+            <div class="type-meta"><code>body-sm</code><span class="caption text-muted">14px · Regular · 1.5</span></div>
+            <p class="body-sm type-sample">디자인 시스템은 제품 전체에 일관성을 부여합니다. 토큰을 바꾸면 화면 전체가 함께 바뀝니다.</p>
+          </div>
+          <div class="type-row">
+            <div class="type-meta"><code>caption</code><span class="caption text-muted">12px · Medium · 1.375</span></div>
+            <p class="caption type-sample">디자인 시스템은 제품 전체에 일관성을 부여합니다.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Foundations ===== -->
+    <section id="foundations" class="section">
+      <div class="container">
+        <p class="eyebrow caption">Foundation</p>
+        <h2 class="heading-md">스페이싱 · 라운드 · 그림자</h2>
+        <p class="body-md section-desc">레이아웃의 리듬을 만드는 기초 토큰입니다.</p>
+
+        <div class="found-grid">
+          <div class="card found-card">
+            <h4 class="caption semantic-title">스페이싱 spacing</h4>
+            <div class="space-row"><code>4</code><span class="space-bar" style="width:4px"></span><span class="caption text-muted">4px</span></div>
+            <div class="space-row"><code>8</code><span class="space-bar" style="width:8px"></span><span class="caption text-muted">8px</span></div>
+            <div class="space-row"><code>12</code><span class="space-bar" style="width:12px"></span><span class="caption text-muted">12px</span></div>
+            <div class="space-row"><code>16</code><span class="space-bar" style="width:16px"></span><span class="caption text-muted">16px</span></div>
+            <div class="space-row"><code>24</code><span class="space-bar" style="width:24px"></span><span class="caption text-muted">24px</span></div>
+            <div class="space-row"><code>32</code><span class="space-bar" style="width:32px"></span><span class="caption text-muted">32px</span></div>
+            <div class="space-row"><code>48</code><span class="space-bar" style="width:48px"></span><span class="caption text-muted">48px</span></div>
+            <div class="space-row"><code>64</code><span class="space-bar" style="width:64px"></span><span class="caption text-muted">64px</span></div>
+            <div class="space-row"><code>96</code><span class="space-bar" style="width:96px"></span><span class="caption text-muted">96px</span></div>
+          </div>
+
+          <div class="card found-card">
+            <h4 class="caption semantic-title">라운드 radius</h4>
+            <div class="radius-grid">
+              <div class="radius-item"><span class="radius-box" style="border-radius:0"></span><code>none</code><span class="caption text-muted">0</span></div>
+              <div class="radius-item"><span class="radius-box" style="border-radius:4px"></span><code>xs</code><span class="caption text-muted">4</span></div>
+              <div class="radius-item"><span class="radius-box" style="border-radius:8px"></span><code>sm</code><span class="caption text-muted">8</span></div>
+              <div class="radius-item"><span class="radius-box" style="border-radius:12px"></span><code>md</code><span class="caption text-muted">12</span></div>
+              <div class="radius-item"><span class="radius-box" style="border-radius:16px"></span><code>lg</code><span class="caption text-muted">16</span></div>
+              <div class="radius-item"><span class="radius-box" style="border-radius:20px"></span><code>xl</code><span class="caption text-muted">20</span></div>
+              <div class="radius-item"><span class="radius-box" style="border-radius:28px"></span><code>2xl</code><span class="caption text-muted">28</span></div>
+              <div class="radius-item"><span class="radius-box" style="border-radius:9999px"></span><code>full</code><span class="caption text-muted">∞</span></div>
+            </div>
+          </div>
+
+          <div class="card found-card">
+            <h4 class="caption semantic-title">그림자 shadow</h4>
+            <div class="shadow-grid">
+              <div class="shadow-item" style="box-shadow:var(--shadow-sm)"><code>shadow-sm</code></div>
+              <div class="shadow-item" style="box-shadow:var(--shadow-md)"><code>shadow-md</code></div>
+              <div class="shadow-item" style="box-shadow:var(--shadow-lg)"><code>shadow-lg</code></div>
+              <div class="shadow-item" style="box-shadow:var(--shadow-xl)"><code>shadow-xl</code></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Components ===== -->
+    <section id="components" class="section section-alt">
+      <div class="container">
+        <p class="eyebrow caption">Component</p>
+        <h2 class="heading-md">컴포넌트</h2>
+        <p class="body-md section-desc">버튼·인풋·배지·카드는 모두 컴포넌트 토큰 그대로 구현되었습니다.</p>
+
+        <h3 class="sub-title heading-sm">버튼</h3>
+        <div class="card comp-card">
+          <div class="comp-group">
+            <p class="comp-label caption">Primary</p>
+            <div class="btn-row">
+              <button class="btn btn-primary btn-sm" type="button">저장하기</button>
+              <button class="btn btn-primary btn-md" type="button">저장하기</button>
+              <button class="btn btn-primary btn-lg" type="button">
+                저장하기
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+              </button>
+              <button class="btn btn-primary btn-md" type="button" disabled>비활성</button>
+            </div>
+          </div>
+          <div class="comp-group">
+            <p class="comp-label caption">Secondary</p>
+            <div class="btn-row">
+              <button class="btn btn-secondary btn-sm" type="button">편집하기</button>
+              <button class="btn btn-secondary btn-md" type="button">편집하기</button>
+              <button class="btn btn-secondary btn-lg" type="button">편집하기</button>
+              <button class="btn btn-secondary btn-md" type="button" disabled>비활성</button>
+            </div>
+          </div>
+          <div class="comp-group">
+            <p class="comp-label caption">Tertiary</p>
+            <div class="btn-row">
+              <button class="btn btn-tertiary btn-sm" type="button">더보기</button>
+              <button class="btn btn-tertiary btn-md" type="button">더보기</button>
+              <button class="btn btn-tertiary btn-lg" type="button">더보기</button>
+              <button class="btn btn-tertiary btn-md" type="button" disabled>비활성</button>
+            </div>
+          </div>
+          <div class="comp-group">
+            <p class="comp-label caption">Danger</p>
+            <div class="btn-row">
+              <button class="btn btn-danger btn-sm" type="button">삭제하기</button>
+              <button class="btn btn-danger btn-md" type="button">삭제하기</button>
+              <button class="btn btn-danger btn-lg" type="button">삭제하기</button>
+              <button class="btn btn-danger btn-md" type="button" disabled>비활성</button>
+            </div>
+          </div>
+        </div>
+
+        <h3 class="sub-title heading-sm">인풋</h3>
+        <div class="card comp-card">
+          <div class="field-grid">
+            <div class="field">
+              <label class="field-label" for="in-default">기본</label>
+              <input id="in-default" class="input" type="text" placeholder="내용을 입력하세요">
+              <p class="field-help caption">도움말 텍스트가 여기에 표시됩니다.</p>
+            </div>
+            <div class="field">
+              <label class="field-label" for="in-error">오류</label>
+              <input id="in-error" class="input input-error" type="email" value="wrong-email" aria-invalid="true">
+              <p class="field-help field-help-error caption">올바른 이메일 형식이 아닙니다.</p>
+            </div>
+            <div class="field">
+              <label class="field-label" for="in-disabled">비활성</label>
+              <input id="in-disabled" class="input" type="text" placeholder="입력할 수 없습니다" disabled>
+            </div>
+          </div>
+        </div>
+
+        <h3 class="sub-title heading-sm">배지</h3>
+        <div class="card comp-card">
+          <div class="badge-row">
+            <span class="badge badge-neutral">Neutral</span>
+            <span class="badge badge-success">Success</span>
+            <span class="badge badge-warning">Warning</span>
+            <span class="badge badge-error">Error</span>
+            <span class="badge badge-info">Info</span>
+            <span class="badge badge-brand">Brand</span>
+          </div>
+        </div>
+
+        <h3 class="sub-title heading-sm">카드</h3>
+        <div class="card-grid">
+          <article class="card demo-card">
+            <span class="badge badge-info">가이드</span>
+            <h4 class="heading-sm demo-card-title">토큰으로 시작하기</h4>
+            <p class="body-sm text-muted">JSON에 정의된 토큰이 CSS 변수로 변환되어 모든 컴포넌트에 적용됩니다.</p>
+            <button class="btn btn-tertiary btn-sm" type="button">자세히 보기</button>
+          </article>
+          <article class="card demo-card">
+            <span class="badge badge-warning">베타</span>
+            <h4 class="heading-sm demo-card-title">다크 테마</h4>
+            <p class="body-sm text-muted">semantic-dark 토큰 세트가 다크 모드 전체 팔레트를 자동으로 구성합니다.</p>
+            <button class="btn btn-tertiary btn-sm" type="button">자세히 보기</button>
+          </article>
+          <article class="card demo-card">
+            <span class="badge badge-error">주의</span>
+            <h4 class="heading-sm demo-card-title">상태 관리</h4>
+            <p class="body-sm text-muted">error·warning·info·success 상태 토큰으로 일관된 피드백을 제공합니다.</p>
+            <button class="btn btn-tertiary btn-sm" type="button">자세히 보기</button>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Preview ===== -->
+    <section id="preview" class="section">
+      <div class="container">
+        <p class="eyebrow caption">Live Preview</p>
+        <h2 class="heading-md">토큰으로 만든 서비스 화면</h2>
+        <p class="body-md section-desc">같은 토큰 세트로 조합한 미니 대시보드입니다. 테마를 바꿔도 그대로 동작합니다.</p>
+
+        <div class="card app-frame">
+          <div class="app-frame-bar">
+            <div class="app-frame-title">
+              <span class="brand-mark brand-mark-sm">다</span>
+              <strong class="body-sm">다원이 대시보드</strong>
+            </div>
+            <span class="badge badge-success">운영 중</span>
+          </div>
+
+          <div class="stats-grid">
+            <div class="card stat-card">
+              <p class="caption text-muted">오늘 방문자</p>
+              <div class="stat-line">
+                <strong class="heading-md">1,284</strong>
+                <span class="badge badge-success">+12.4%</span>
+              </div>
+            </div>
+            <div class="card stat-card">
+              <p class="caption text-muted">신규 가입</p>
+              <div class="stat-line">
+                <strong class="heading-md">96</strong>
+                <span class="badge badge-success">+8.1%</span>
+              </div>
+            </div>
+            <div class="card stat-card">
+              <p class="caption text-muted">미해결 오류</p>
+              <div class="stat-line">
+                <strong class="heading-md">2</strong>
+                <span class="badge badge-error">확인 필요</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="app-cols">
+            <div class="card">
+              <div class="app-card-head">
+                <h4 class="heading-sm">최근 활동</h4>
+                <button class="btn btn-tertiary btn-sm" type="button">전체 보기</button>
+              </div>
+              <ul class="activity">
+                <li class="activity-item">
+                  <span class="avatar">김</span>
+                  <div class="activity-body">
+                    <p class="body-sm"><strong>김다원</strong>님이 새 프로젝트를 만들었습니다</p>
+                    <p class="caption text-muted">5분 전</p>
+                  </div>
+                  <span class="badge badge-info">새 항목</span>
+                </li>
+                <li class="activity-item">
+                  <span class="avatar avatar-secondary">이</span>
+                  <div class="activity-body">
+                    <p class="body-sm"><strong>이서준</strong>님이 결제를 완료했습니다</p>
+                    <p class="caption text-muted">32분 전</p>
+                  </div>
+                  <span class="badge badge-success">완료</span>
+                </li>
+                <li class="activity-item">
+                  <span class="avatar avatar-warning">박</span>
+                  <div class="activity-body">
+                    <p class="body-sm"><strong>박하늘</strong>님의 문의가 대기 중입니다</p>
+                    <p class="caption text-muted">1시간 전</p>
+                  </div>
+                  <span class="badge badge-warning">대기</span>
+                </li>
+                <li class="activity-item">
+                  <span class="avatar">최</span>
+                  <div class="activity-body">
+                    <p class="body-sm"><strong>최민재</strong>님의 리포트 내보내기 실패</p>
+                    <p class="caption text-muted">3시간 전</p>
+                  </div>
+                  <span class="badge badge-error">실패</span>
+                </li>
+              </ul>
+            </div>
+
+            <div class="card">
+              <div class="app-card-head">
+                <h4 class="heading-sm">뉴스레터 구독</h4>
+                <span class="badge badge-neutral">주간</span>
+              </div>
+              <p class="body-sm text-muted">매주 월요일, 다원이 팀의 소식과 업데이트를 받아보세요.</p>
+              <form id="subscribeForm" class="subscribe-form" novalidate>
+                <div class="field">
+                  <label class="field-label" for="sub-email">이메일</label>
+                  <input id="sub-email" class="input" type="email" placeholder="you@example.com" required>
+                </div>
+                <button class="btn btn-primary btn-md subscribe-btn" type="submit">구독하기</button>
+              </form>
+              <p class="caption text-muted">언제든지 한 번의 클릭으로 해지할 수 있습니다.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ===== Footer ===== -->
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div class="brand">
+        <span class="brand-mark">다</span>
+        <span class="brand-name">다원이<span class="brand-sub">Design System</span></span>
+      </div>
+      <p class="caption text-muted">Design System JSON → CSS Variables. 모든 UI가 토큰으로 렌더링됩니다. © <span id="year"></span></p>
+    </div>
+  </footer>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
