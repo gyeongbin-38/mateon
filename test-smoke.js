@@ -88,6 +88,7 @@ check('온보딩 화면', lastHTML.includes('이름 또는 닉네임'));
 listeners['app:input']({ target: { id: 'pf-name', value: '다원' } });
 click('survey');
 check('설문 화면', lastHTML.includes('1 / 20'));
+check('문항 슬라이드 클래스', lastHTML.includes('q-slide q-next'));
 
 console.log('== 3. 20문항 응답 ==');
 // 비동기 진행(220ms) — 수동으로 S.q 전진 없이, answer 액션을 연속 호출하려면
@@ -103,6 +104,11 @@ async function answerAll() {
   click('answer', { idx: 0 });
   await new Promise(r => setTimeout(r, 260));
   check('설문 진행 draft 저장', !!store['mateon.draft.me']);
+  check('다음 문항 슬라이드', lastHTML.includes('q-slide q-next'));
+  click('prev');
+  check('이전 문항 슬라이드', lastHTML.includes('q-slide q-prev'));
+  click('answer', { idx: 0 });
+  await new Promise(r => setTimeout(r, 260));
   for (let i = 1; i < QUESTIONS.length; i++) {
     click('answer', { idx: i % 4 });
     await new Promise(r => setTimeout(r, 260));

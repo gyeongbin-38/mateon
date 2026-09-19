@@ -163,6 +163,7 @@
     lifeAnswers: [],
     typeId: null,
     viewPair: null,
+    qDir: 'next',
   };
 
   /* ---- 설문 진행 자동 저장 (새로고침 복구) ---- */
@@ -448,6 +449,7 @@
       '<div class="progress"><div class="progress-fill" style="width:' + Math.round(((i + 1) / QUESTIONS.length) * 100) + '%"></div></div>' +
       '<span class="progress-num">' + (i + 1) + ' / ' + QUESTIONS.length + '</span>' +
       '</div>' +
+      '<div class="q-slide ' + (S.qDir === 'prev' ? 'q-prev' : 'q-next') + '">' +
       '<span class="badge badge-brand domain-tag">' + esc(dom.label) + '</span>' +
       '<h2 class="question-text">' + esc(q.text) + '</h2>' +
       '<div class="opt-list">' +
@@ -457,7 +459,7 @@
           '<span class="opt-key">' + keys[idx] + '</span><span>' + esc(o.text) + '</span></button>';
       }).join('') +
       '</div>' +
-      '<p class="survey-notice caption">가장 이상적인 행동이 아니라, 실제 내 모습과 가장 가까운 답을 골라주세요.</p>');
+      '<p class="survey-notice caption">가장 이상적인 행동이 아니라, 실제 내 모습과 가장 가까운 답을 골라주세요.</p></div>');
   }
 
   /* ================= View: 개인 결과 ================= */
@@ -887,7 +889,7 @@
 
   function vTypes() {
     var myC = S.me ? charById(S.me.charId) : null;
-    var cells = CHARACTERS.map(function (c) {
+    var cells = CHARACTERS.map(function (c, i) {
       var cls = 'type-card';
       if (S.me && S.me.charId === c.id) cls += ' mine';
       else if (S.partner && S.partner.charId === c.id) cls += ' partner';
@@ -897,7 +899,7 @@
         var lbl = d === 0 ? '나와 같음' : d <= 2 ? '비슷한 편' : d <= 4 ? '다른 편' : '많이 다름';
         dist = '<span class="tc-dist">' + lbl + '</span>';
       }
-      return '<button class="' + cls + '" data-action="type" data-id="' + c.id + '" type="button">' +
+      return '<button class="' + cls + '" data-action="type" data-id="' + c.id + '" type="button" style="--i:' + i + '">' +
         '<span class="tc-code">' + c.code + '</span><span class="tc-name">' + esc(c.name) + '</span>' + dist + '</button>';
     }).join('');
 
@@ -1113,7 +1115,7 @@
   }
 
   /* ================= Actions ================= */
-  function resetSurvey() { S.q = 0; S.answers = []; }
+  function resetSurvey() { S.q = 0; S.answers = []; S.qDir = 'next'; }
 
   function finishSurvey() {
     var res = scoreAnswers(S.answers);
@@ -1237,11 +1239,11 @@
       saveDraft();
       setTimeout(function () {
         S.advancing = false;
-        if (S.q < QUESTIONS.length - 1) { S.q++; saveDraft(); render(); }
+        if (S.q < QUESTIONS.length - 1) { S.q++; S.qDir = 'next'; saveDraft(); render(); }
         else finishSurvey();
       }, 220);
     }
-    else if (act === 'prev') { if (S.q > 0) { S.q--; saveDraft(); render(); } }
+    else if (act === 'prev') { if (S.q > 0) { S.q--; S.qDir = 'prev'; saveDraft(); render(); } }
     else if (act === 'result') { S.flow = 'me'; go('result'); }
     else if (act === 'retry') {
       resetSurvey(); S.flow = 'me';
@@ -1366,7 +1368,7 @@
     if (/^[1-4]$/.test(e.key)) n = +e.key - 1;
     else if (/^[a-dA-D]$/.test(e.key)) n = e.key.toLowerCase().charCodeAt(0) - 97;
     if (n < 0) {
-      if (route === 'survey' && e.key === 'ArrowLeft') { if (S.q > 0) { S.q--; saveDraft(); render(); } }
+      if (route === 'survey' && e.key === 'ArrowLeft') { if (S.q > 0) { S.q--; S.qDir = 'prev'; saveDraft(); render(); } }
       return;
     }
     if (route === 'survey') {

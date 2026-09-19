@@ -1,5 +1,5 @@
 /* MATE:ON Service Worker — 앱 셸 캐시 (network-first, 오프라인 폴백) */
-const CACHE = 'mateon-v2';
+const CACHE = 'mateon-v3';
 const ASSETS = [
   '.', 'index.html',
   'css/tokens.css', 'css/styles.css', 'css/mateon.css',

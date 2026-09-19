@@ -1292,9 +1292,110 @@
 }
 .type-card.mine .tc-dist { color: var(--text-brand); background: var(--bg-surface); }
 
+/* ---------- Motion polish ---------- */
+/* 갭 바 — --p 커스텀 프로퍼티 애니메이션 (미지원 브라우저는 정적 표시) */
+@property --p {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+.gap-bar { animation: gap-fill 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.35s both; }
+@keyframes gap-fill { from { --p: 0; } }
+
+/* E/R 게이지 바 — 처음 렌더 시 0에서 채워짐 */
+.gauge-fill { animation: gauge-grow 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both; }
+@keyframes gauge-grow { from { width: 0; } }
+
+/* 결과 캐릭터 카드 — 스태거 리빌 */
+.char-hero .char-code { animation: pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.char-hero .char-name { animation: rise 0.45s ease 0.1s both; }
+.char-hero .char-quote, .char-hero .char-meta { animation: rise 0.45s ease 0.2s both; }
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.55); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* 매트릭스 — 표시된 위치가 튀어나오듯 */
+.matrix-cell.mine, .matrix-cell.partner, .matrix-cell.same {
+  animation: cell-pop 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) 0.3s both;
+}
+@keyframes cell-pop { from { opacity: 0; transform: scale(0.4); } }
+
+/* 리포트 페어 카드 — 좌우에서 슬라이드 */
+.pair-card { animation: slide-l 0.4s ease both; }
+.pair-card.you { animation-name: slide-r; }
+@keyframes slide-l { from { opacity: 0; transform: translateX(-14px); } }
+@keyframes slide-r { from { opacity: 0; transform: translateX(14px); } }
+
+/* 설문 문항 — 방향에 따른 슬라이드 */
+.q-slide.q-next { animation: q-next 0.26s ease both; }
+.q-slide.q-prev { animation: q-prev 0.26s ease both; }
+@keyframes q-next { from { opacity: 0; transform: translateX(20px); } }
+@keyframes q-prev { from { opacity: 0; transform: translateX(-20px); } }
+
+/* 선택지 — 스태거 진입 + 선택 펄스 */
+.opt-card { animation: rise 0.28s ease both; }
+.opt-card:nth-child(2) { animation-delay: 0.04s; }
+.opt-card:nth-child(3) { animation-delay: 0.08s; }
+.opt-card:nth-child(4) { animation-delay: 0.12s; }
+.opt-card.selected { animation: opt-pop 0.2s ease; }
+@keyframes opt-pop { 50% { transform: scale(1.012); } }
+.opt-card.selected .opt-key { animation: key-pop 0.22s ease; }
+@keyframes key-pop { 50% { transform: scale(1.18); } }
+
+/* 규칙 체크·칩·서명 — 선택 펄스 */
+.rule-item.checked .rule-check { animation: key-pop 0.22s ease; }
+.chip.selected { animation: opt-pop 0.18s ease; }
+.sign-box.signed { animation: opt-pop 0.25s ease; }
+
+/* 도감 — 물결 스태거 (--i는 인라인) */
+.type-card { animation: rise 0.3s ease both; animation-delay: calc(var(--i, 0) * 0.025s); }
+
+/* 버튼 — 호버 리프트 (primary만 살짝) */
+.btn { transition: background-color 0.15s ease, color 0.15s ease,
+           border-color 0.15s ease, transform 0.12s ease, box-shadow 0.18s ease; }
+.btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--shadow-md); }
+.btn-primary:active:not(:disabled) { transform: translateY(1px); box-shadow: none; }
+
+/* 프로그레스 — 더 부드러운 전환 */
+.progress-fill { transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
+
+/* 설문 하단 안내 — 지연 페이드 */
+.survey-notice { animation: rise 0.4s ease 0.15s both; }
+
+/* 토스트 — 스프링 진입 */
+.toast {
+  transform: translate(-50%, 14px) scale(0.95);
+  transition: opacity 0.2s ease, transform 0.3s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+.toast.show { transform: translate(-50%, 0) scale(1); }
+
+/* 로고 — 호버 살짝 확대 + 창문 불빛 점멸 */
+.logo { transition: transform 0.18s ease; }
+.logo:hover { transform: scale(1.04); }
+.logo-window rect { animation: win-blink 5.5s ease-in-out infinite; }
+.logo-window rect:nth-child(2) { animation-delay: 1.3s; }
+.logo-window rect:nth-child(3) { animation-delay: 2.7s; }
+.logo-window rect:nth-child(4) { animation-delay: 4.1s; }
+@keyframes win-blink {
+  0%, 88%, 100% { opacity: 1; }
+  93% { opacity: 0.2; }
+}
+
+/* 홈 히어로 로고 — 아주 느린 부유 */
+.hero-logo { animation: hero-float 6s ease-in-out infinite; }
+@keyframes hero-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
 /* ---------- Reduced motion ---------- */
 @media (prefers-reduced-motion: reduce) {
-  .app-main > *, .card, .gap-row { animation: none !important; }
+  .app-main > *, .card, .gap-row, .gap-bar, .gauge-fill, .char-hero > *, .matrix-cell,
+  .pair-card, .q-slide, .opt-card, .type-card, .sign-box, .rule-check,
+  .hero-logo, .logo-window rect, .survey-notice {
+    animation: none !important;
+  }
   * { transition-duration: 0.01ms !important; }
 }
 
