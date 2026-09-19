@@ -1235,4 +1235,66 @@
   .quick-nav { grid-template-columns: repeat(3, 1fr); }
 }
 
- 
+/* ---------- Custom rule input / code connect ---------- */
+.custom-rule {
+  display: flex;
+  gap: var(--space-8);
+  margin-top: var(--space-12);
+  align-items: stretch;
+}
+.custom-rule .input { flex: 1; min-width: 0; }
+.custom-rule .btn { flex-shrink: 0; }
+.code-ex {
+  font-family: ui-monospace, monospace;
+  font-size: 0.9em;
+  font-weight: var(--font-weight-bold);
+  color: var(--text-brand);
+  background: var(--bg-brand-subtle);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+}
+.input-error { border-color: var(--border-error) !important; box-shadow: 0 0 0 3px var(--bg-danger-subtle) !important; }
+
+/* ---------- Talk starters ---------- */
+.talk-list { display: flex; flex-direction: column; gap: var(--space-8); }
+.talk-area {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-brand);
+  margin: var(--space-8) 0 0;
+}
+.talk-q {
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  background: var(--bg-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-12) var(--space-16);
+  line-height: var(--line-height-relaxed);
+}
+
+/* ---------- Shared report banner ---------- */
+.shared-banner {
+  border-color: var(--secondary-500);
+  background: var(--bg-info-subtle);
+  margin-bottom: var(--space-16);
+}
+.shared-banner strong { font-size: var(--font-size-sm); }
+.shared-banner p { margin-top: var(--space-4); }
+
+/* ---------- Type distance badge ---------- */
+.tc-dist {
+  font-size: 9px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-muted);
+  background: var(--bg-subtle);
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+.type-card.mine .tc-dist { color: var(--text-brand); background: var(--bg-surface); }
+
+/* ---------- Reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .app-main > *, .card, .gap-row { animation: none !important; }
+  * { transition-duration: 0.01ms !important; }
+}
+

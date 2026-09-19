@@ -12,14 +12,24 @@ Object.defineProperty(appEl, 'innerHTML', {
 });
 const toastEl = { textContent: '', classList: { add() {}, remove() {} } };
 
+const fakeInputs = {};
 global.document = {
-  getElementById: (id) => id === 'app' ? appEl : (id === 'toast' ? toastEl : null),
+  getElementById: (id) =>
+    id === 'app' ? appEl :
+    id === 'toast' ? toastEl :
+    fakeInputs[id] || null,
   documentElement: { dataset: {} },
   querySelectorAll: () => [],
-  createElement: () => ({ style: {}, setAttribute() {}, select() {}, remove() {}, value: '' }),
+  createElement: () => ({ style: {}, setAttribute() {}, select() {}, remove() {}, value: '', click() {} }),
   body: { appendChild() {} },
   execCommand: () => true,
+  addEventListener: () => {},
+  title: '',
 };
+function fakeInput(id, value) {
+  fakeInputs[id] = { id, value: value || '', classList: { add() {}, remove() {} }, focus() {} };
+  return fakeInputs[id];
+}
 const hashListeners = [];
 global.window = {
   matchMedia: () => ({ matches: false }),
@@ -44,9 +54,10 @@ global.navigator = {};
 /* ---- 스크립트 로드 ---- */
 eval(fs.readFileSync('js/data.js', 'utf8') + '\n' +
   fs.readFileSync('js/mateon.js', 'utf8') +
-  '\n;globalThis.__d={QUESTIONS,CHARACTERS,DOMAINS,SAMPLE_RESULTS};');
+  '\n;globalThis.__d={QUESTIONS,CHARACTERS,DOMAINS,SAMPLE_RESULTS,TALK_STARTERS,LIFE_QUESTIONS};');
 
-const { QUESTIONS, CHARACTERS } = globalThis.__d;
+const { QUESTIONS, CHARACTERS, SAMPLE_RESULTS, TALK_STARTERS } = globalThis.__d;
+const { encodeResult, decodeResult, resultFromCode } = window.__mateon;
 
 function nav(hash) {
   location.hash = hash;
@@ -88,11 +99,19 @@ async function answerAll() {
   }
 }
 (async () => {
-  await answerAll();
+  // 첫 문항 응답 후 draft 저장 확인
+  click('answer', { idx: 0 });
+  await new Promise(r => setTimeout(r, 260));
+  check('설문 진행 draft 저장', !!store['mateon.draft.me']);
+  for (let i = 1; i < QUESTIONS.length; i++) {
+    click('answer', { idx: i % 4 });
+    await new Promise(r => setTimeout(r, 260));
+  }
   check('결과 화면 이동', lastHTML.includes('동거 캐릭터'));
   check('E/R 게이지 표시', lastHTML.includes('교류 활성도') && lastHTML.includes('자극 민감도'));
   check('매트릭스 표시', lastHTML.includes('matrix-cell'));
   check('저장됨', !!store['mateon.me']);
+  check('완료 후 draft 정리', !store['mateon.draft.me']);
   const me = JSON.parse(store['mateon.me']);
   check('캐릭터 ID 유효', me.charId >= 1 && me.charId <= 16);
 
@@ -117,6 +136,20 @@ async function answerAll() {
   check('갈등 예측 표시', lastHTML.includes('생활 갈등 예측'));
   check('규칙 추천 표시', lastHTML.includes('생활규칙'));
   check('매트릭스 양측 표시', lastHTML.includes('matrix'));
+  check('리포트 링크 버튼', lastHTML.includes('리포트 링크 복사'));
+
+  console.log('== 6-1. 커스텀 규칙 추가 ==');
+  fakeInput('custom-rule-in', '화요일 저녁은 각자 자유시간');
+  click('add-rule');
+  check('커스텀 규칙 렌더', lastHTML.includes('화요일 저녁은 각자 자유시간'));
+  check('직접 추가 배지', lastHTML.includes('직접 추가'));
+  check('커스텀 규칙 저장', (JSON.parse(store['mateon.customRules'] || '[]')).length === 1);
+
+  console.log('== 6-2. 대화 스타터 (샘플 상대로 차이 보장) ==');
+  click('invite');
+  click('sample');
+  check('대화 스타터 표시', lastHTML.includes('함께 나눠볼 질문'));
+  check('질문 카드 렌더', lastHTML.includes('talk-q'));
 
   console.log('== 7. 합의서 ==');
   click('agreement');
@@ -145,6 +178,7 @@ async function answerAll() {
   click('types');
   check('도감 렌더', lastHTML.includes('16개 동거 캐릭터'));
   check('16개 유형 카드', (lastHTML.match(/type-card/g) || []).length >= 16);
+  check('거리 배지 표시', lastHTML.includes('tc-dist'));
   click('type', { id: '7' });
   check('유형 상세 렌더', lastHTML.includes('유연한 조율가'));
   check('갈등 시퀀스 표시', lastHTML.includes('갈등 시퀀스'));
@@ -172,6 +206,26 @@ async function answerAll() {
   console.log('== 12. 진단 이력 ==');
   const hist = JSON.parse(store['mateon.history'] || '[]');
   check('이력 저장됨', hist.length >= 2);
+
+  console.log('== 13. 리포트 공유 링크 (pair) 디코딩 ==');
+  const pairStr = encodeResult(SAMPLE_RESULTS.me) + '.' + encodeResult(SAMPLE_RESULTS.partner);
+  const [pa, pb] = pairStr.split('.').map(decodeResult);
+  check('pair 첫 결과 디코딩', pa && pa.charId === SAMPLE_RESULTS.me.charId);
+  check('pair 둘째 결과 디코딩', pb && pb.charId === SAMPLE_RESULTS.partner.charId);
+
+  console.log('== 14. 유형 코드로 연결 ==');
+  click('invite');
+  check('코드 입력 UI', lastHTML.includes('code-connect-in'));
+  fakeInput('code-connect-in', 'e3r2');
+  click('code-connect');
+  const e3r2 = CHARACTERS.find(c => c.code === 'E3R2');
+  check('코드로 연결된 파트너', JSON.parse(store['mateon.partner']).charId === e3r2.id);
+  check('리포트 렌더', lastHTML.includes('우리 둘 궁합 리포트'));
+  const byCode = resultFromCode('E4R1', '테스트');
+  check('resultFromCode 생성', byCode && byCode.charId === CHARACTERS.find(c => c.code === 'E4R1').id);
+
+  console.log('== 15. 대화 스타터 데이터 ==');
+  check('TALK_STARTERS 5개 영역', Object.keys(TALK_STARTERS).length === 5);
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
