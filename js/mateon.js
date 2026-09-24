@@ -164,6 +164,7 @@
     typeId: null,
     viewPair: null,
     qDir: 'next',
+    shareName: load('mateon.shareName') !== false,
   };
 
   /* ---- 설문 진행 자동 저장 (새로고침 복구) ---- */
@@ -311,7 +312,7 @@
       '</div>';
   }
 
-  function matrixHTML(mineId, partnerId) {
+  function matrixHTML(mineId, partnerId, nameA, nameB) {
     var cells = '';
     CHARACTERS.forEach(function (c) {
       var cls = 'matrix-cell';
@@ -321,7 +322,16 @@
       else if (c.id === partnerId) { cls += ' partner'; label = c.name; }
       cells += '<span class="' + cls + '" title="' + esc(c.code + ' ' + c.name) + '">' + esc(label) + '</span>';
     });
-    return '<div class="matrix">' + cells + '</div>' +
+    var aria = '4×4 성향 지도. 가로축 교류 활성도 E1에서 E4, 세로축 자극 민감도 R1에서 R4.';
+    if (mineId) {
+      var a = charById(mineId);
+      aria += ' ' + (nameA || '나') + '의 위치: ' + a.name + ' ' + a.code + '.';
+    }
+    if (partnerId) {
+      var b = charById(partnerId);
+      aria += ' ' + (nameB || '상대') + '의 위치: ' + b.name + ' ' + b.code + '.';
+    }
+    return '<div class="matrix" role="img" aria-label="' + esc(aria) + '">' + cells + '</div>' +
       '<div class="matrix-axis"><span>← 교류 적음 (E1)</span><span>민감도 낮음 R1 ↑ · ↓ R4 민감도 높음</span><span>교류 많음 (E4) →</span></div>';
   }
 
@@ -369,6 +379,12 @@
       '<span class="badge badge-neutral">우리 둘 궁합 리포트</span>' +
       '</div>' +
       resume + partner +
+      (S.answers.length > 0 && S.answers.length < QUESTIONS.length
+        ? '<div class="card resume-card">' +
+          '<div class="resume-info"><strong class="body-sm">진단이 진행 중이에요</strong>' +
+          '<p class="caption text-muted">' + S.answers.length + ' / ' + QUESTIONS.length + ' 문항 완료</p></div>' +
+          '<button class="btn btn-secondary btn-sm" data-action="resume-survey" type="button">이어하기</button></div>'
+        : '') +
       '<div class="steps">' +
       '<div class="card step-card"><span class="step-num">1</span><div><strong class="body-sm">나의 생활 성향 진단</strong><p class="body-sm text-muted">실제 동거 상황을 담은 20개 문항으로 나의 유형을 발견해요.</p></div></div>' +
       '<div class="card step-card"><span class="step-num">2</span><div><strong class="body-sm">상대 초대 &amp; 결과 비교</strong><p class="body-sm text-muted">링크로 상대를 초대해 같은 점보다 다른 점을 먼저 확인해요.</p></div></div>' +
@@ -473,7 +489,9 @@
 
   function inviteURL(r) {
     var base = location.href.split('?')[0].split('#')[0];
-    return base + '?invite=' + encodeResult(r);
+    var rr = r;
+    if (S.shareName === false) rr = Object.assign({}, r, { name: '동거인' });
+    return base + '?invite=' + encodeResult(rr);
   }
 
   function vResult() {
@@ -560,7 +578,8 @@
       gaugeHTML('생활 교류 활성도 (E)', r.eAvg, false) +
       gaugeHTML('생활 자극 민감도 (R)', r.rAvg, true) +
       '</div>' +
-      '<div style="margin-top:20px">' + matrixHTML(r.charId, null) + '</div>' +
+      '<div style="margin-top:20px">' + matrixHTML(r.charId, null, r.name || '나') + '</div>' +
+      '<p class="caption text-muted" style="margin-top:16px">수치는 순위나 궁합 점수가 아니라, 20개 응답에서 나타난 성향의 위치예요. 결과는 판정이 아니라 대화를 돕는 참고 도구예요.</p>' +
       '</div>' +
 
       '<div class="card" style="margin-top:16px">' +
@@ -616,8 +635,22 @@
         '<span class="avatar avatar-secondary">' + esc((S.partner.name || '상')[0]) + '</span>' +
         '<div class="resume-info"><strong class="body-sm">' + esc(S.partner.name) + '님 진단 완료</strong>' +
         '<p class="caption text-muted">' + esc(pc.name) + ' (' + pc.code + ')</p></div>' +
-        '<button class="btn btn-primary btn-sm" data-action="report" type="button">리포트 보기</button></div>';
+        '<button class="btn btn-primary btn-sm" data-action="report" type="button">리포트 보기</button>' +
+        '<button class="btn btn-tertiary btn-sm" data-action="unlink" type="button">연결 해제</button></div>';
     }
+
+    var shareOn = S.shareName !== false;
+    var shareInfo = '<div class="card">' +
+      '<h4 class="card-title">링크에 포함되는 정보</h4>' +
+      '<ul class="share-list">' +
+      '<li>닉네임' + (shareOn ? '' : ' <span class="text-muted">(제외됨 — “동거인”으로 표시)</span>') + '</li>' +
+      '<li>관계 유형 · 동거 단계</li>' +
+      '<li>16유형 결과와 성향 수치</li>' +
+      '</ul>' +
+      '<p class="caption text-muted">문항별 응답과 실무 체크 결과는 포함되지 않아요. 링크를 가진 사람은 누구나 결과를 볼 수 있고, 결과는 받은 사람의 기기에만 저장돼요.</p>' +
+      '<button class="share-opt' + (shareOn ? ' on' : '') + '" data-action="share-name" type="button" aria-pressed="' + shareOn + '">' +
+      '<span class="share-opt-dot"></span>닉네임 포함 ' + (shareOn ? '켜짐' : '꺼짐') + '</button>' +
+      '</div>';
 
     shell('' +
       '<p class="eyebrow caption">Step 2</p>' +
@@ -633,6 +666,7 @@
       '<button class="btn btn-secondary btn-md" data-action="copylink" type="button">링크 복사하기</button>' +
       '</div>' +
       '</div>' +
+      shareInfo +
       '<div class="card">' +
       '<h4 class="card-title">지금 바로 비교해보기</h4>' +
       '<div class="cta-col">' +
@@ -669,6 +703,24 @@
 
   function barPos(p) { return Math.round(((p.e + p.r) / 8) * 100); }
 
+  /* gap이 있는 영역의 추천 규칙 + 기본 규칙 */
+  function recommendedRules(me, you) {
+    var gapIds = DOMAINS.filter(function (d) {
+      return domainGap(me.domains[d.id], you.domains[d.id]) >= 1.5;
+    }).map(function (d) { return d.id; });
+    return RULE_LIBRARY.filter(function (r) { return gapIds.indexOf(r.domain) >= 0; }).concat(BASE_RULES);
+  }
+
+  /* 상대(또는 내 결과)가 바뀌면 추천 규칙 재계산 — 직접 추가한 규칙의 선택 상태는 유지 */
+  function resetRulesForNewPartner() {
+    var keepCustom = S.customRules.filter(function (t) {
+      return S.checkedRules.indexOf(t) >= 0;
+    });
+    var all = (S.me && S.partner) ? recommendedRules(S.me, S.partner) : [];
+    S.checkedRules = all.map(function (r) { return r.text; }).concat(keepCustom);
+    S.signs = { me: false, partner: false };
+  }
+
   function vReport() {
     var shared = !!S.viewPair;
     if (!shared && (!S.me || !S.partner)) { go(S.me ? 'invite' : 'home'); return; }
@@ -686,8 +738,7 @@
 
     // 추천 규칙: gap 있는 도메인의 규칙 + 기본 규칙
     var gapDomains = gapped.map(function (r) { return r.d.id; });
-    var recRules = RULE_LIBRARY.filter(function (r) { return gapDomains.indexOf(r.domain) >= 0; });
-    var allRules = recRules.concat(BASE_RULES);
+    var allRules = recommendedRules(me, you);
     if (!S.checkedRules.length) S.checkedRules = allRules.map(function (r) { return r.text; });
 
     var pairCards = '' +
@@ -702,7 +753,7 @@
       '<span class="pc-code">' + yc.code + ' · 교류 ' + pct(you.eAvg) + '% · 민감도 ' + pct(you.rAvg) + '%</span></div>' +
       '</div>';
 
-    var matrix = '<div class="card" style="margin-top:16px"><h4 class="card-title">우리 둘의 위치</h4>' + matrixHTML(me.charId, you.charId) +
+    var matrix = '<div class="card" style="margin-top:16px"><h4 class="card-title">우리 둘의 위치</h4>' + matrixHTML(me.charId, you.charId, me.name || '나', you.name || '상대') +
       '<div class="gap-legend" style="margin-top:8px"><span style="color:var(--text-brand)">● ' + esc(me.name || '나') + '</span><span style="color:var(--text-link)">● ' + esc(you.name || '상대') + '</span></div></div>';
 
     var alignedHTML = aligned.length ? '' +
@@ -784,13 +835,14 @@
         '</div></div>';
     }
 
-    var rulesHTML = '<div class="sec-head"><h3>우리 둘에게 맞는 생활규칙</h3><span class="badge badge-brand">추천 ' + allRules.length + '</span></div>' +
+    var totalRules = allRules.length + S.customRules.length;
+    var rulesHTML = '<div class="sec-head"><h3>우리 둘에게 맞는 생활규칙</h3><span class="badge badge-brand">선택 ' + S.checkedRules.length + ' / ' + totalRules + '</span></div>' +
       '<p class="body-sm text-muted" style="margin-bottom:12px">차이가 큰 영역을 중심으로 추천했어요. 우리집 합의서에 담을 규칙을 골라보세요.</p>' +
       '<div class="view-stack" style="margin-top:0">' +
       allRules.map(function (r) {
         var checked = S.checkedRules.indexOf(r.text) >= 0;
         var rec = gapDomains.indexOf(r.domain) >= 0;
-        return '<button class="rule-item' + (checked ? ' checked' : '') + '" data-action="rule" data-v="' + esc(r.text) + '" type="button">' +
+        return '<button class="rule-item' + (checked ? ' checked' : '') + '" data-action="rule" data-v="' + esc(r.text) + '" type="button" aria-pressed="' + checked + '">' +
           '<span class="rule-check"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>' +
           '<span>' + esc(r.text) + '</span>' +
           (rec ? '<span class="badge badge-brand rule-area">추천</span>' : '<span class="rule-area">' + esc(r.area) + '</span>') +
@@ -798,7 +850,7 @@
       }).join('') +
       S.customRules.map(function (t) {
         var checked = S.checkedRules.indexOf(t) >= 0;
-        return '<button class="rule-item' + (checked ? ' checked' : '') + '" data-action="rule" data-v="' + esc(t) + '" type="button">' +
+        return '<button class="rule-item' + (checked ? ' checked' : '') + '" data-action="rule" data-v="' + esc(t) + '" type="button" aria-pressed="' + checked + '">' +
           '<span class="rule-check"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>' +
           '<span>' + esc(t) + '</span><span class="badge badge-info rule-area">직접 추가</span></button>';
       }).join('') +
@@ -821,7 +873,8 @@
       '<div style="margin-top:24px">' + pairCards + '</div>' +
       matrix +
       alignedHTML + gappedHTML + conflictHTML + commHTML + lifeCmpHTML + talkHTML + (shared ? '' : rulesHTML) +
-      bottomCTA);
+      bottomCTA +
+      '<p class="caption text-muted" style="text-align:center;margin-top:8px">이 리포트는 확정적인 판정이 아니라, 함께 살 준비를 돕는 참고 자료예요.</p>');
   }
 
   function commAdvice(mc, yc) {
@@ -870,7 +923,8 @@
       '<button class="btn btn-secondary btn-md" data-action="agree-ics" type="button">한 달 뒤 점검일 캘린더 추가</button>' +
       '<button class="btn btn-secondary btn-md" data-action="copy-agree" type="button">합의서 텍스트 복사</button>' +
       '<button class="btn btn-tertiary btn-md" data-action="report" type="button">리포트로 돌아가기</button>' +
-      '</div>');
+      '</div>' +
+      '<p class="caption text-muted" style="text-align:center;margin-top:8px">생활 합의를 돕는 문서이며, 법적 효력은 없어요.</p>');
   }
 
   function agreementText() {
@@ -912,7 +966,7 @@
       '<h2 class="view-title">16개 동거 캐릭터 도감</h2>' +
       '<p class="view-desc body-md">교류 활성도(E)와 자극 민감도(R), 두 축으로 만든 16개의 동거 유형이에요.<br>좋고 나쁜 유형은 없어요 — 맞추는 방식이 다를 뿐이에요.</p>' +
       (legend ? '<div class="hero-meta" style="justify-content:flex-start;margin-top:16px">' + legend + '</div>' : '') +
-      '<div style="margin-top:20px">' + matrixHTML(S.me ? S.me.charId : null, S.partner ? S.partner.charId : null) + '</div>' +
+      '<div style="margin-top:20px">' + matrixHTML(S.me ? S.me.charId : null, S.partner ? S.partner.charId : null, S.me ? S.me.name : null, S.partner ? S.partner.name : null) + '</div>' +
       '<div class="type-grid" style="margin-top:24px">' + cells + '</div>' +
       '<div class="cta-col"><button class="btn btn-tertiary btn-md" data-action="home" type="button">홈으로</button></div>');
   }
@@ -1115,7 +1169,7 @@
   }
 
   /* ================= Actions ================= */
-  function resetSurvey() { S.q = 0; S.answers = []; S.qDir = 'next'; }
+  function resetSurvey() { S.q = 0; S.answers = []; S.qDir = 'next'; clearDraft(); }
 
   function finishSurvey() {
     var res = scoreAnswers(S.answers);
@@ -1143,14 +1197,12 @@
         S.partner = out; save('mateon.partner', out);
         S.flow = 'partner';
       }
-      S.signs = { me: false, partner: false };
-      S.checkedRules = [];
+      resetRulesForNewPartner();
       clearDraft();
       go('result');
     } else {
       S.me = out; save('mateon.me', out);
-      S.checkedRules = [];
-      S.signs = { me: false, partner: false };
+      resetRulesForNewPartner();
       clearDraft();
       go('result');
     }
@@ -1212,7 +1264,7 @@
     else if (act === 'demo') {
       S.me = SAMPLE_RESULTS.me; S.partner = SAMPLE_RESULTS.partner;
       save('mateon.me', S.me); save('mateon.partner', S.partner);
-      S.checkedRules = []; S.signs = { me: false, partner: false };
+      resetRulesForNewPartner();
       go('report');
     }
     else if (act === 'rel') { S.profile.relation = el.dataset.v; render(); }
@@ -1264,9 +1316,9 @@
     }
     else if (act === 'sample') {
       S.partner = farthestSample(); save('mateon.partner', S.partner);
-      S.checkedRules = []; S.signs = { me: false, partner: false };
+      resetRulesForNewPartner();
       go('report');
-      showToast('샘플 상대와 비교한 미리보기예요');
+      showToast('샘플 상대와 비교한 미리보기예요 · 추천 규칙을 다시 계산했어요');
     }
     else if (act === 'report') { go('report'); }
     else if (act === 'rule') {
@@ -1354,9 +1406,22 @@
         return;
       }
       S.partner = res; save('mateon.partner', res);
-      S.checkedRules = []; S.signs = { me: false, partner: false };
+      resetRulesForNewPartner();
       go('report');
-      showToast('유형 코드로 연결했어요');
+      showToast('유형 코드로 연결했어요 · 추천 규칙을 다시 계산했어요');
+    }
+    else if (act === 'resume-survey') { go('survey'); }
+    else if (act === 'share-name') {
+      S.shareName = S.shareName === false;
+      save('mateon.shareName', S.shareName);
+      showToast(S.shareName === false ? '닉네임 없이 링크를 만들어요' : '닉네임을 포함해 링크를 만들어요');
+      render();
+    }
+    else if (act === 'unlink') {
+      S.partner = null; remove('mateon.partner');
+      S.checkedRules = []; S.signs = { me: false, partner: false };
+      showToast('상대 연결을 해제했어요');
+      render();
     }
   });
 

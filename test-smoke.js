@@ -107,6 +107,11 @@ async function answerAll() {
   check('다음 문항 슬라이드', lastHTML.includes('q-slide q-next'));
   click('prev');
   check('이전 문항 슬라이드', lastHTML.includes('q-slide q-prev'));
+  // 중도 이탈 → 홈 이어하기
+  click('home');
+  check('이어하기 카드', lastHTML.includes('이어하기') && lastHTML.includes('1 / 20'));
+  click('resume-survey');
+  check('설문 복귀', lastHTML.includes('1 / 20') && lastHTML.includes('selected'));
   click('answer', { idx: 0 });
   await new Promise(r => setTimeout(r, 260));
   for (let i = 1; i < QUESTIONS.length; i++) {
@@ -116,6 +121,8 @@ async function answerAll() {
   check('결과 화면 이동', lastHTML.includes('동거 캐릭터'));
   check('E/R 게이지 표시', lastHTML.includes('교류 활성도') && lastHTML.includes('자극 민감도'));
   check('매트릭스 표시', lastHTML.includes('matrix-cell'));
+  check('수치 의미 안내', lastHTML.includes('참고 도구'));
+  check('매트릭스 접근성', lastHTML.includes('role="img"') && lastHTML.includes('성향 지도'));
   check('저장됨', !!store['mateon.me']);
   check('완료 후 draft 정리', !store['mateon.draft.me']);
   const me = JSON.parse(store['mateon.me']);
@@ -124,6 +131,13 @@ async function answerAll() {
   console.log('== 4. 초대 링크 인코딩 ==');
   click('invite');
   check('초대 화면', lastHTML.includes('초대 링크'));
+  check('공유 정보 안내', lastHTML.includes('링크에 포함되는 정보'));
+  check('닉네임 토글 표시', lastHTML.includes('닉네임 포함'));
+  click('share-name');
+  check('닉네임 제외 표시', lastHTML.includes('제외됨'));
+  const inviteOff = lastHTML.match(/invite=([A-Za-z0-9_-]+)/);
+  check('익명 링크 디코딩', inviteOff && decodeResult(inviteOff[1]).name === '동거인');
+  click('share-name');
   check('링크에 invite= 포함', lastHTML.includes('?invite='));
   const inviteMatch = lastHTML.match(/invite=([A-Za-z0-9_-]+)/);
 
@@ -143,6 +157,9 @@ async function answerAll() {
   check('규칙 추천 표시', lastHTML.includes('생활규칙'));
   check('매트릭스 양측 표시', lastHTML.includes('matrix'));
   check('리포트 링크 버튼', lastHTML.includes('리포트 링크 복사'));
+  check('선택 개수 배지', lastHTML.includes('선택 '));
+  check('규칙 토글 상태', lastHTML.includes('aria-pressed'));
+  check('비판정 안내', lastHTML.includes('참고 자료'));
 
   console.log('== 6-1. 커스텀 규칙 추가 ==');
   fakeInput('custom-rule-in', '화요일 저녁은 각자 자유시간');
@@ -166,6 +183,7 @@ async function answerAll() {
   check('서명 후 저장 가능', lastHTML.includes('합의서 저장하기'));
   click('save-agree');
   check('합의서 저장됨', !!store['mateon.agreement']);
+  check('비법적 문서 안내', lastHTML.includes('법적 효력은 없어요'));
 
   console.log('== 8. 초대 링크 디코딩 (v2 압축 포맷) ==');
   const m = inviteMatch;
@@ -232,6 +250,13 @@ async function answerAll() {
 
   console.log('== 15. 대화 스타터 데이터 ==');
   check('TALK_STARTERS 5개 영역', Object.keys(TALK_STARTERS).length === 5);
+
+  console.log('== 16. 상대 연결 해제 ==');
+  click('invite');
+  check('연결 해제 버튼', lastHTML.includes('연결 해제'));
+  click('unlink');
+  check('파트너 해제됨', !store['mateon.partner']);
+  check('초대 화면 유지', lastHTML.includes('초대 링크'));
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
