@@ -7,6 +7,7 @@
    ============================================================ */
 
 :root {
+  color-scheme: light;
   /* ---------- Primitive: Color ---------- */
   --brand-50:  #FFF0F1;
   --brand-100: #FFE0E3;
@@ -230,6 +231,7 @@
    Semantic: Dark theme
    ============================================================ */
 [data-theme="dark"] {
+  color-scheme: dark;
   --bg-canvas:         var(--neutral-950);
   --bg-surface:        var(--neutral-900);
   --bg-subtle:         var(--neutral-800);

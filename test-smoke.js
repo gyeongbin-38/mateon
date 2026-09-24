@@ -279,6 +279,8 @@ async function answerAll() {
   check('약관 화면', lastHTML.includes('서비스 이용약관') && lastHTML.includes('법적 효력이 없습니다'));
   click('settings');
   click('del-data', { v: 'mateon.checklist' });
+  check('항목 삭제 확인 단계', lastHTML.includes('삭제 확인') && store['mateon.checklist']);
+  click('del-data', { v: 'mateon.checklist' });
   check('체크리스트 삭제', !store['mateon.checklist']);
   click('reset-all');
   check('삭제 확인 단계', lastHTML.includes('한 번 더 누르면'));
@@ -286,6 +288,17 @@ async function answerAll() {
   check('전체 삭제 후 홈', lastHTML.includes('동거 성향 테스트'));
   check('내 결과 삭제됨', !store['mateon.me']);
   check('이력 삭제됨', !store['mateon.history']);
+
+  console.log('== 18. Web Interface Guidelines 준수 ==');
+  const cssSrc = fs.readFileSync('css/mateon.css', 'utf8');
+  check('transition: all 제거', !cssSrc.includes('transition: all'));
+  check('skip link 존재', indexSrc.includes('skip-link') && lastHTML.includes('id="main"'));
+  check('CDN preconnect', indexSrc.includes('rel="preconnect"'));
+  check('장식 SVG aria-hidden', lastHTML.includes('svg aria-hidden="true"'));
+  check('무한 루프 애니메이션 없음', !/animation:\s*[a-z-]+\s+[\d.]+s[^;]*infinite/.test(cssSrc));
+  check('theme-color 배경 일치', indexSrc.includes('content="#FFFFFF"'));
+  check('tabular-nums 적용', cssSrc.includes('tabular-nums'));
+  check('입력 autocomplete', lastHTML.includes('autocomplete') || mateonSrc.includes('autocomplete="nickname"'));
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

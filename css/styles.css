@@ -16,6 +16,7 @@ html {
 
 body {
   margin: 0;
+  overflow-x: hidden;
   font-family: var(--font-sans);
   font-size: var(--font-size-md);
   font-weight: var(--font-weight-regular);
@@ -30,6 +31,31 @@ body {
 h1, h2, h3, h4, p {
   margin: 0;
 }
+
+/* 터치 인터랙션: 더블탭 줌 지연 제거 + 탭 하이라이트 정리 */
+button, a, input, [role="button"] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 본문 바로가기 (키보드 접근성) */
+.skip-link {
+  position: fixed;
+  top: var(--space-8);
+  left: var(--space-8);
+  z-index: 300;
+  padding: var(--space-8) var(--space-16);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+  transform: translateY(-300%);
+  transition: transform 0.15s ease;
+}
+.skip-link:focus { transform: translateY(0); }
 
 code {
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;

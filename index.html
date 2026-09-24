@@ -17,19 +17,23 @@
 
   <!-- PWA -->
   <link rel="manifest" href="manifest.webmanifest">
-  <meta name="theme-color" content="#FF6B7A">
+  <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="MATE:ON">
   <link rel="icon" type="image/png" sizes="192" href="assets/icon-192.png">
   <link rel="apple-touch-icon" href="assets/icon-192.png">
 
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
   <link rel="stylesheet" href="css/tokens.css">
   <link rel="stylesheet" href="css/styles.css">
   <link rel="stylesheet" href="css/mateon.css">
 </head>
 <body>
+  <a class="skip-link" href="#main">본문 바로가기</a>
   <div id="splash" aria-hidden="true">
     <div class="splash-inner">
       <svg class="splash-logo" width="96" height="77" viewBox="0 0 128 104" fill="none">
@@ -39,7 +43,7 @@
         <path d="M92 96 V62 Q92 50 83 45 L66 35" stroke="#6B9EFF" stroke-width="17" stroke-linecap="round"/>
         <g class="logo-window"><rect x="55" y="64" width="8" height="8" rx="1.5"/><rect x="67" y="64" width="8" height="8" rx="1.5"/><rect x="55" y="78" width="8" height="8" rx="1.5"/><rect x="67" y="78" width="8" height="8" rx="1.5"/></g>
       </svg>
-      <p class="splash-word">MATE<span>:ON</span></p>
+      <p class="splash-word" translate="no">MATE<span>:ON</span></p>
       <p class="splash-tag">함께 살 준비, 서로를 아는 것부터</p>
     </div>
   </div>

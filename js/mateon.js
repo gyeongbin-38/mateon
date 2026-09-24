@@ -59,9 +59,9 @@
     return arr.reduce(function (a, b) { return a + b; }, 0) / arr.length;
   }
 
+  var _dateFmt = new Intl.DateTimeFormat('ko-KR', { month: 'numeric', day: 'numeric' });
   function fmtDate(ts) {
-    var d = new Date(ts);
-    return (d.getMonth() + 1) + '/' + d.getDate();
+    return _dateFmt.format(new Date(ts));
   }
 
   function charById(id) {
@@ -166,6 +166,7 @@
     qDir: 'next',
     shareName: load('mateon.shareName') !== false,
     resetArm: false,
+    delArm: null,
   };
 
   /* ---- 설문 진행 자동 저장 (새로고침 복구) ---- */
@@ -268,11 +269,11 @@
       '<header class="app-header"><div class="app-header-inner">' +
       '<button class="logo" data-action="home" type="button" aria-label="MATE:ON 홈">' +
       logoSVG(40) +
-      '<span class="wordmark">MATE<span class="wm-on">:ON</span></span>' +
+      '<span class="wordmark" translate="no">MATE<span class="wm-on">:ON</span></span>' +
       '</button>' +
       '<button class="btn btn-tertiary btn-sm" data-action="theme" type="button" aria-label="테마 전환">' +
-      '<svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>' +
-      '<svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>' +
+      '<svg aria-hidden="true" class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>' +
+      '<svg aria-hidden="true" class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>' +
       '</button>' +
       '</div></header>';
   }
@@ -283,10 +284,10 @@
 
   /* ---- 하단 네비게이션 ---- */
   var NAV_ICONS = {
-    home: '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/></svg>',
-    types: '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
-    checklist: '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
-    settings: '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+    home: '<svg aria-hidden="true" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/></svg>',
+    types: '<svg aria-hidden="true" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
+    checklist: '<svg aria-hidden="true" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
+    settings: '<svg aria-hidden="true" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
   };
 
   function navActive(nav) {
@@ -315,7 +316,7 @@
 
   function shell(content) {
     app.innerHTML = '<div class="app-shell">' + headerHTML() +
-      '<main class="app-main">' + content + '</main>' + footerHTML() + bottomNavHTML() + '</div>';
+      '<main class="app-main" id="main">' + content + '</main>' + footerHTML() + bottomNavHTML() + '</div>';
     window.scrollTo(0, 0);
   }
 
@@ -440,9 +441,9 @@
   function vOnboarding() {
     var inviteBanner = '';
     if (S.flow === 'partner' && S.invite) {
-      inviteBanner = '<div class="invite-banner"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span><strong>' + esc(S.invite.name) + '님</strong>이 당신을 초대했어요. 진단하면 둘의 생활을 맞춰볼 수 있어요.</span></div>';
+      inviteBanner = '<div class="invite-banner"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span><strong>' + esc(S.invite.name) + '님</strong>이 당신을 초대했어요. 진단하면 둘의 생활을 맞춰볼 수 있어요.</span></div>';
     } else if (S.flow === 'partner' && S.me) {
-      inviteBanner = '<div class="invite-banner"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span><strong>' + esc(S.me.name) + '님의 상대</strong>로 진단해요. 이 기기에서 바로 이어서 할 수 있어요.</span></div>';
+      inviteBanner = '<div class="invite-banner"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span><strong>' + esc(S.me.name) + '님의 상대</strong>로 진단해요. 이 기기에서 바로 이어서 할 수 있어요.</span></div>';
     }
 
     shell('' +
@@ -454,7 +455,7 @@
       '<div class="card">' +
       '<div class="field-group">' +
       '<label class="field-label" for="pf-name">이름 또는 닉네임</label>' +
-      '<input id="pf-name" class="input" type="text" maxlength="12" placeholder="예: 다원" value="' + esc(S.profile.name) + '">' +
+      '<input id="pf-name" class="input" type="text" name="nickname" maxlength="12" placeholder="예: 다원" autocomplete="nickname" spellcheck="false" value="' + esc(S.profile.name) + '">' +
       '</div>' +
       '<div class="field-group">' +
       '<span class="field-label">상대와의 관계</span>' +
@@ -489,7 +490,7 @@
     shell('' +
       '<div class="survey-top">' +
       '<button class="back-btn" data-action="prev" type="button" ' + (i === 0 ? 'disabled' : '') + ' aria-label="이전 문항">' +
-      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>' +
+      '<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>' +
       '</button>' +
       '<div class="progress"><div class="progress-fill" style="width:' + Math.round(((i + 1) / QUESTIONS.length) * 100) + '%"></div></div>' +
       '<span class="progress-num">' + (i + 1) + ' / ' + QUESTIONS.length + '</span>' +
@@ -529,7 +530,7 @@
     var c = charById(r.charId);
     var c2 = charById(r.char2Id);
     var isMine = S.flow === 'me';
-    var noteIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>';
+    var noteIcon = '<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>';
 
     var seq = c.conflictSeq.map(function (s, i) {
       return '<div class="seq-step"><span class="seq-dot">' + (i + 1) + '</span><span class="body-sm">' + esc(s) + '</span></div>' +
@@ -706,7 +707,7 @@
       '<div class="card">' +
       '<h4 class="card-title">유형 코드로 바로 연결</h4>' +
       '<p class="body-sm text-muted" style="margin-bottom:12px">상대가 결과 화면의 코드(예: <code class="code-ex">E3R2</code>)를 알려줬다면 바로 비교할 수 있어요.</p>' +
-      '<div class="custom-rule"><input id="code-connect-in" class="input" maxlength="4" placeholder="E3R2" style="text-transform:uppercase">' +
+      '<div class="custom-rule"><input id="code-connect-in" class="input" maxlength="4" placeholder="E3R2" autocomplete="off" spellcheck="false" style="text-transform:uppercase">' +
       '<button class="btn btn-secondary btn-md" data-action="code-connect" type="button">연결</button></div>' +
       '</div>' +
       '</div>');
@@ -812,7 +813,7 @@
           '<div class="conflict-view">' + esc(sc.views[0]) + '</div>' +
           '<div class="conflict-view">' + esc(sc.views[1]) + '</div>' +
           '</div>' +
-          '<div class="conflict-prev"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px"><path d="M20 6 9 17l-5-5"/></svg><span><strong>예방법</strong> · ' + esc(sc.prevention) + '</span></div>' +
+          '<div class="conflict-prev"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px"><path d="M20 6 9 17l-5-5"/></svg><span><strong>예방법</strong> · ' + esc(sc.prevention) + '</span></div>' +
           '</div>';
       }).join('');
 
@@ -872,7 +873,7 @@
         var checked = S.checkedRules.indexOf(r.text) >= 0;
         var rec = gapDomains.indexOf(r.domain) >= 0;
         return '<button class="rule-item' + (checked ? ' checked' : '') + '" data-action="rule" data-v="' + esc(r.text) + '" type="button" aria-pressed="' + checked + '">' +
-          '<span class="rule-check"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>' +
+          '<span class="rule-check"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>' +
           '<span>' + esc(r.text) + '</span>' +
           (rec ? '<span class="badge badge-brand rule-area">추천</span>' : '<span class="rule-area">' + esc(r.area) + '</span>') +
           '</button>';
@@ -880,11 +881,11 @@
       S.customRules.map(function (t) {
         var checked = S.checkedRules.indexOf(t) >= 0;
         return '<button class="rule-item' + (checked ? ' checked' : '') + '" data-action="rule" data-v="' + esc(t) + '" type="button" aria-pressed="' + checked + '">' +
-          '<span class="rule-check"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>' +
+          '<span class="rule-check"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>' +
           '<span>' + esc(t) + '</span><span class="badge badge-info rule-area">직접 추가</span></button>';
       }).join('') +
       '</div>' +
-      '<div class="custom-rule"><input id="custom-rule-in" class="input" maxlength="60" placeholder="우리만의 규칙 직접 추가 (예: 화요일 저녁은 각자 자유시간)">' +
+      '<div class="custom-rule"><input id="custom-rule-in" class="input" maxlength="60" autocomplete="off" placeholder="우리만의 규칙 직접 추가 (예: 화요일 저녁은 각자 자유시간)">' +
       '<button class="btn btn-secondary btn-md" data-action="add-rule" type="button">추가</button></div>' +
       '<div class="cta-col"><button class="btn btn-primary btn-lg" data-action="agreement" type="button">우리집 합의서 만들기 (' + S.checkedRules.length + '개)</button></div>';
 
@@ -924,10 +925,10 @@
     var ag = S.agreement;
 
     var ruleRows = rules.map(function (t) {
-      return '<div class="agree-rule"><svg class="check-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>' + esc(t) + '</span></div>';
+      return '<div class="agree-rule"><svg aria-hidden="true" class="check-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>' + esc(t) + '</span></div>';
     }).join('');
 
-    var savedNote = ag ? '<div class="note-box good" style="margin-top:16px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg><span>' + esc(ag.date) + '에 저장된 합의서가 있어요. (' + ag.rules.length + '개 규칙)</span></div>' : '';
+    var savedNote = ag ? '<div class="note-box good" style="margin-top:16px"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg><span>' + esc(ag.date) + '에 저장된 합의서가 있어요. (' + ag.rules.length + '개 규칙)</span></div>' : '';
 
     shell('' +
       '<p class="eyebrow caption">Our Agreement</p>' +
@@ -1008,11 +1009,11 @@
       return '<div class="seq-step"><span class="seq-dot">' + (i + 1) + '</span><span class="body-sm">' + esc(s) + '</span></div>' +
         (i < c.conflictSeq.length - 1 ? '<div class="seq-line"></div>' : '');
     }).join('');
-    var noteIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>';
+    var noteIcon = '<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>';
 
     shell('' +
       '<div class="survey-top"><button class="back-btn" data-action="types" type="button" aria-label="도감으로">' +
-      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>' +
+      '<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>' +
       '<span class="progress-num">유형 도감</span></div>' +
       '<div class="card char-hero">' +
       '<span class="char-code">' + c.code + '</span>' +
@@ -1044,7 +1045,7 @@
     shell('' +
       '<div class="survey-top">' +
       '<button class="back-btn" data-action="life-prev" type="button" ' + (i === 0 ? 'disabled' : '') + ' aria-label="이전 문항">' +
-      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>' +
+      '<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>' +
       '<div class="progress"><div class="progress-fill" style="width:' + Math.round(((i + 1) / LIFE_QUESTIONS.length) * 100) + '%"></div></div>' +
       '<span class="progress-num">' + (i + 1) + ' / ' + LIFE_QUESTIONS.length + '</span></div>' +
       '<span class="badge badge-info domain-tag">실무 성향 · ' + esc(q.area) + '</span>' +
@@ -1092,7 +1093,7 @@
           var key = g.cat + ':' + i;
           var on = !!S.checklist[key];
           return '<button class="rule-item' + (on ? ' checked' : '') + '" data-action="check" data-v="' + esc(key) + '" type="button">' +
-            '<span class="rule-check"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>' +
+            '<span class="rule-check"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>' +
             '<span' + (on ? ' style="text-decoration:line-through;opacity:.6"' : '') + '>' + esc(t) + '</span></button>';
         }).join('');
     }).join('');
@@ -1126,9 +1127,10 @@
     var shareOn = S.shareName !== false;
     var rows = DATA_ITEMS.map(function (it) {
       var has = !!load(it.k);
+      var armed = S.delArm === it.k;
       return '<div class="set-row"><div class="sr-info"><strong class="body-sm">' + esc(it.t) + '</strong></div>' +
         '<span class="sr-state">' + (has ? '저장됨' : '없음') + '</span>' +
-        (has ? '<button class="btn btn-tertiary btn-sm" data-action="del-data" data-v="' + it.k + '" type="button">삭제</button>' : '') +
+        (has ? '<button class="btn ' + (armed ? 'btn-danger-text' : 'btn-tertiary') + ' btn-sm" data-action="del-data" data-v="' + it.k + '" type="button">' + (armed ? '삭제 확인' : '삭제') + '</button>' : '') +
         '</div>';
     }).join('');
 
@@ -1141,7 +1143,7 @@
         '<button class="btn btn-secondary btn-sm" data-action="result" type="button">보기</button></div>';
     })() : '';
 
-    var chev = '<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>';
+    var chev = '<svg aria-hidden="true" class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>';
 
     shell('' +
       '<p class="eyebrow caption">Settings</p>' +
@@ -1172,7 +1174,7 @@
   function docShell(title, eyebrow, dateStr, body) {
     shell('' +
       '<div class="survey-top"><button class="back-btn" data-action="settings" type="button" aria-label="설정으로">' +
-      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>' +
+      '<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>' +
       '<span class="progress-num">' + esc(eyebrow) + '</span></div>' +
       '<h2 class="view-title">' + esc(title) + '</h2>' +
       '<div class="card doc-body" style="margin-top:16px"><p class="doc-date">' + esc(dateStr) + '</p>' + body + '</div>');
@@ -1558,6 +1560,12 @@
     else if (act === 'terms') { go('terms'); }
     else if (act === 'del-data') {
       var dk = el.dataset.v;
+      if (S.delArm !== dk) {
+        S.delArm = dk;
+        render();
+        return;
+      }
+      S.delArm = null;
       remove(dk);
       if (dk === 'mateon.me') { S.me = null; }
       if (dk === 'mateon.partner') { S.partner = null; S.checkedRules = []; S.signs = { me: false, partner: false }; }
@@ -1648,6 +1656,7 @@
       history.replaceState(null, '', '#/onboarding');
     }
     if (route !== 'report' && S.viewPair) S.viewPair = null;
+    if (route !== 'settings') { S.delArm = null; S.resetArm = false; }
     document.title = ROUTE_TITLES[route] || 'MATE:ON';
     switch (route) {
       case 'onboarding': vOnboarding(); break;

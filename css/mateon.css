@@ -228,7 +228,7 @@
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
 }
 
 .chip:hover { border-color: var(--border-strong); }
@@ -489,7 +489,7 @@
   font-weight: var(--font-weight-semibold);
   color: var(--text-muted);
   position: relative;
-  transition: all 0.15s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
 }
 
 .matrix-cell.mine {
@@ -891,7 +891,7 @@
   border: 1px solid var(--border-default);
   background: var(--bg-surface);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
   font-size: var(--font-size-sm);
   color: var(--text-primary);
 }
@@ -913,7 +913,7 @@
   justify-content: center;
   flex-shrink: 0;
   color: transparent;
-  transition: all 0.15s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
 }
 
 .rule-item.checked .rule-check {
@@ -974,7 +974,7 @@
   text-align: center;
   font-size: var(--font-size-sm);
   color: var(--text-muted);
-  transition: all 0.15s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
   cursor: pointer;
   font-family: var(--font-sans);
   background: none;
@@ -1086,7 +1086,7 @@
   background: var(--bg-surface);
   cursor: pointer;
   font-family: var(--font-sans);
-  transition: all 0.15s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
   text-align: center;
 }
 
@@ -1125,7 +1125,7 @@
   border-radius: var(--card-radius);
   font-family: var(--font-sans);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
 }
 
 .life-opt:hover { border-color: var(--border-strong); }
@@ -1237,7 +1237,7 @@
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
   color: var(--text-secondary);
-  transition: all 0.15s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
 }
 
 .quick-link:hover { border-color: var(--border-strong); color: var(--text-primary); }
@@ -1394,7 +1394,7 @@
 /* 로고 — 호버 살짝 확대 + 창문 불빛 점멸 */
 .logo { transition: transform 0.18s ease; }
 .logo:hover { transform: scale(1.04); }
-.logo-window rect { animation: win-blink 5.5s ease-in-out infinite; }
+.logo-window rect { animation: win-blink 5.5s ease-in-out 3; }
 .logo-window rect:nth-child(2) { animation-delay: 1.3s; }
 .logo-window rect:nth-child(3) { animation-delay: 2.7s; }
 .logo-window rect:nth-child(4) { animation-delay: 4.1s; }
@@ -1403,8 +1403,8 @@
   93% { opacity: 0.2; }
 }
 
-/* 홈 히어로 로고 — 아주 느린 부유 */
-.hero-logo { animation: hero-float 6s ease-in-out infinite; }
+/* 홈 히어로 로고 — 느린 부유 후 정지 (자동재생 모션은 스스로 멈춤) */
+.hero-logo { animation: hero-float 6s ease-in-out 2; }
 @keyframes hero-float {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-6px); }
@@ -1460,7 +1460,7 @@
   font-weight: var(--font-weight-semibold);
   color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
 }
 .share-opt:hover { border-color: var(--border-strong); }
 .share-opt:focus-visible { outline: none; box-shadow: var(--focus-ring); }
@@ -1576,7 +1576,7 @@
   font-weight: var(--font-weight-medium);
   color: var(--text-primary);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
   text-align: left;
 }
 .set-link:hover { border-color: var(--border-strong); }
@@ -1597,6 +1597,14 @@
 .doc-body h4:first-child { margin-top: 0; }
 .doc-body p { font-size: var(--font-size-sm); color: var(--text-secondary); line-height: var(--leading-relaxed); }
 .doc-date { font-size: var(--font-size-xs); color: var(--text-muted); margin-bottom: var(--space-16); }
+
+/* ---------- Typography 규칙 (가독성/숫자 정렬) ---------- */
+.hero-slogan, .view-title, .test-card-title, .char-name, .doc-body h4 {
+  text-wrap: balance;
+}
+.progress-num, .gauge-val, .h-date, .cat-count, .step-num, .check-progress .progress-num {
+  font-variant-numeric: tabular-nums;
+}
 
 /* ---------- Reduced motion ---------- */
 @media (prefers-reduced-motion: reduce) {
