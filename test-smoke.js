@@ -79,7 +79,7 @@ function check(name, cond) {
 
 console.log('== 1. 홈 렌더 ==');
 check('슬로건 표시', lastHTML.includes('함께 살 준비'));
-check('진단 시작 버튼', lastHTML.includes('진단 시작하기'));
+check('진단 시작 버튼', lastHTML.includes('data-action="start"') && lastHTML.includes('나의 동거 성향 알아보기'));
 check('동거 테스트 카드', lastHTML.includes('동거 성향 테스트'));
 check('하단 네비게이션', lastHTML.includes('bottom-nav') && lastHTML.includes('nav-item'));
 check('네비 홈 활성', /nav-item on[^>]*data-action="home"|data-action="home"[^>]*nav-item on/.test(lastHTML));
@@ -116,7 +116,7 @@ async function answerAll() {
   check('이전 문항 슬라이드', lastHTML.includes('q-slide q-prev'));
   // 중도 이탈 → 홈 이어하기
   click('home');
-  check('이어하기 카드', lastHTML.includes('이어하기') && lastHTML.includes('1 / 20'));
+  check('이어하기 카드', lastHTML.includes('data-action="resume-survey"') && lastHTML.includes('1 / 20'));
   click('resume-survey');
   check('설문 복귀', lastHTML.includes('1 / 20') && lastHTML.includes('selected'));
   click('answer', { idx: 0 });
@@ -257,6 +257,19 @@ async function answerAll() {
 
   console.log('== 15. 대화 스타터 데이터 ==');
   check('TALK_STARTERS 5개 영역', Object.keys(TALK_STARTERS).length === 5);
+  const beforeDemo = JSON.stringify(store);
+  click('demo');
+  check('데모는 실제 저장 데이터를 보존', JSON.stringify(store) === beforeDemo);
+  check('데모 리포트 표시', lastHTML.includes('우리 둘 궁합 리포트'));
+  click('home');
+  const beforeTalk = lastHTML;
+  click('next-talk');
+  check('홈 대화 주제 전환', lastHTML !== beforeTalk);
+  const bad = JSON.parse(Buffer.from(encodeResult(SAMPLE_RESULTS.me).replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString());
+  bad[5] = 999;
+  check('알 수 없는 캐릭터 초대 거부', decodeResult(Buffer.from(JSON.stringify(bad)).toString('base64')) === null);
+  bad[5] = SAMPLE_RESULTS.me.charId; bad[3] = 99;
+  check('범위 밖 성향 초대 거부', decodeResult(Buffer.from(JSON.stringify(bad)).toString('base64')) === null);
 
   console.log('== 16. 상대 연결 해제 ==');
   click('invite');
@@ -299,6 +312,26 @@ async function answerAll() {
   check('theme-color 배경 일치', indexSrc.includes('content="#FFFFFF"'));
   check('tabular-nums 적용', cssSrc.includes('tabular-nums'));
   check('입력 autocomplete', lastHTML.includes('autocomplete') || mateonSrc.includes('autocomplete="nickname"'));
+
+  click('space');
+  check('우리 공간 탭', lastHTML.includes('우리 공간') && lastHTML.includes('나의 대화 기록'));
+  check('대화 기록 빈 상태', lastHTML.includes('아직 남긴 이야기가 없어요'));
+  store['mateon.talks'] = JSON.stringify({0:{text:'<script>alert(1)</script>',ts:Date.now()}});
+  click('space');
+  check('저장한 대화 렌더링과 이스케이프', lastHTML.includes('&lt;script&gt;') && !lastHTML.includes('<script>alert'));
+  click('checklist');
+  window.__mateon.handleBack();
+  check('상세 뒤로가기는 우리 공간', location.hash === '#/space');
+  const storedBeforeInvite = JSON.stringify(store);
+  check('앱 초대 딥링크 처리', window.__mateon.acceptNativeLink('mateon://invite?data=' + encodeResult(SAMPLE_RESULTS.me)));
+  check('앱 초대 온보딩', location.hash === '#/onboarding' && lastHTML.includes('초대했어요'));
+  check('앱 초대가 기존 저장 기록 보존', JSON.stringify(store) === storedBeforeInvite);
+  check('잘못된 앱 링크 거부', !window.__mateon.acceptNativeLink('mateon://invite?data=bad'));
+  check('다른 프로토콜 거부', !window.__mateon.acceptNativeLink('https://example.com'));
+  check('앱 리포트 링크 처리', window.__mateon.acceptNativeLink('mateon://pair?data=' + pairStr));
+  check('앱 리포트 표시', lastHTML.includes('우리 둘 궁합 리포트'));
+  click('home');
+  check('홈 뒤로가기는 앱에 위임', !window.__mateon.handleBack());
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

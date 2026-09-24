@@ -1,0 +1,17 @@
+{
+  "appId": "app.mateon.mobile",
+  "appName": "MATE:ON",
+  "webDir": "dist",
+  "backgroundColor": "#faf9f7",
+  "ios": {
+    "contentInset": "never"
+  },
+  "android": {
+    "backgroundColor": "#faf9f7"
+  },
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "css"
+    }
+  }
+}

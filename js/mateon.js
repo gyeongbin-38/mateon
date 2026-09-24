@@ -26,6 +26,10 @@
   }
 
   function copyText(text, msg) {
+    if (window.MateNative) {
+      window.MateNative.copy(text).then(function () { showToast(msg); }).catch(function () { showToast('복사하지 못했어요. 다시 시도해 주세요'); });
+      return;
+    }
     function fallback() {
       var ta = document.createElement('textarea');
       ta.value = text;
@@ -234,7 +238,11 @@
       DOMAINS.forEach(function (d) {
         if (!out.domains[d.id]) out.domains[d.id] = { e: 2.5, r: 2.5 };
       });
-      return out.charId ? out : null;
+      if (!charById(out.charId) || !charById(out.char2Id)) return null;
+      if (typeof out.name !== 'string' || out.name.length > 100) return null;
+      var values = [out.eAvg, out.rAvg];
+      DOMAINS.forEach(function(d) { values.push(out.domains[d.id].e, out.domains[d.id].r); });
+      return values.every(function(v) { return typeof v === 'number' && Number.isFinite(v) && v >= 1 && v <= 4; }) ? out : null;
     } catch (e) { return null; }
   }
 
@@ -249,28 +257,24 @@
   })();
 
   function pairURL() {
+    if (window.MateNative) return 'mateon://pair?data=' + encodeResult(S.me) + '.' + encodeResult(S.partner);
     return location.origin + location.pathname + '?pair=' + encodeResult(S.me) + '.' + encodeResult(S.partner) + '#/report';
   }
 
   /* ================= Logo SVG ================= */
   function logoSVG(size) {
-    return '' +
-      '<svg class="logo-mark" width="' + (size || 40) + '" height="' + ((size || 40) * 0.8) + '" viewBox="0 0 128 104" fill="none" aria-hidden="true">' +
-      '<circle cx="38" cy="15" r="10" fill="#FF6B7A"/>' +
-      '<circle cx="90" cy="15" r="10" fill="#6B9EFF"/>' +
-      '<path d="M26 94 V56 Q26 38 44 33 L60 27 Q66 29 68 37 L73 52" stroke="#FF6B7A" stroke-width="16" stroke-linecap="round"/>' +
-      '<path d="M102 94 V56 Q102 38 84 33 L68 27 Q62 29 60 37 L55 52" stroke="#6B9EFF" stroke-width="16" stroke-linecap="round"/>' +
-      '<g class="logo-window"><rect x="54" y="64" width="8" height="8" rx="1.5"/><rect x="66" y="64" width="8" height="8" rx="1.5"/><rect x="54" y="78" width="8" height="8" rx="1.5"/><rect x="66" y="78" width="8" height="8" rx="1.5"/></g>' +
-      '</svg>';
+    return '<img class="logo-mark" width="' + (size || 40) + '" height="' + (size || 40) + '" src="assets/logo-symbol.svg" alt="">';
   }
 
   function headerHTML() {
+    var r = currentRoute();
+    var detail = ['home', 'space', 'types', 'settings'].indexOf(r) < 0;
     return '' +
       '<header class="app-header"><div class="app-header-inner">' +
-      '<button class="logo" data-action="home" type="button" aria-label="MATE:ON 홈">' +
+      (detail ? '<button class="icon-button app-back" data-action="back" type="button" aria-label="이전 화면">' + mobileIcon('back') + '</button><span class="app-screen-title">' + esc((ROUTE_TITLES[r] || 'MATE:ON').split(' — ')[0]) + '</span>' : '<button class="logo" data-action="home" type="button" aria-label="MATE:ON 홈">' +
       logoSVG(40) +
       '<span class="wordmark" translate="no">MATE<span class="wm-on">:ON</span></span>' +
-      '</button>' +
+      '</button>') +
       '<button class="btn btn-tertiary btn-sm" data-action="theme" type="button" aria-label="테마 전환">' +
       '<svg aria-hidden="true" class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>' +
       '<svg aria-hidden="true" class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>' +
@@ -292,9 +296,9 @@
 
   function navActive(nav) {
     var r = currentRoute();
-    if (nav === 'home') return ['home', 'onboarding', 'survey', 'result', 'invite', 'report', 'agreement', 'lifecheck'].indexOf(r) >= 0;
+    if (nav === 'home') return ['home', 'onboarding', 'survey', 'result', 'invite', 'report', 'lifecheck'].indexOf(r) >= 0;
     if (nav === 'types') return r === 'types' || r === 'type-detail';
-    if (nav === 'checklist') return r === 'checklist';
+    if (nav === 'space') return ['space','checklist','agreement'].indexOf(r) >= 0;
     if (nav === 'settings') return r === 'settings' || r === 'privacy' || r === 'terms';
     return false;
   }
@@ -302,21 +306,21 @@
   function bottomNavHTML() {
     var items = [
       ['home', '홈'],
-      ['types', '16유형'],
-      ['checklist', '체크리스트'],
-      ['settings', '설정'],
+      ['space', '우리 공간'],
+      ['types', '유형 찾기'],
+      ['settings', '마이'],
     ];
     return '<nav class="bottom-nav" aria-label="하단 메뉴">' +
       items.map(function (it) {
         var on = navActive(it[0]);
         return '<button class="nav-item' + (on ? ' on' : '') + '" data-action="' + it[0] + '" type="button"' + (on ? ' aria-current="page"' : '') + '>' +
-          NAV_ICONS[it[0]] + '<span>' + it[1] + '</span></button>';
+          (it[0] === 'space' ? mobileIcon('heart') : it[0] === 'settings' ? mobileIcon('user') : NAV_ICONS[it[0]]) + '<span>' + it[1] + '</span></button>';
       }).join('') + '</nav>';
   }
 
   function shell(content) {
-    app.innerHTML = '<div class="app-shell">' + headerHTML() +
-      '<main class="app-main" id="main">' + content + '</main>' + footerHTML() + bottomNavHTML() + '</div>';
+    app.innerHTML = '<div class="app-shell' + (currentRoute() === 'home' ? ' is-home' : '') + '">' + headerHTML() +
+      '<main class="app-main" id="main">' + content + '</main>' + bottomNavHTML() + '</div>';
     window.scrollTo(0, 0);
   }
 
@@ -370,68 +374,78 @@
   }
 
   /* ================= View: 홈 ================= */
+  var talkIndex = 0;
+  var HOME_TALKS = [
+    ['생활 리듬', '혼자만의 시간이 필요할 때, 어떻게 알려주면 좋을까요?'],
+    ['공간과 청결', '우리 집의 깨끗함은 어느 정도면 충분할까요?'],
+    ['생활비', '함께 쓰는 물건의 비용은 어떻게 나누면 편할까요?']
+  ];
+  function mobileIcon(name) {
+    var paths = {
+      heart: '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/>',
+      chat: '<path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5Z"/><path d="M8 11h8M8 15h5"/>',
+      user: '<circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/>',
+      arrow: '<path d="m9 5 7 7-7 7"/>',
+      close: '<path d="m6 6 12 12M6 18 18 6"/>',
+      plus: '<path d="M12 5v14M5 12h14"/>',
+      refresh: '<path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 7a7 7 0 0 1 12-1l2 6M4 12l2 6a7 7 0 0 0 12-1"/>',
+      back: '<path d="m15 5-7 7 7 7"/>'
+    };
+    return '<svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+(paths[name] || paths.heart)+'</svg>';
+  }
+  function checklistStats() {
+    var total=0, done=0;
+    CHECKLIST.forEach(function(g) { g.items.forEach(function(t,i) {total++; if(S.checklist[g.cat+':'+i]) done++;}); });
+    return {total:total,done:done};
+  }
   function vHome() {
-    var resume = '';
-    if (S.me) {
-      var c = charById(S.me.charId);
-      resume = '' +
-        '<div class="card resume-card">' +
-        '<span class="avatar">' + esc((S.me.name || '나')[0]) + '</span>' +
-        '<div class="resume-info">' +
-        '<strong class="body-sm">' + esc(S.me.name || '나') + '님의 결과가 있어요</strong>' +
-        '<p class="caption text-muted">' + esc(c.name) + ' (' + c.code + ')</p>' +
-        '</div>' +
-        '<button class="btn btn-secondary btn-sm" data-action="result" type="button">결과 보기</button>' +
-        '</div>';
-    }
-    var partner = '';
-    if (S.partner) {
-      var pc = charById(S.partner.charId);
-      partner = '' +
-        '<div class="card resume-card">' +
-        '<span class="avatar avatar-secondary">' + esc((S.partner.name || '상')[0]) + '</span>' +
-        '<div class="resume-info">' +
-        '<strong class="body-sm">' + esc(S.partner.name || '상대') + '님과 연결됨</strong>' +
-        '<p class="caption text-muted">' + esc(pc.name) + ' (' + pc.code + ')</p>' +
-        '</div>' +
-        '<button class="btn btn-primary btn-sm" data-action="report" type="button">리포트</button>' +
-        '</div>';
-    }
-
-    var draftCard = '';
-    if (S.answers.length > 0 && S.answers.length < QUESTIONS.length) {
-      draftCard = '<div class="card resume-card">' +
-        '<div class="resume-info"><strong class="body-sm">진단이 진행 중이에요</strong>' +
-        '<p class="caption text-muted">' + S.answers.length + ' / ' + QUESTIONS.length + ' 문항 완료</p></div>' +
-        '<button class="btn btn-secondary btn-sm" data-action="resume-survey" type="button">이어하기</button></div>';
-    }
-
-    shell('' +
-      '<section class="hero-home">' +
-      '<div class="hero-logo">' + logoSVG(104) + '</div>' +
-      '<h1 class="hero-slogan">함께 살 준비,<br>서로를 아는 것부터.</h1>' +
-      '<p class="hero-sub body-md">MATE:ON은 함께 살기 전, 서로의 생활방식을 미리 이해하고<br>맞춰보는 동거 성향 진단 서비스입니다.</p>' +
-      resume + partner + draftCard +
-      '<div class="card test-card">' +
-      '<span class="badge badge-brand">동거 성향 테스트</span>' +
-      '<h3 class="test-card-title">20문항으로 보는<br>우리의 생활 거리</h3>' +
-      '<p class="body-sm text-muted">교류 활성도(E)와 자극 민감도(R), 두 축으로 나눈 16개 동거 캐릭터 중 나는 어디에 있을까요?</p>' +
-      '<div class="cta-col">' +
-      '<button class="btn btn-primary btn-lg" data-action="start" type="button">' + (S.me ? '다시 진단하기' : '진단 시작하기') + '</button>' +
-      (S.me ? '' : '<button class="btn btn-tertiary btn-md" data-action="demo" type="button">데모로 먼저 보기</button>') +
-      '</div>' +
-      '<div class="hero-meta">' +
-      '<span class="badge badge-neutral">20문항 · 약 3분</span>' +
-      '<span class="badge badge-neutral">16개 동거 캐릭터</span>' +
-      '<span class="badge badge-neutral">궁합 리포트</span>' +
-      '</div>' +
-      '</div>' +
-      '<div class="steps">' +
-      '<div class="card step-card"><span class="step-num">1</span><div><strong class="body-sm">나의 생활 성향 진단</strong><p class="body-sm text-muted">실제 동거 상황을 담은 20개 문항으로 나의 유형을 발견해요.</p></div></div>' +
-      '<div class="card step-card"><span class="step-num">2</span><div><strong class="body-sm">상대 초대 &amp; 결과 비교</strong><p class="body-sm text-muted">링크로 상대를 초대해 같은 점보다 다른 점을 먼저 확인해요.</p></div></div>' +
-      '<div class="card step-card"><span class="step-num">3</span><div><strong class="body-sm">갈등 예측 &amp; 우리집 합의서</strong><p class="body-sm text-muted">예상 갈등을 미리 보고, 우리 둘만의 생활규칙을 만들어요.</p></div></div>' +
-      '</div>' +
-      '</section>');
+    var draft = S.answers.length > 0 && S.answers.length < QUESTIONS.length;
+    var action = !S.me ? (draft ? 'resume-survey' : 'start') : (!S.partner ? 'invite' : 'report');
+    var title = !S.me ? (draft ? '나를 알아가는 중이에요' : '나는 어떤 메이트일까?') : (!S.partner ? '이제, 서로를 알아볼 차례' : '우리의 다름을 알아봐요');
+    var cta = !S.me ? (draft ? '이어서 진단하기' : '나의 동거 성향 알아보기') : (!S.partner ? '메이트 초대하기' : '우리 둘 리포트 보기');
+    var count = (S.me?1:0)+(S.me&&S.partner?1:0)+(S.agreement?1:0);
+    var saved = load('mateon.talks') || {};
+    var stats=checklistStats();
+    shell('<div class="mobile-home">'+
+      '<section class="app-greeting"><p>'+ (S.me ? esc(S.me.name)+'님, 반가워요' : '함께 살 준비, 서로를 아는 것부터.') +'</p><h1>우리의 일상,<br>조금 더 가까이<span class="coral-dot">.</span></h1></section>'+
+      '<section class="connection-strip" aria-label="메이트 연결 상태"><div class="paired-avatars"><span>'+esc(S.me?S.me.name.slice(0,1):'나')+'</span><span>'+ (S.partner ? esc(S.partner.name.slice(0,1)) : mobileIcon('plus')) +'</span></div><div><strong>'+ (S.partner?esc(S.partner.name)+'님과 함께':'아직 메이트를 기다리고 있어요') +'</strong><p>'+ (S.partner?'서로 알아가는 우리만의 공간':'나를 알아본 뒤, 메이트와 연결해요') +'</p></div><button class="icon-button" data-action="'+(S.me?'invite':'start')+'" aria-label="메이트 연결하기" type="button">'+mobileIcon('arrow')+'</button></section>'+
+      '<section class="today-mission"><div class="mission-top"><span class="mission-label">오늘의 첫걸음</span><span class="mission-count">'+(count<3?'0'+(count+1):'03')+' <span>/ 03</span></span></div><h2>'+title+'</h2><p>'+(!S.me?'함께 살 때의 내 모습을 발견해요.':(!S.partner?'나와 메이트의 생활방식을 맞춰봐요.':'잘 맞는 부분도, 대화가 필요한 부분도.'))+'</p><div class="mission-illustration"><img src="assets/together-home.svg" width="260" height="246" alt="함께하는 두 메이트의 편안한 일상"></div><div class="mission-footer"><span>'+ (draft ? S.answers.length+' / 20 문항 완료 · 자동 저장됨' : S.me?'나를 알고, 서로를 이해하는 시간':'동거 성향 테스트 · 20문항 · 약 3분')+'</span><button class="mobile-primary home-primary" data-action="'+action+'" type="button">'+cta+mobileIcon('arrow')+'</button></div></section>'+
+      '<div class="app-shortcuts"><button type="button" data-action="'+(S.me?'result':'start')+'"><span class="shortcut-icon pink">'+mobileIcon('user')+'</span>나의 성향</button><button type="button" data-action="'+(S.me&&S.partner?'report':'demo')+'"><span class="shortcut-icon blue">'+mobileIcon('heart')+'</span>궁합 리포트</button><button type="button" data-action="checklist"><span class="shortcut-icon mint">'+NAV_ICONS.checklist+'</span>입주 준비</button></div>'+
+      '<section class="conversation-section"><div class="mobile-section-head"><h2>오늘의 대화</h2><span>마음을 나누는 1분</span></div><div class="conversation-card"><div class="conversation-top"><span>'+HOME_TALKS[talkIndex][0]+'</span><button class="icon-button" data-action="next-talk" type="button" aria-label="다른 대화 주제">'+mobileIcon('refresh')+'</button></div><h3>'+HOME_TALKS[talkIndex][1]+'</h3><button type="button" class="conversation-open" data-action="talk-open">'+(saved[talkIndex]?'내 답변 다시 보기':'내 생각 남기기')+mobileIcon('arrow')+'</button></div></section>'+
+      '<button class="preparation-row" type="button" data-action="space"><span class="preparation-icon">'+NAV_ICONS.home+'</span><span><strong>우리의 입주 준비</strong><small>'+stats.total+'개 중 '+stats.done+'개 완료했어요</small></span><span class="tiny-ring" style="--done:'+Math.round(stats.done/stats.total*100)+'%">'+Math.round(stats.done/stats.total*100)+'%</span>'+mobileIcon('arrow')+'</button>'+
+      '</div>');
+  }
+  function vSpace() {
+    var stats=checklistStats(); var notes=load('mateon.talks') || {};
+    shell('<section class="space-page"><p class="app-overline">OUR SPACE</p><h1 class="mobile-title">우리 공간</h1><p class="mobile-subtitle">함께 정하고, 하나씩 쌓아가는 일상</p><div class="space-summary"><span>'+NAV_ICONS.home+'</span><h2>우리의 시작을 준비해요</h2><p>입주 준비 '+stats.done+' / '+stats.total+' 완료</p><div class="space-progress"><i style="width:'+(stats.done/stats.total*100)+'%"></i></div></div><div class="app-list"><button type="button" data-action="checklist">'+NAV_ICONS.checklist+'<span><strong>입주 체크리스트</strong><small>계약부터 생활용품까지</small></span>'+mobileIcon('arrow')+'</button><button type="button" data-action="'+(S.me&&S.partner?'report':'demo')+'">'+mobileIcon('heart')+'<span><strong>우리집 생활규칙</strong><small>'+(S.agreement?'저장한 합의서가 있어요':'서로 편안한 기준을 정해요')+'</small></span>'+mobileIcon('arrow')+'</button><button type="button" data-action="'+(S.me?'invite':'start')+'">'+mobileIcon('user')+'<span><strong>메이트 연결</strong><small>'+(S.partner?esc(S.partner.name)+'님과 연결됨':'함께할 메이트 초대하기')+'</small></span>'+mobileIcon('arrow')+'</button></div><div class="mobile-section-head"><h2>나의 대화 기록</h2><span>'+Object.keys(notes).filter(function(k){return HOME_TALKS[k];}).length+'개</span></div>'+ (Object.keys(notes).filter(function(k){return HOME_TALKS[k];}).length ? Object.keys(notes).filter(function(k){return HOME_TALKS[k];}).map(function(k){return '<button class="saved-talk" data-action="talk-open" data-talk="'+k+'" type="button"><span>'+HOME_TALKS[k][0]+'</span><strong>'+esc(HOME_TALKS[k][1])+'</strong><p>'+esc(notes[k].text)+'</p></button>';}).join('') : '<div class="empty-notes">'+mobileIcon('chat')+'<p>아직 남긴 이야기가 없어요.</p><button type="button" data-action="talk-open">첫 생각 남기기</button></div>')+'<p class="device-note">대화 기록은 이 기기에만 저장돼요.</p></section>');
+  }
+  var talkDialog = null;
+  var talkOpener = null;
+  function openTalk(index) {
+    if (Number.isInteger(index) && HOME_TALKS[index]) talkIndex=index;
+    var notes=load('mateon.talks') || {};
+    talkOpener=document.activeElement;
+    talkDialog=document.createElement('dialog');
+    talkDialog.className='talk-sheet';
+    talkDialog.setAttribute('aria-labelledby','talk-title');
+    talkDialog.innerHTML='<div class="sheet-handle" aria-hidden="true"></div><div class="sheet-heading"><span>오늘의 대화 · '+HOME_TALKS[talkIndex][0]+'</span><button class="icon-button" type="button" aria-label="닫기" data-sheet-close>'+mobileIcon('close')+'</button></div><h2 id="talk-title">'+HOME_TALKS[talkIndex][1]+'</h2><label for="talk-note">나의 생각</label><textarea id="talk-note" maxlength="500" rows="4" placeholder="정답은 없어요. 편하게 적어보세요.">'+esc(notes[talkIndex]?notes[talkIndex].text:'')+'</textarea><p class="sheet-hint">이 기기에만 저장되며, 메이트에게 자동 전송되지 않아요.</p><button class="mobile-primary" type="button" data-sheet-save>내 생각 저장하기</button>';
+    document.body.appendChild(talkDialog);
+    talkDialog.addEventListener('close',function(){talkDialog.remove();talkDialog=null;document.body.classList.remove('sheet-open');if(talkOpener&&talkOpener.isConnected)talkOpener.focus();});
+    talkDialog.addEventListener('click',function(e){
+      if(e.target.closest('[data-sheet-close]')) talkDialog.close();
+      else if(e.target.closest('[data-sheet-save]')) {
+        var value=document.getElementById('talk-note').value.trim();
+        if(!value){document.getElementById('talk-note').focus();showToast('생각을 한 줄 남겨주세요');return;}
+        notes[talkIndex]={text:value,ts:Date.now()};
+        try{localStorage.setItem('mateon.talks',JSON.stringify(notes));}catch(err){showToast('저장 공간을 확인해 주세요');return;}
+        var savedY=window.scrollY || 0;
+        talkDialog.close();render();window.scrollTo(0,savedY);
+        var savedFocus=document.querySelectorAll('[data-action="talk-open"]')[0];
+        if(savedFocus) savedFocus.focus({preventScroll:true});
+        showToast('나의 생각을 저장했어요');
+      }
+    });
+    document.body.classList.add('sheet-open');talkDialog.showModal();
   }
 
   /* ================= View: 온보딩 ================= */
@@ -521,6 +535,7 @@
     var base = location.href.split('?')[0].split('#')[0];
     var rr = r;
     if (S.shareName === false) rr = Object.assign({}, r, { name: '동거인' });
+    if (window.MateNative) return 'mateon://invite?data=' + encodeResult(rr);
     return base + '?invite=' + encodeResult(rr);
   }
 
@@ -1116,6 +1131,7 @@
     { k: 'mateon.agreement', t: '우리집 합의서' },
     { k: 'mateon.history', t: '진단 이력' },
     { k: 'mateon.checklist', t: '입주 체크리스트' },
+    { k: 'mateon.talks', t: '나의 대화 기록' },
     { k: 'mateon.customRules', t: '직접 추가한 규칙' },
     { k: 'mateon.draft.me', t: '진행 중인 설문 (나)' },
     { k: 'mateon.draft.partner', t: '진행 중인 설문 (상대)' },
@@ -1213,12 +1229,17 @@
 
   /* ================= 공유 / 이미지 / ICS ================= */
   function baseURL() {
+    if (window.MateNative) return 'mateon://home';
     return location.href.split('?')[0].split('#')[0];
   }
 
   // 카카오 JS 키가 설정되면 카카오톡 공유 사용, 아니면 Web Share → 복사 순 fallback
   var KAKAO_APP_KEY = '';
   function shareSmart(title, text, url) {
+    if (window.MateNative) {
+      window.MateNative.share(title, text, url).catch(function () { showToast('공유가 완료되지 않았어요'); });
+      return;
+    }
     if (KAKAO_APP_KEY && window.Kakao && window.Kakao.isInitialized()) {
       try {
         window.Kakao.Share.sendDefault({
@@ -1261,8 +1282,7 @@
       ePct: pct(r.eAvg), rPct: pct(r.rAvg),
       eLabel: eLevel(r.eAvg) + ' ' + el.label, rLabel: rLevel(r.rAvg) + ' ' + rl.label,
     });
-    MateCard.download(cv, 'mateon-' + c.code + '-result.png');
-    showToast('결과 카드 이미지가 저장됐어요');
+    exportCard(cv, 'mateon-' + c.code + '-result.png');
   }
 
   function saveAgreeImage() {
@@ -1273,8 +1293,14 @@
       date: today.getFullYear() + '년 ' + (today.getMonth() + 1) + '월 ' + today.getDate() + '일',
       rules: rules,
     });
-    MateCard.download(cv, 'mateon-agreement.png');
-    showToast('합의서 이미지가 저장됐어요');
+    exportCard(cv, 'mateon-agreement.png');
+  }
+
+  function exportCard(canvas, filename) {
+    if (window.MateNative) {
+      window.MateNative.shareFile(filename, canvas.toDataURL('image/png').split(',')[1])
+        .catch(function () { showToast('이미지 공유가 완료되지 않았어요'); });
+    } else { MateCard.download(canvas, filename); showToast('이미지 다운로드를 시작했어요'); }
   }
 
   function downloadICS() {
@@ -1291,6 +1317,10 @@
       'DESCRIPTION:한 달 전 함께 정한 생활규칙을 점검해요. 잘 지켜진 것, 바꾸고 싶은 것을 나눠보세요.',
       'END:VEVENT', 'END:VCALENDAR',
     ].join('\r\n');
+    if (window.MateNative) {
+      window.MateNative.shareFile('mateon-rule-check.ics', ics, true).catch(function () { showToast('캘린더 파일 공유가 완료되지 않았어요'); });
+      return;
+    }
     var blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -1382,7 +1412,8 @@
     if (!el || el.disabled) return;
     var act = el.dataset.action;
 
-    if (act === 'home') { S.flow = 'me'; go('home'); }
+    if (act === 'home') { S.flow = 'me'; S.invite = null; go('home'); }
+    else if (act === 'back') { handleBack(); }
     else if (act === 'theme') {
       var next = root.dataset.theme === 'dark' ? 'light' : 'dark';
       setTheme(next);
@@ -1393,10 +1424,16 @@
       if (S.invite) S.invite = null;
       go('onboarding');
     }
+    else if (act === 'space') { go('space'); }
+    else if (act === 'talk-open') { openTalk(el.dataset.talk === undefined ? talkIndex : +el.dataset.talk); }
+    else if (act === 'next-talk') {
+      var talkY=window.scrollY || 0;
+      talkIndex = (talkIndex + 1) % HOME_TALKS.length; render(); window.scrollTo(0,talkY);
+      var talkFocus=document.querySelectorAll('[data-action="next-talk"]')[0];
+      if(talkFocus) talkFocus.focus({preventScroll:true});
+    }
     else if (act === 'demo') {
-      S.me = SAMPLE_RESULTS.me; S.partner = SAMPLE_RESULTS.partner;
-      save('mateon.me', S.me); save('mateon.partner', S.partner);
-      resetRulesForNewPartner();
+      S.viewPair = { me: SAMPLE_RESULTS.me, partner: SAMPLE_RESULTS.partner };
       go('report');
     }
     else if (act === 'rel') { S.profile.relation = el.dataset.v; render(); }
@@ -1483,10 +1520,12 @@
     else if (act === 'type') { S.typeId = +el.dataset.id; go('type-detail'); }
     else if (act === 'checklist') { go('checklist'); }
     else if (act === 'check') {
+      var checkY=window.scrollY || 0;
       var key = el.dataset.v;
       S.checklist[key] = !S.checklist[key];
       save('mateon.checklist', S.checklist);
       render();
+      window.scrollTo(0,checkY);
     }
     else if (act === 'lifecheck') { S.lifeQ = 0; S.lifeAnswers = []; go('lifecheck'); }
     else if (act === 'life-answer') {
@@ -1571,6 +1610,7 @@
       if (dk === 'mateon.partner') { S.partner = null; S.checkedRules = []; S.signs = { me: false, partner: false }; }
       if (dk === 'mateon.agreement') { S.agreement = null; }
       if (dk === 'mateon.history') { S.history = []; }
+      if (dk === 'mateon.talks') { /* read fresh on render */ }
       if (dk === 'mateon.checklist') { S.checklist = {}; }
       if (dk === 'mateon.customRules') { S.customRules = []; }
       if (dk === 'mateon.shareName') { S.shareName = true; }
@@ -1621,7 +1661,41 @@
 
   /* ================= Router ================= */
   function go(route) {
+    if (currentRoute() === route) { render(); return; }
     location.hash = '#/' + route;
+  }
+
+  function handleBack() {
+    if (talkDialog && talkDialog.open) { talkDialog.close(); return true; }
+    var route = currentRoute();
+    if (route === 'home') return false;
+    if (route === 'survey' && S.q > 0) { S.q--; S.qDir='prev'; saveDraft(); render(); return true; }
+    var parents = { survey:'onboarding', 'type-detail':'types', checklist:'space', agreement:'report', privacy:'settings', terms:'settings', lifecheck:'result' };
+    go(parents[route] || 'home');
+    return true;
+  }
+
+  function acceptNativeLink(value) {
+    try {
+      var url = new URL(value);
+      if (url.protocol !== 'mateon:') return false;
+      if (url.hostname === 'home') { go('home'); return true; }
+      var data = url.searchParams.get('data') || '';
+      if (url.hostname === 'invite') {
+        var invite = decodeResult(data);
+        if (!invite) throw new Error('Invalid invite');
+        S.invite = invite; S.flow = 'partner'; S.q = 0; S.answers = [];
+        S.profile = { name:'', relation:'', stage:'' };
+        go('onboarding'); return true;
+      }
+      if (url.hostname === 'pair') {
+        var pair = data.split('.');
+        var a = decodeResult(pair[0] || ''), b = decodeResult(pair[1] || '');
+        if (pair.length !== 2 || !a || !b) throw new Error('Invalid pair');
+        S.invite = null; S.viewPair = { me:a, partner:b }; go('report'); return true;
+      }
+    } catch (e) { showToast('초대 링크를 확인해 주세요'); }
+    return false;
   }
 
   function currentRoute() {
@@ -1641,6 +1715,7 @@
     'type-detail': '유형 상세 — MATE:ON',
     lifecheck: '실무 성향 체크 — MATE:ON',
     checklist: '입주 체크리스트 — MATE:ON',
+    space: '우리 공간 — MATE:ON',
     settings: '설정 — MATE:ON',
     privacy: '개인정보처리방침 — MATE:ON',
     terms: '서비스 이용약관 — MATE:ON',
@@ -1668,6 +1743,7 @@
       case 'types': vTypes(); break;
       case 'type-detail': vTypeDetail(); break;
       case 'lifecheck': vLifeCheck(); break;
+      case 'space': vSpace(); break;
       case 'checklist': vChecklist(); break;
       case 'settings': vSettings(); break;
       case 'privacy': vPrivacy(); break;
@@ -1688,7 +1764,7 @@
   })();
 
   /* ================= PWA Service Worker ================= */
-  if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
+  if (!window.MateNative && 'serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
     window.addEventListener('load', function () {
       navigator.serviceWorker.register('sw.js').catch(function () { });
     });
@@ -1696,6 +1772,8 @@
 
   /* ================= 테스트 훅 ================= */
   window.__mateon = {
+    handleBack: handleBack,
+    acceptNativeLink: acceptNativeLink,
     encodeResult: encodeResult,
     decodeResult: decodeResult,
     resultFromCode: resultFromCode,

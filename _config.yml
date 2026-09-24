@@ -1,0 +1,17 @@
+﻿# GitHub Pages publishes the browser app; native sources stay in the repository.
+exclude:
+  - android
+  - ios
+  - native
+  - scripts
+  - artifacts
+  - node_modules
+  - dist
+  - README.md
+  - package.json
+  - package-lock.json
+  - capacitor.config.json
+  - server.js
+  - make-assets.js
+  - test-score.js
+  - test-smoke.js
