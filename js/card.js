@@ -60,17 +60,25 @@ var MateCard = (function () {
     ctx.translate(x, y);
     ctx.scale(s, s);
     ctx.lineCap = 'round';
-    ctx.lineWidth = 17;
+    ctx.lineWidth = 16;
     ctx.strokeStyle = CORAL;
-    ctx.beginPath(); ctx.moveTo(36, 96); ctx.lineTo(36, 60); ctx.quadraticCurveTo(36, 48, 45, 44); ctx.lineTo(62, 35); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(26, 94); ctx.lineTo(26, 56);
+    ctx.quadraticCurveTo(26, 38, 44, 33); ctx.lineTo(60, 27);
+    ctx.quadraticCurveTo(66, 29, 68, 37); ctx.lineTo(73, 52);
+    ctx.stroke();
     ctx.strokeStyle = BLUE;
-    ctx.beginPath(); ctx.moveTo(92, 96); ctx.lineTo(92, 60); ctx.quadraticCurveTo(92, 48, 83, 44); ctx.lineTo(66, 35); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(102, 94); ctx.lineTo(102, 56);
+    ctx.quadraticCurveTo(102, 38, 84, 33); ctx.lineTo(68, 27);
+    ctx.quadraticCurveTo(62, 29, 60, 37); ctx.lineTo(55, 52);
+    ctx.stroke();
     ctx.fillStyle = CORAL;
-    ctx.beginPath(); ctx.arc(40, 16, 10, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(38, 15, 10, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = BLUE;
-    ctx.beginPath(); ctx.arc(88, 16, 10, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(90, 15, 10, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = INK;
-    [[55, 64], [67, 64], [55, 78], [67, 78]].forEach(function (p) {
+    [[54, 64], [66, 64], [54, 78], [66, 78]].forEach(function (p) {
       roundRect(ctx, p[0], p[1], 8, 8, 1.5); ctx.fill();
     });
     ctx.restore();

@@ -53,13 +53,20 @@ function distSeg(px, py, x1, y1, x2, y2) {
 const CORAL = [255, 107, 122], BLUE = [107, 158, 255], INK = [46, 46, 46], WHITE = [255, 255, 255];
 
 function drawLogo(px, W, H, ox, oy, scale, mono) {
-  const circles = [[40, 16, 10], [88, 16, 10]];
+  const circles = [[38, 15, 10], [90, 15, 10]];
+  // 공식 심볼: 두 몸통 스트로크가 정점에서 교차하며 지붕 아치 형성 (Q곡선 다각선 근사)
   const strokes = [
-    [[36, 96], [36, 56]], [[38, 57], [62, 35]],
-    [[92, 96], [92, 56]], [[90, 57], [66, 35]],
+    // coral (26,94)→(26,56)→Q(44,33)→(60,27)→Q(68,37)→(73,52)
+    [[26, 94], [26, 56]], [[26, 56], [31, 44]], [[31, 44], [44, 33]],
+    [[44, 33], [52, 30]], [[52, 30], [60, 27]],
+    [[60, 27], [64, 32]], [[64, 32], [68, 37]], [[68, 37], [70.5, 44.5]], [[70.5, 44.5], [73, 52]],
+    // blue (102,94)→(102,56)→Q(84,33)→(68,27)→Q(60,37)→(55,52)
+    [[102, 94], [102, 56]], [[102, 56], [97, 44]], [[97, 44], [84, 33]],
+    [[84, 33], [76, 30]], [[76, 30], [68, 27]],
+    [[68, 27], [64, 32]], [[64, 32], [60, 37]], [[60, 37], [57.5, 44.5]], [[57.5, 44.5], [55, 52]],
   ];
-  const rects = [[55, 64], [67, 64], [55, 78], [67, 78]];
-  const sw = 17 / 2;
+  const rects = [[54, 64], [66, 64], [54, 78], [66, 78]];
+  const sw = 16 / 2;
   const LW = Math.ceil(128 * scale), LH = Math.ceil(104 * scale);
   for (let ly = 0; ly < LH; ly++) {
     const v = ly / scale, Y = Math.round(oy + ly);
@@ -72,7 +79,7 @@ function drawLogo(px, W, H, ox, oy, scale, mono) {
         if (Math.hypot(u - cx, v - cy) <= r) col = mono ? WHITE : (ci === 0 ? CORAL : BLUE);
       });
       strokes.forEach(([a, b], si) => {
-        if (distSeg(u, v, a[0], a[1], b[0], b[1]) <= sw) col = mono ? WHITE : (si < 2 ? CORAL : BLUE);
+        if (distSeg(u, v, a[0], a[1], b[0], b[1]) <= sw) col = mono ? WHITE : (si < 9 ? CORAL : BLUE);
       });
       rects.forEach(([rx, ry]) => {
         if (u >= rx && u <= rx + 8 && v >= ry && v <= ry + 8) col = mono ? [255, 66, 85] : INK;

@@ -256,11 +256,11 @@
   function logoSVG(size) {
     return '' +
       '<svg class="logo-mark" width="' + (size || 40) + '" height="' + ((size || 40) * 0.8) + '" viewBox="0 0 128 104" fill="none" aria-hidden="true">' +
-      '<circle cx="40" cy="16" r="10" fill="#FF6B7A"/>' +
-      '<circle cx="88" cy="16" r="10" fill="#6B9EFF"/>' +
-      '<path d="M36 96 V62 Q36 50 45 45 L62 35" stroke="#FF6B7A" stroke-width="17" stroke-linecap="round"/>' +
-      '<path d="M92 96 V62 Q92 50 83 45 L66 35" stroke="#6B9EFF" stroke-width="17" stroke-linecap="round"/>' +
-      '<g class="logo-window"><rect x="55" y="64" width="8" height="8" rx="1.5"/><rect x="67" y="64" width="8" height="8" rx="1.5"/><rect x="55" y="78" width="8" height="8" rx="1.5"/><rect x="67" y="78" width="8" height="8" rx="1.5"/></g>' +
+      '<circle cx="38" cy="15" r="10" fill="#FF6B7A"/>' +
+      '<circle cx="90" cy="15" r="10" fill="#6B9EFF"/>' +
+      '<path d="M26 94 V56 Q26 38 44 33 L60 27 Q66 29 68 37 L73 52" stroke="#FF6B7A" stroke-width="16" stroke-linecap="round"/>' +
+      '<path d="M102 94 V56 Q102 38 84 33 L68 27 Q62 29 60 37 L55 52" stroke="#6B9EFF" stroke-width="16" stroke-linecap="round"/>' +
+      '<g class="logo-window"><rect x="54" y="64" width="8" height="8" rx="1.5"/><rect x="66" y="64" width="8" height="8" rx="1.5"/><rect x="54" y="78" width="8" height="8" rx="1.5"/><rect x="66" y="78" width="8" height="8" rx="1.5"/></g>' +
       '</svg>';
   }
 
