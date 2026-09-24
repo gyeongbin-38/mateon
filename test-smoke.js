@@ -80,6 +80,13 @@ function check(name, cond) {
 console.log('== 1. 홈 렌더 ==');
 check('슬로건 표시', lastHTML.includes('함께 살 준비'));
 check('진단 시작 버튼', lastHTML.includes('진단 시작하기'));
+check('동거 테스트 카드', lastHTML.includes('동거 성향 테스트'));
+check('하단 네비게이션', lastHTML.includes('bottom-nav') && lastHTML.includes('nav-item'));
+check('네비 홈 활성', /nav-item on[^>]*data-action="home"|data-action="home"[^>]*nav-item on/.test(lastHTML));
+const indexSrc = fs.readFileSync('index.html', 'utf8');
+check('스플래시 마크업', indexSrc.includes('id="splash"') && indexSrc.includes('splash-logo'));
+const mateonSrc = fs.readFileSync('js/mateon.js', 'utf8');
+check('스플래시 1초 타이밍', mateonSrc.includes('dismissSplash') && mateonSrc.includes('680'));
 
 console.log('== 2. 온보딩 → 설문 ==');
 click('start');
@@ -257,6 +264,28 @@ async function answerAll() {
   click('unlink');
   check('파트너 해제됨', !store['mateon.partner']);
   check('초대 화면 유지', lastHTML.includes('초대 링크'));
+
+  console.log('== 17. 설정 / 개인정보 / 약관 / 데이터 관리 ==');
+  click('settings');
+  check('설정 화면 렌더', lastHTML.includes('데이터 관리') && lastHTML.includes('약관 및 정보'));
+  check('네비 설정 활성', /nav-item on" data-action="settings"/.test(lastHTML));
+  check('저장 항목 나열', lastHTML.includes('내 진단 결과') && lastHTML.includes('저장됨'));
+  check('닉네임 토글 (설정)', lastHTML.includes('닉네임 포함'));
+  click('privacy');
+  check('개인정보 화면', lastHTML.includes('개인정보처리방침') && lastHTML.includes('localStorage'));
+  check('개인정보 MVP 표기', lastHTML.includes('MVP'));
+  click('settings');
+  click('terms');
+  check('약관 화면', lastHTML.includes('서비스 이용약관') && lastHTML.includes('법적 효력이 없습니다'));
+  click('settings');
+  click('del-data', { v: 'mateon.checklist' });
+  check('체크리스트 삭제', !store['mateon.checklist']);
+  click('reset-all');
+  check('삭제 확인 단계', lastHTML.includes('한 번 더 누르면'));
+  click('reset-all');
+  check('전체 삭제 후 홈', lastHTML.includes('동거 성향 테스트'));
+  check('내 결과 삭제됨', !store['mateon.me']);
+  check('이력 삭제됨', !store['mateon.history']);
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

@@ -86,12 +86,31 @@
 }
 
 .hero-logo {
-  width: 132px;
-  height: auto;
   margin-inline: auto;
-  display: block;
+  display: flex;
+  justify-content: center;
   filter: drop-shadow(0 8px 24px rgba(255, 107, 122, 0.25));
 }
+
+/* ---------- Test card (홈 메인 CTA) ---------- */
+.test-card {
+  margin-top: var(--space-24);
+  text-align: left;
+  border-color: var(--border-brand);
+  background:
+    radial-gradient(240px 120px at 90% 0%, var(--bg-info-subtle), transparent 70%),
+    radial-gradient(240px 140px at 0% 100%, var(--bg-brand-subtle), transparent 70%),
+    var(--bg-surface);
+}
+.test-card-title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-snug);
+  margin: var(--space-12) 0 var(--space-8);
+}
+.test-card .cta-col { margin-top: var(--space-16); }
+.test-card .hero-meta { justify-content: flex-start; margin-top: var(--space-16); }
 
 .hero-slogan {
   font-size: var(--font-size-3xl);
@@ -1226,7 +1245,7 @@
 
 /* ---------- Print (합의서 출력) ---------- */
 @media print {
-  .app-header, .app-footer, .cta-col, .toast, .sec-head, .quick-nav { display: none !important; }
+  .app-header, .app-footer, .cta-col, .toast, .sec-head, .quick-nav, .bottom-nav { display: none !important; }
   body { background: #fff; }
   .app-main { max-width: 100%; padding: 0; }
   .agree-doc { box-shadow: none; border-color: #999; }
@@ -1455,11 +1474,135 @@
 .share-opt.on { border-color: var(--border-brand); color: var(--text-brand); background: var(--bg-brand-subtle); }
 .share-opt.on .share-opt-dot { background: var(--brand-500); }
 
+/* ---------- Splash (앱 시작 ~1s) ---------- */
+#splash {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: var(--bg-canvas);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.32s ease, visibility 0.32s ease;
+}
+#splash.bye { opacity: 0; visibility: hidden; }
+.splash-inner {
+  text-align: center;
+  animation: splash-in 0.62s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes splash-in {
+  from { opacity: 0; filter: blur(12px); transform: scale(0.94); }
+  to { opacity: 1; filter: blur(0); transform: scale(1); }
+}
+.splash-word {
+  font-size: var(--font-size-2xl);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  margin-top: var(--space-16);
+}
+.splash-word span { color: var(--brand-500); }
+.splash-tag {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  margin-top: var(--space-8);
+  animation: rise 0.4s ease 0.3s both;
+}
+
+/* ---------- Bottom navigation ---------- */
+.bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  background: color-mix(in srgb, var(--bg-canvas) 88%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid var(--border-subtle);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 58px;
+  padding: var(--space-8) var(--space-4);
+  background: none;
+  border: none;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+.nav-item:hover { color: var(--text-secondary); }
+.nav-item:focus-visible { outline: none; box-shadow: inset var(--focus-ring); }
+.nav-item.on { color: var(--text-brand); }
+.nav-item svg { transition: transform 0.18s ease; }
+.nav-item.on svg { transform: translateY(-1px); }
+.app-footer { padding-bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
+
+/* ---------- Settings / docs ---------- */
+.set-group { display: flex; flex-direction: column; gap: var(--space-8); }
+.set-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  padding: var(--space-12) var(--space-16);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+}
+.set-row .sr-info { flex: 1; min-width: 0; }
+.set-row .sr-state { font-size: var(--font-size-xs); color: var(--text-muted); flex-shrink: 0; }
+.set-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+  width: 100%;
+  padding: var(--space-12) var(--space-16);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+.set-link:hover { border-color: var(--border-strong); }
+.set-link:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.set-link .chev { color: var(--text-muted); flex-shrink: 0; }
+.btn-danger-text {
+  background: none;
+  border: none;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-error);
+  cursor: pointer;
+  padding: var(--space-8);
+}
+.btn-danger-text:hover { text-decoration: underline; }
+.doc-body h4 { margin: var(--space-20) 0 var(--space-8); font-size: var(--font-size-sm); }
+.doc-body h4:first-child { margin-top: 0; }
+.doc-body p { font-size: var(--font-size-sm); color: var(--text-secondary); line-height: var(--leading-relaxed); }
+.doc-date { font-size: var(--font-size-xs); color: var(--text-muted); margin-bottom: var(--space-16); }
+
 /* ---------- Reduced motion ---------- */
 @media (prefers-reduced-motion: reduce) {
   .app-main > *, .card, .gap-row, .gap-bar, .gauge-fill, .char-hero > *, .matrix-cell,
   .pair-card, .q-slide, .opt-card, .type-card, .sign-box, .rule-check,
-  .hero-logo, .logo-window rect, .survey-notice {
+  .hero-logo, .logo-window rect, .survey-notice, .splash-inner, .splash-tag {
     animation: none !important;
   }
   * { transition-duration: 0.01ms !important; }

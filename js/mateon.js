@@ -165,6 +165,7 @@
     viewPair: null,
     qDir: 'next',
     shareName: load('mateon.shareName') !== false,
+    resetArm: false,
   };
 
   /* ---- 설문 진행 자동 저장 (새로고침 복구) ---- */
@@ -280,9 +281,41 @@
     return '<footer class="app-footer"><p class="caption">서로의 다름이, 더 좋은 일상이 되는 곳. MATE:ON</p></footer>';
   }
 
+  /* ---- 하단 네비게이션 ---- */
+  var NAV_ICONS = {
+    home: '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/></svg>',
+    types: '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
+    checklist: '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
+    settings: '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+  };
+
+  function navActive(nav) {
+    var r = currentRoute();
+    if (nav === 'home') return ['home', 'onboarding', 'survey', 'result', 'invite', 'report', 'agreement', 'lifecheck'].indexOf(r) >= 0;
+    if (nav === 'types') return r === 'types' || r === 'type-detail';
+    if (nav === 'checklist') return r === 'checklist';
+    if (nav === 'settings') return r === 'settings' || r === 'privacy' || r === 'terms';
+    return false;
+  }
+
+  function bottomNavHTML() {
+    var items = [
+      ['home', '홈'],
+      ['types', '16유형'],
+      ['checklist', '체크리스트'],
+      ['settings', '설정'],
+    ];
+    return '<nav class="bottom-nav" aria-label="하단 메뉴">' +
+      items.map(function (it) {
+        var on = navActive(it[0]);
+        return '<button class="nav-item' + (on ? ' on' : '') + '" data-action="' + it[0] + '" type="button"' + (on ? ' aria-current="page"' : '') + '>' +
+          NAV_ICONS[it[0]] + '<span>' + it[1] + '</span></button>';
+      }).join('') + '</nav>';
+  }
+
   function shell(content) {
     app.innerHTML = '<div class="app-shell">' + headerHTML() +
-      '<main class="app-main">' + content + '</main>' + footerHTML() + '</div>';
+      '<main class="app-main">' + content + '</main>' + footerHTML() + bottomNavHTML() + '</div>';
     window.scrollTo(0, 0);
   }
 
@@ -364,42 +397,38 @@
         '</div>';
     }
 
+    var draftCard = '';
+    if (S.answers.length > 0 && S.answers.length < QUESTIONS.length) {
+      draftCard = '<div class="card resume-card">' +
+        '<div class="resume-info"><strong class="body-sm">진단이 진행 중이에요</strong>' +
+        '<p class="caption text-muted">' + S.answers.length + ' / ' + QUESTIONS.length + ' 문항 완료</p></div>' +
+        '<button class="btn btn-secondary btn-sm" data-action="resume-survey" type="button">이어하기</button></div>';
+    }
+
     shell('' +
       '<section class="hero-home">' +
-      logoSVG(120) +
+      '<div class="hero-logo">' + logoSVG(104) + '</div>' +
       '<h1 class="hero-slogan">함께 살 준비,<br>서로를 아는 것부터.</h1>' +
       '<p class="hero-sub body-md">MATE:ON은 함께 살기 전, 서로의 생활방식을 미리 이해하고<br>맞춰보는 동거 성향 진단 서비스입니다.</p>' +
-      '<div class="hero-cta">' +
-      '<button class="btn btn-primary btn-lg" data-action="start" type="button">진단 시작하기</button>' +
-      '<button class="btn btn-tertiary btn-md" data-action="demo" type="button">데모로 먼저 보기</button>' +
+      resume + partner + draftCard +
+      '<div class="card test-card">' +
+      '<span class="badge badge-brand">동거 성향 테스트</span>' +
+      '<h3 class="test-card-title">20문항으로 보는<br>우리의 생활 거리</h3>' +
+      '<p class="body-sm text-muted">교류 활성도(E)와 자극 민감도(R), 두 축으로 나눈 16개 동거 캐릭터 중 나는 어디에 있을까요?</p>' +
+      '<div class="cta-col">' +
+      '<button class="btn btn-primary btn-lg" data-action="start" type="button">' + (S.me ? '다시 진단하기' : '진단 시작하기') + '</button>' +
+      (S.me ? '' : '<button class="btn btn-tertiary btn-md" data-action="demo" type="button">데모로 먼저 보기</button>') +
       '</div>' +
       '<div class="hero-meta">' +
       '<span class="badge badge-neutral">20문항 · 약 3분</span>' +
       '<span class="badge badge-neutral">16개 동거 캐릭터</span>' +
-      '<span class="badge badge-neutral">우리 둘 궁합 리포트</span>' +
+      '<span class="badge badge-neutral">궁합 리포트</span>' +
       '</div>' +
-      resume + partner +
-      (S.answers.length > 0 && S.answers.length < QUESTIONS.length
-        ? '<div class="card resume-card">' +
-          '<div class="resume-info"><strong class="body-sm">진단이 진행 중이에요</strong>' +
-          '<p class="caption text-muted">' + S.answers.length + ' / ' + QUESTIONS.length + ' 문항 완료</p></div>' +
-          '<button class="btn btn-secondary btn-sm" data-action="resume-survey" type="button">이어하기</button></div>'
-        : '') +
+      '</div>' +
       '<div class="steps">' +
       '<div class="card step-card"><span class="step-num">1</span><div><strong class="body-sm">나의 생활 성향 진단</strong><p class="body-sm text-muted">실제 동거 상황을 담은 20개 문항으로 나의 유형을 발견해요.</p></div></div>' +
       '<div class="card step-card"><span class="step-num">2</span><div><strong class="body-sm">상대 초대 &amp; 결과 비교</strong><p class="body-sm text-muted">링크로 상대를 초대해 같은 점보다 다른 점을 먼저 확인해요.</p></div></div>' +
       '<div class="card step-card"><span class="step-num">3</span><div><strong class="body-sm">갈등 예측 &amp; 우리집 합의서</strong><p class="body-sm text-muted">예상 갈등을 미리 보고, 우리 둘만의 생활규칙을 만들어요.</p></div></div>' +
-      '</div>' +
-      '<div class="quick-nav">' +
-      '<button class="quick-link" data-action="types" type="button">' +
-      '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>' +
-      '16유형 도감</button>' +
-      '<button class="quick-link" data-action="checklist" type="button">' +
-      '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>' +
-      '입주 체크리스트</button>' +
-      '<button class="quick-link" data-action="share-home" type="button">' +
-      '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 3.98M15.41 6.51l-6.82 3.98"/></svg>' +
-      '친구에게 공유</button>' +
       '</div>' +
       '</section>');
   }
@@ -1079,6 +1108,107 @@
       '<div class="cta-col"><button class="btn btn-tertiary btn-md" data-action="home" type="button">홈으로</button></div>');
   }
 
+  /* ================= View: 설정 ================= */
+  var DATA_ITEMS = [
+    { k: 'mateon.me', t: '내 진단 결과' },
+    { k: 'mateon.partner', t: '상대 결과' },
+    { k: 'mateon.agreement', t: '우리집 합의서' },
+    { k: 'mateon.history', t: '진단 이력' },
+    { k: 'mateon.checklist', t: '입주 체크리스트' },
+    { k: 'mateon.customRules', t: '직접 추가한 규칙' },
+    { k: 'mateon.draft.me', t: '진행 중인 설문 (나)' },
+    { k: 'mateon.draft.partner', t: '진행 중인 설문 (상대)' },
+    { k: 'mateon.shareName', t: '초대 링크 닉네임 설정' },
+    { k: 'ds-theme', t: '테마 설정' },
+  ];
+
+  function vSettings() {
+    var shareOn = S.shareName !== false;
+    var rows = DATA_ITEMS.map(function (it) {
+      var has = !!load(it.k);
+      return '<div class="set-row"><div class="sr-info"><strong class="body-sm">' + esc(it.t) + '</strong></div>' +
+        '<span class="sr-state">' + (has ? '저장됨' : '없음') + '</span>' +
+        (has ? '<button class="btn btn-tertiary btn-sm" data-action="del-data" data-v="' + it.k + '" type="button">삭제</button>' : '') +
+        '</div>';
+    }).join('');
+
+    var meRow = S.me ? (function () {
+      var c = charById(S.me.charId);
+      return '<div class="card resume-card">' +
+        '<span class="avatar">' + esc((S.me.name || '나')[0]) + '</span>' +
+        '<div class="resume-info"><strong class="body-sm">' + esc(S.me.name || '나') + '님의 결과</strong>' +
+        '<p class="caption text-muted">' + esc(c.name) + ' (' + c.code + ')</p></div>' +
+        '<button class="btn btn-secondary btn-sm" data-action="result" type="button">보기</button></div>';
+    })() : '';
+
+    var chev = '<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>';
+
+    shell('' +
+      '<p class="eyebrow caption">Settings</p>' +
+      '<h2 class="view-title">설정</h2>' +
+      '<p class="view-desc body-md">데이터는 서버가 아니라 이 기기의 브라우저에만 저장돼요.<br>지우면 이 기기에서 완전히 사라져요.</p>' +
+      meRow +
+      '<div class="sec-head" style="margin-top:20px"><h3>공유</h3></div>' +
+      '<div class="card">' +
+      '<p class="body-sm text-muted" style="margin-bottom:4px">초대 링크에 닉네임을 포함할지 선택할 수 있어요.</p>' +
+      '<button class="share-opt' + (shareOn ? ' on' : '') + '" data-action="share-name" type="button" aria-pressed="' + shareOn + '">' +
+      '<span class="share-opt-dot"></span>닉네임 포함 ' + (shareOn ? '켜짐' : '꺼짐') + '</button>' +
+      '<div class="cta-col" style="margin-top:16px"><button class="btn btn-tertiary btn-md" data-action="share-home" type="button">친구에게 MATE:ON 공유</button></div>' +
+      '</div>' +
+      '<div class="sec-head" style="margin-top:20px"><h3>데이터 관리</h3></div>' +
+      '<div class="set-group">' + rows + '</div>' +
+      '<div style="text-align:center;margin-top:16px">' +
+      '<button class="btn-danger-text" data-action="reset-all" type="button">' +
+      (S.resetArm ? '한 번 더 누르면 모든 데이터가 삭제됩니다' : '모든 데이터 삭제') + '</button></div>' +
+      '<div class="sec-head" style="margin-top:20px"><h3>약관 및 정보</h3></div>' +
+      '<div class="set-group">' +
+      '<button class="set-link" data-action="privacy" type="button">개인정보처리방침' + chev + '</button>' +
+      '<button class="set-link" data-action="terms" type="button">서비스 이용약관' + chev + '</button>' +
+      '</div>' +
+      '<p class="caption text-muted" style="text-align:center;margin-top:24px">MATE:ON · 동거 성향 진단 서비스</p>');
+  }
+
+  /* ================= View: 개인정보처리방침 / 이용약관 (MVP) ================= */
+  function docShell(title, eyebrow, dateStr, body) {
+    shell('' +
+      '<div class="survey-top"><button class="back-btn" data-action="settings" type="button" aria-label="설정으로">' +
+      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>' +
+      '<span class="progress-num">' + esc(eyebrow) + '</span></div>' +
+      '<h2 class="view-title">' + esc(title) + '</h2>' +
+      '<div class="card doc-body" style="margin-top:16px"><p class="doc-date">' + esc(dateStr) + '</p>' + body + '</div>');
+  }
+
+  function vPrivacy() {
+    docShell('개인정보처리방침', 'Privacy', '시행일: 2026년 9월 24일 · 버전 0.1 (MVP)',
+      '<h4>수집하는 정보</h4>' +
+      '<p>MATE:ON은 회원가입 없이 사용할 수 있으며, 다음 정보를 이용자가 직접 입력하거나 진단 과정에서 생성합니다.</p>' +
+      '<p>· 닉네임, 관계 유형, 동거 준비 단계<br>· 20문항 성향 진단 응답과 유형 결과<br>· 실무 성향 체크 응답, 직접 추가한 생활규칙, 합의서와 서명 상태, 입주 체크리스트</p>' +
+      '<h4>저장 위치</h4>' +
+      '<p>모든 정보는 이용자의 기기 브라우저(localStorage)에만 저장됩니다. 별도의 서버로 전송하거나 수집하지 않으며, 운영자가 이용자의 응답 내용을 열람할 수 없습니다.</p>' +
+      '<h4>초대 링크와 공유</h4>' +
+      '<p>초대 링크에는 닉네임(끄기 가능), 관계 유형, 유형 코드와 성향 수치가 URL 형태로 포함됩니다. 문항별 응답 내용은 포함되지 않습니다. 링크를 가진 사람은 누구나 그 결과를 볼 수 있으므로, 공유 대상을 신중하게 정해 주세요.</p>' +
+      '<h4>정보의 삭제</h4>' +
+      '<p>설정 → 데이터 관리에서 각 항목을 삭제하거나 모든 데이터를 한 번에 삭제할 수 있습니다. 브라우저의 사이트 데이터 삭제 기능으로도 같은 효과를 낼 수 있습니다.</p>' +
+      '<h4>쿠키·분석 도구</h4>' +
+      '<p>현재 버전은 광고, 분석, 추적 도구를 사용하지 않습니다.</p>' +
+      '<h4>문의</h4>' +
+      '<p>개인정보 관련 문의는 서비스 내 안내를 참고해 주세요. 이 방침은 MVP 단계의 안내문으로, 서비스가 확장되면 함께 업데이트됩니다.</p>');
+  }
+
+  function vTerms() {
+    docShell('서비스 이용약관', 'Terms', '시행일: 2026년 9월 24일 · 버전 0.1 (MVP)',
+      '<h4>서비스의 성격</h4>' +
+      '<p>MATE:ON은 함께 사는 사람들이 서로의 생활 성향을 이해하고 대화할 수 있도록 돕는 참고 도구입니다. 제공되는 진단, 유형, 궁합 리포트, 갈등 예측은 의학적·심리학적·법률적 판단이 아니며, 관계의 적합성을 평가하거나 단정하지 않습니다.</p>' +
+      '<h4>우리집 합의서</h4>' +
+      '<p>합의서는 생활 규칙을 함께 정리하기 위한 문서 도구이며 법적 효력이 없습니다. 임대차 계약이나 법적 권리·의무는 관련 법령과 전문가 상담을 따르세요.</p>' +
+      '<h4>이용자의 책임</h4>' +
+      '<p>이용자는 자신의 응답과 결과를 스스로 해석하며, 초대 링크 등 공유 기능 사용 시 공유 범위를 확인할 책임이 있습니다. 타인의 동의 없이 그 사람의 결과를 공유하지 말아 주세요.</p>' +
+      '<h4>저장 데이터</h4>' +
+      '<p>이용자의 데이터는 기기 브라우저에 저장되며, 기기 변경·브라우저 데이터 삭제 시 복구되지 않을 수 있습니다.</p>' +
+      '<h4>서비스 변경</h4>' +
+      '<p>현재 버전은 MVP로, 기능과 화면은 예고 없이 변경·중단될 수 있습니다.</p>');
+  }
+
   /* ================= 공유 / 이미지 / ICS ================= */
   function baseURL() {
     return location.href.split('?')[0].split('#')[0];
@@ -1423,6 +1553,37 @@
       showToast('상대 연결을 해제했어요');
       render();
     }
+    else if (act === 'settings') { go('settings'); }
+    else if (act === 'privacy') { go('privacy'); }
+    else if (act === 'terms') { go('terms'); }
+    else if (act === 'del-data') {
+      var dk = el.dataset.v;
+      remove(dk);
+      if (dk === 'mateon.me') { S.me = null; }
+      if (dk === 'mateon.partner') { S.partner = null; S.checkedRules = []; S.signs = { me: false, partner: false }; }
+      if (dk === 'mateon.agreement') { S.agreement = null; }
+      if (dk === 'mateon.history') { S.history = []; }
+      if (dk === 'mateon.checklist') { S.checklist = {}; }
+      if (dk === 'mateon.customRules') { S.customRules = []; }
+      if (dk === 'mateon.shareName') { S.shareName = true; }
+      showToast('삭제했어요');
+      render();
+    }
+    else if (act === 'reset-all') {
+      if (!S.resetArm) {
+        S.resetArm = true;
+        render();
+        return;
+      }
+      S.resetArm = false;
+      DATA_ITEMS.forEach(function (it) { remove(it.k); });
+      S.me = null; S.partner = null; S.agreement = null; S.history = [];
+      S.checklist = {}; S.customRules = []; S.checkedRules = [];
+      S.signs = { me: false, partner: false }; S.shareName = true;
+      S.answers = []; S.q = 0; S.invite = null;
+      showToast('이 기기의 모든 데이터를 삭제했어요');
+      go('home');
+    }
   });
 
   /* ---- 키보드 단축키: 설문 1~4/A~D, 실무체크 1~3 ---- */
@@ -1472,6 +1633,9 @@
     'type-detail': '유형 상세 — MATE:ON',
     lifecheck: '실무 성향 체크 — MATE:ON',
     checklist: '입주 체크리스트 — MATE:ON',
+    settings: '설정 — MATE:ON',
+    privacy: '개인정보처리방침 — MATE:ON',
+    terms: '서비스 이용약관 — MATE:ON',
   };
 
   function render() {
@@ -1496,12 +1660,23 @@
       case 'type-detail': vTypeDetail(); break;
       case 'lifecheck': vLifeCheck(); break;
       case 'checklist': vChecklist(); break;
+      case 'settings': vSettings(); break;
+      case 'privacy': vPrivacy(); break;
+      case 'terms': vTerms(); break;
       default: vHome();
     }
   }
 
   window.addEventListener('hashchange', render);
   render();
+
+  /* ================= 스플래시 (총 ~1초: 선명해지기 620ms + 페이드 320ms) ================= */
+  (function dismissSplash() {
+    var sp = document.getElementById('splash');
+    if (!sp) return;
+    setTimeout(function () { sp.classList.add('bye'); }, 680);
+    setTimeout(function () { if (sp.parentNode) sp.parentNode.removeChild(sp); }, 1200);
+  })();
 
   /* ================= PWA Service Worker ================= */
   if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
