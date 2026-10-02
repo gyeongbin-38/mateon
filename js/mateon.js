@@ -156,6 +156,8 @@
     history: load('mateon.history') || [],
     checklist: load('mateon.checklist') || {},
     invite: null,
+    pendingPartner: null,
+    connectionInput: '',
     flow: 'me',
     q: 0,
     answers: [],
@@ -175,21 +177,33 @@
 
   /* ---- 설문 진행 자동 저장 (새로고침 복구) ---- */
   function saveDraft() {
-    save('mateon.draft.' + S.flow, { q: S.q, answers: S.answers, profile: S.profile });
+    save('mateon.draft.' + S.flow, { q: S.q, answers: S.answers, profile: S.profile, invite: S.invite ? encodeResult(S.invite) : null });
+    save('mateon.activeDraft', S.flow);
   }
   function clearDraft() {
     remove('mateon.draft.' + S.flow);
+    if (load('mateon.activeDraft') === S.flow) remove('mateon.activeDraft');
   }
-  (function loadDraft() {
-    var flowKey = S.invite ? 'partner' : 'me';
+  function restoreDraft(flowKey) {
+    if (flowKey !== 'me' && flowKey !== 'partner') return false;
     var d = load('mateon.draft.' + flowKey);
-    if (d && d.answers && d.answers.length) {
+    if (d && Array.isArray(d.answers) && d.answers.length > 0 && d.answers.length <= QUESTIONS.length &&
+        Number.isInteger(d.q) && d.q >= 0 && d.q < QUESTIONS.length &&
+        d.profile && typeof d.profile.name === 'string' &&
+        d.answers.every(function(a) { var q = a && QUESTIONS.find(function(q) { return q.id === a.qid; }); return q && q.options.some(function(o) { return o.code === a.code; }); })) {
+      if (S.invite && d.invite !== encodeResult(S.invite)) return false;
+      var invite = d.invite ? decodeResult(d.invite) : null;
+      if (d.invite && !invite) return false;
+      if (flowKey === 'partner' && !invite && !S.me) return false;
       S.flow = flowKey;
-      S.q = d.q || 0;
+      S.q = d.q;
       S.answers = d.answers;
-      if (d.profile) S.profile = d.profile;
+      S.profile = { name: d.profile.name.slice(0,12), relation: typeof d.profile.relation === 'string' ? d.profile.relation : '', stage: typeof d.profile.stage === 'string' ? d.profile.stage : '' };
+      S.invite = invite;
+      return true;
     }
-  })();
+    return false;
+  }
 
   /* ---- 초대 링크 인코딩/디코딩 (v2 압축 배열, v1 객체 하위호환) ---- */
   function encodeResult(r) {
@@ -255,6 +269,8 @@
       if (a && b) S.viewPair = { me: a, partner: b };
     }
   })();
+
+  restoreDraft(S.invite ? 'partner' : (load('mateon.activeDraft') || 'me'));
 
   function pairURL() {
     if (window.MateNative) return 'mateon://pair?data=' + encodeResult(S.me) + '.' + encodeResult(S.partner);
@@ -398,6 +414,12 @@
     CHECKLIST.forEach(function(g) { g.items.forEach(function(t,i) {total++; if(S.checklist[g.cat+':'+i]) done++;}); });
     return {total:total,done:done};
   }
+  function draftBannerHTML() {
+    var flow = load('mateon.activeDraft') || 'me';
+    var draft = load('mateon.draft.' + flow);
+    if (!draft || !Array.isArray(draft.answers) || !draft.answers.length || !draft.profile) return '';
+    return '<button class="draft-banner" type="button" data-action="resume-survey"><span><strong>' + esc(draft.profile.name || (flow === 'partner' ? '메이트' : '나')) + '님의 진단 이어하기</strong><small>' + draft.answers.length + ' / 20 문항 완료 · 자동 저장됨</small></span>' + mobileIcon('arrow') + '</button>';
+  }
   function vHome() {
     var draft = S.answers.length > 0 && S.answers.length < QUESTIONS.length;
     var action = !S.me ? (draft ? 'resume-survey' : 'start') : (!S.partner ? 'invite' : 'report');
@@ -409,6 +431,7 @@
     shell('<div class="mobile-home">'+
       '<section class="app-greeting"><p>'+ (S.me ? esc(S.me.name)+'님, 반가워요' : '함께 살 준비, 서로를 아는 것부터.') +'</p><h1>우리의 일상,<br>조금 더 가까이<span class="coral-dot">.</span></h1></section>'+
       '<section class="connection-strip" aria-label="메이트 연결 상태"><div class="paired-avatars"><span>'+esc(S.me?S.me.name.slice(0,1):'나')+'</span><span>'+ (S.partner ? esc(S.partner.name.slice(0,1)) : mobileIcon('plus')) +'</span></div><div><strong>'+ (S.partner?esc(S.partner.name)+'님과 함께':'아직 메이트를 기다리고 있어요') +'</strong><p>'+ (S.partner?'서로 알아가는 우리만의 공간':'나를 알아본 뒤, 메이트와 연결해요') +'</p></div><button class="icon-button" data-action="'+(S.me?'invite':'start')+'" aria-label="메이트 연결하기" type="button">'+mobileIcon('arrow')+'</button></section>'+
+      draftBannerHTML() +
       '<section class="today-mission"><div class="mission-top"><span class="mission-label">오늘의 첫걸음</span><span class="mission-count">'+(count<3?'0'+(count+1):'03')+' <span>/ 03</span></span></div><h2>'+title+'</h2><p>'+(!S.me?'함께 살 때의 내 모습을 발견해요.':(!S.partner?'나와 메이트의 생활방식을 맞춰봐요.':'잘 맞는 부분도, 대화가 필요한 부분도.'))+'</p><div class="mission-illustration"><img src="assets/together-home.svg" width="260" height="246" alt="함께하는 두 메이트의 편안한 일상"></div><div class="mission-footer"><span>'+ (draft ? S.answers.length+' / 20 문항 완료 · 자동 저장됨' : S.me?'나를 알고, 서로를 이해하는 시간':'동거 성향 테스트 · 20문항 · 약 3분')+'</span><button class="mobile-primary home-primary" data-action="'+action+'" type="button">'+cta+mobileIcon('arrow')+'</button></div></section>'+
       '<div class="app-shortcuts"><button type="button" data-action="'+(S.me?'result':'start')+'"><span class="shortcut-icon pink">'+mobileIcon('user')+'</span>나의 성향</button><button type="button" data-action="'+(S.me&&S.partner?'report':'demo')+'"><span class="shortcut-icon blue">'+mobileIcon('heart')+'</span>궁합 리포트</button><button type="button" data-action="checklist"><span class="shortcut-icon mint">'+NAV_ICONS.checklist+'</span>입주 준비</button></div>'+
       '<section class="conversation-section"><div class="mobile-section-head"><h2>오늘의 대화</h2><span>마음을 나누는 1분</span></div><div class="conversation-card"><div class="conversation-top"><span>'+HOME_TALKS[talkIndex][0]+'</span><button class="icon-button" data-action="next-talk" type="button" aria-label="다른 대화 주제">'+mobileIcon('refresh')+'</button></div><h3>'+HOME_TALKS[talkIndex][1]+'</h3><button type="button" class="conversation-open" data-action="talk-open">'+(saved[talkIndex]?'내 답변 다시 보기':'내 생각 남기기')+mobileIcon('arrow')+'</button></div></section>'+
@@ -429,10 +452,21 @@
     talkDialog.className='talk-sheet';
     talkDialog.setAttribute('aria-labelledby','talk-title');
     talkDialog.innerHTML='<div class="sheet-handle" aria-hidden="true"></div><div class="sheet-heading"><span>오늘의 대화 · '+HOME_TALKS[talkIndex][0]+'</span><button class="icon-button" type="button" aria-label="닫기" data-sheet-close>'+mobileIcon('close')+'</button></div><h2 id="talk-title">'+HOME_TALKS[talkIndex][1]+'</h2><label for="talk-note">나의 생각</label><textarea id="talk-note" maxlength="500" rows="4" placeholder="정답은 없어요. 편하게 적어보세요.">'+esc(notes[talkIndex]?notes[talkIndex].text:'')+'</textarea><p class="sheet-hint">이 기기에만 저장되며, 메이트에게 자동 전송되지 않아요.</p><button class="mobile-primary" type="button" data-sheet-save>내 생각 저장하기</button>';
+    if(notes[talkIndex]) talkDialog.innerHTML += '<button class="connection-cancel" type="button" data-sheet-delete>이 기록 삭제하기</button>';
+    var deleteArmed=false;
     document.body.appendChild(talkDialog);
     talkDialog.addEventListener('close',function(){talkDialog.remove();talkDialog=null;document.body.classList.remove('sheet-open');if(talkOpener&&talkOpener.isConnected)talkOpener.focus();});
     talkDialog.addEventListener('click',function(e){
       if(e.target.closest('[data-sheet-close]')) talkDialog.close();
+      else if(e.target.closest('[data-sheet-delete]')) {
+        if(!deleteArmed){deleteArmed=true;e.target.closest('[data-sheet-delete]').textContent='한 번 더 눌러 삭제';return;}
+        delete notes[talkIndex];
+        try{localStorage.setItem('mateon.talks',JSON.stringify(notes));}catch(err){showToast('저장 공간을 확인해 주세요');return;}
+        talkDialog.close();render();
+        var deleteFocus=document.querySelectorAll('[data-action="talk-open"]')[0];
+        if(deleteFocus) deleteFocus.focus({preventScroll:true});
+        showToast('대화 기록을 삭제했어요');
+      }
       else if(e.target.closest('[data-sheet-save]')) {
         var value=document.getElementById('talk-note').value.trim();
         if(!value){document.getElementById('talk-note').focus();showToast('생각을 한 줄 남겨주세요');return;}
@@ -669,6 +703,27 @@
   }
 
   /* ================= View: 상대 초대 ================= */
+  function resultFromLink(value) {
+    if (typeof value !== 'string' || value.length > 12000) return null;
+    try {
+      var url = new URL(value.trim());
+      if (url.protocol === 'mateon:' && url.hostname === 'invite') return decodeResult(url.searchParams.get('data') || '');
+      if (url.protocol === 'https:' || url.protocol === 'http:') return decodeResult(url.searchParams.get('invite') || '');
+    } catch (e) { /* an invalid link must not change the current partner */ }
+    return null;
+  }
+
+  function connectionHTML() {
+    var pending = S.pendingPartner;
+    return '<section class="card connection-import"><h3 class="card-title">메이트가 보낸 링크 연결하기</h3>' +
+      '<p class="body-sm text-muted">상대가 공유한 결과 링크를 붙여넣으면, 실제 진단 수치로 비교할 수 있어요.</p>' +
+      '<label class="field-label" for="partner-link">받은 초대 링크</label>' +
+      '<input class="input" id="partner-link" type="url" inputmode="url" autocomplete="off" spellcheck="false" maxlength="12000" placeholder="https://… 또는 mateon://invite?…" value="' + esc(S.connectionInput) + '">' +
+      '<button class="home-secondary" type="button" data-action="preview-partner">상대 결과 확인하기</button>' +
+      (pending ? '<div class="connection-preview" role="status"><span class="badge badge-info">연결 전 확인</span><h4>' + esc(pending.name) + '님 · ' + esc(charById(pending.charId).name) + '</h4><p>' + (S.partner ? '연결하면 현재 ' + esc(S.partner.name) + '님의 결과가 이 결과로 바뀌어요.' : '내 진단은 유지하고, 이 결과를 메이트로 연결해요.') + '</p><button class="mobile-primary" type="button" data-action="confirm-partner">이 메이트와 연결하기</button><button class="connection-cancel" type="button" data-action="cancel-partner">취소</button></div>' : '') +
+      '<p class="connection-hint">링크를 만들 당시의 결과예요. 상대가 다시 진단하면 새 링크로 연결해 주세요.</p></section>';
+  }
+
   function vInvite() {
     if (!S.me) { go('home'); return; }
     var url = inviteURL(S.me);
@@ -676,7 +731,7 @@
     var partnerDone = '';
     if (S.partner) {
       var pc = charById(S.partner.charId);
-      partnerDone = '<div class="card resume-card">' +
+      partnerDone = '<div class="card resume-card partner-summary">' +
         '<span class="avatar avatar-secondary">' + esc((S.partner.name || '상')[0]) + '</span>' +
         '<div class="resume-info"><strong class="body-sm">' + esc(S.partner.name) + '님 진단 완료</strong>' +
         '<p class="caption text-muted">' + esc(pc.name) + ' (' + pc.code + ')</p></div>' +
@@ -692,7 +747,7 @@
       '<li>관계 유형 · 동거 단계</li>' +
       '<li>16유형 결과와 성향 수치</li>' +
       '</ul>' +
-      '<p class="caption text-muted">문항별 응답과 실무 체크 결과는 포함되지 않아요. 링크를 가진 사람은 누구나 결과를 볼 수 있고, 결과는 받은 사람의 기기에만 저장돼요.</p>' +
+      '<p class="caption text-muted">문항별 응답은 포함되지 않아요. 실무 체크를 마쳤다면 생활 기준도 포함돼요. 링크를 가진 사람은 누구나 결과를 볼 수 있고, 결과는 받은 사람의 기기에만 저장돼요.</p>' +
       '<button class="share-opt' + (shareOn ? ' on' : '') + '" data-action="share-name" type="button" aria-pressed="' + shareOn + '">' +
       '<span class="share-opt-dot"></span>닉네임 포함 ' + (shareOn ? '켜짐' : '꺼짐') + '</button>' +
       '</div>';
@@ -703,6 +758,7 @@
       '<p class="view-desc body-md">상대도 진단을 마치면 두 분의 궁합 리포트가 완성돼요.<br>같은 점보다, 다른 점을 먼저 알아볼게요.</p>' +
       '<div class="view-stack">' +
       partnerDone +
+      connectionHTML() +
       '<div class="card">' +
       '<h4 class="card-title">초대 링크 보내기</h4>' +
       '<p class="body-sm text-muted" style="margin-bottom:12px">내 결과가 담긴 링크예요. 상대가 열어서 진단하면 바로 비교됩니다.</p>' +
@@ -1136,6 +1192,7 @@
     { k: 'mateon.draft.me', t: '진행 중인 설문 (나)' },
     { k: 'mateon.draft.partner', t: '진행 중인 설문 (상대)' },
     { k: 'mateon.shareName', t: '초대 링크 닉네임 설정' },
+    { k: 'mateon.activeDraft', t: '진단 이어하기 상태' },
     { k: 'ds-theme', t: '테마 설정' },
   ];
 
@@ -1334,6 +1391,7 @@
   function resetSurvey() { S.q = 0; S.answers = []; S.qDir = 'next'; clearDraft(); }
 
   function finishSurvey() {
+    clearDraft();
     var res = scoreAnswers(S.answers);
     var out = {
       name: S.profile.name || (S.flow === 'partner' ? '상대' : '나'),
@@ -1360,12 +1418,10 @@
         S.flow = 'partner';
       }
       resetRulesForNewPartner();
-      clearDraft();
       go('result');
     } else {
       S.me = out; save('mateon.me', out);
       resetRulesForNewPartner();
-      clearDraft();
       go('result');
     }
   }
@@ -1458,8 +1514,10 @@
       if (S.advancing) { saveDraft(); return; }   // 전환 대기 중 답변 변경만 허용
       S.advancing = true;
       saveDraft();
+      var answeredFlow=S.flow, answeredList=S.answers, answeredQ=S.q;
       setTimeout(function () {
         S.advancing = false;
+        if(currentRoute() !== 'survey' || S.flow !== answeredFlow || S.answers !== answeredList || S.q !== answeredQ) return;
         if (S.q < QUESTIONS.length - 1) { S.q++; S.qDir = 'next'; saveDraft(); render(); }
         else finishSurvey();
       }, 220);
@@ -1478,6 +1536,22 @@
     }
     else if (act === 'invite') { go('invite'); }
     else if (act === 'copylink') { copyText(inviteURL(S.me), '초대 링크가 복사됐어요'); }
+    else if (act === 'preview-partner') {
+      var linkField = document.getElementById('partner-link');
+      S.connectionInput = linkField ? linkField.value.trim() : '';
+      S.pendingPartner = resultFromLink(S.connectionInput);
+      if (!S.pendingPartner) { render(); showToast('유효한 MATE:ON 초대 링크를 붙여넣어 주세요'); return; }
+      render();
+    }
+    else if (act === 'cancel-partner') { S.pendingPartner = null; S.connectionInput = ''; render(); }
+    else if (act === 'confirm-partner') {
+      if (!S.me || !S.pendingPartner) return;
+      try { localStorage.setItem('mateon.partner', JSON.stringify(S.pendingPartner)); }
+      catch (err) { showToast('저장하지 못했어요. 기기 저장 공간을 확인해 주세요'); return; }
+      S.partner = S.pendingPartner; S.pendingPartner = null; S.connectionInput = '';
+      S.flow = 'me'; S.viewPair = null; resetRulesForNewPartner();
+      go('report'); showToast('메이트의 실제 결과와 연결했어요');
+    }
     else if (act === 'partner-survey') {
       S.flow = 'partner'; resetSurvey();
       S.profile = { name: '', relation: S.me.relation, stage: S.me.stage };
@@ -1581,7 +1655,10 @@
       go('report');
       showToast('유형 코드로 연결했어요 · 추천 규칙을 다시 계산했어요');
     }
-    else if (act === 'resume-survey') { go('survey'); }
+    else if (act === 'resume-survey') {
+      if (restoreDraft(load('mateon.activeDraft') || 'me')) go('survey');
+      else showToast('이어갈 진단이 없어요. 새 진단을 시작해 주세요');
+    }
     else if (act === 'share-name') {
       S.shareName = S.shareName === false;
       save('mateon.shareName', S.shareName);
@@ -1629,6 +1706,7 @@
       S.checklist = {}; S.customRules = []; S.checkedRules = [];
       S.signs = { me: false, partner: false }; S.shareName = true;
       S.answers = []; S.q = 0; S.invite = null;
+      S.pendingPartner = null; S.connectionInput = '';
       showToast('이 기기의 모든 데이터를 삭제했어요');
       go('home');
     }
@@ -1657,6 +1735,12 @@
   // 이름 입력 동기화
   app.addEventListener('input', function (e) {
     if (e.target.id === 'pf-name') S.profile.name = e.target.value;
+    if (e.target.id === 'partner-link') {
+      S.connectionInput = e.target.value;
+      S.pendingPartner = null;
+      var confirm = document.querySelectorAll('[data-action="confirm-partner"]')[0];
+      if (confirm) confirm.disabled = true;
+    }
   });
 
   /* ================= Router ================= */
@@ -1726,9 +1810,9 @@
     // 초대 링크로 들어온 경우: 진단 전이면 온보딩으로 유도
     if (S.invite && (route === 'home' || route === '')) {
       S.flow = 'partner';
-      S.profile = { name: '', relation: '', stage: '' };
-      route = 'onboarding';
-      history.replaceState(null, '', '#/onboarding');
+      if (!S.answers.length) S.profile = { name: '', relation: '', stage: '' };
+      route = S.answers.length ? 'survey' : 'onboarding';
+      history.replaceState(null, '', '#/' + route);
     }
     if (route !== 'report' && S.viewPair) S.viewPair = null;
     if (route !== 'settings') { S.delArm = null; S.resetArm = false; }

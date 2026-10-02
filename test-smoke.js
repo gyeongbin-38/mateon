@@ -255,6 +255,24 @@ async function answerAll() {
   const byCode = resultFromCode('E4R1', '테스트');
   check('resultFromCode 생성', byCode && byCode.charId === CHARACTERS.find(c => c.code === 'E4R1').id);
 
+  console.log('== 14-1. 받은 초대 링크 연결 ==');
+  click('invite');
+  const ownBeforeLink = store['mateon.me'];
+  const partnerBeforeLink = store['mateon.partner'];
+  fakeInput('partner-link', 'javascript:alert(1)');
+  click('preview-partner');
+  check('잘못된 링크는 저장 결과를 보존', store['mateon.partner'] === partnerBeforeLink && !lastHTML.includes('data-action="confirm-partner"'));
+  fakeInput('partner-link', 'https://gyeongbin-38.github.io/mateon/?invite=' + encodeResult(byCode));
+  click('preview-partner');
+  check('연결 전 상대 확인', lastHTML.includes('data-action="confirm-partner"') && store['mateon.partner'] === partnerBeforeLink);
+  click('cancel-partner');
+  check('연결 취소는 데이터 보존', store['mateon.partner'] === partnerBeforeLink);
+  fakeInput('partner-link', 'mateon://invite?data=' + encodeResult(byCode));
+  click('preview-partner');
+  click('confirm-partner');
+  check('앱 초대 링크 실제 결과 연결', JSON.parse(store['mateon.partner']).name === '테스트');
+  check('연결 후 내 진단 보존', store['mateon.me'] === ownBeforeLink);
+
   console.log('== 15. 대화 스타터 데이터 ==');
   check('TALK_STARTERS 5개 영역', Object.keys(TALK_STARTERS).length === 5);
   const beforeDemo = JSON.stringify(store);
@@ -332,6 +350,35 @@ async function answerAll() {
   check('앱 리포트 표시', lastHTML.includes('우리 둘 궁합 리포트'));
   click('home');
   check('홈 뒤로가기는 앱에 위임', !window.__mateon.handleBack());
+
+  console.log('== 19. 새로고침 후 상대 진단 복구 ==');
+  function reloadApp(search, hash) {
+    hashListeners.length = 0;
+    location.search = search; _hash = hash;
+    eval(fs.readFileSync('js/data.js', 'utf8') + '\n' + fs.readFileSync('js/mateon.js', 'utf8'));
+  }
+  const savedMe = JSON.stringify(SAMPLE_RESULTS.me);
+  store['mateon.me'] = savedMe;
+  const resumedDraft = {q:19, answers:QUESTIONS.slice(0,19).map(q=>({qid:q.id,code:q.options[0].code})), profile:{name:'복구한 상대',relation:'친구',stage:''},invite:null};
+  store['mateon.draft.partner'] = JSON.stringify(resumedDraft);
+  store['mateon.activeDraft'] = JSON.stringify('partner');
+  reloadApp('', '#/home');
+  check('홈에 상대 진단 이어하기 표시', lastHTML.includes('복구한 상대님의 진단 이어하기'));
+  click('resume-survey');
+  check('상대 진단 문항 복구', lastHTML.includes('20 / 20'));
+  click('answer', {idx:0});
+  await new Promise(r=>setTimeout(r,260));
+  check('복구한 진단이 상대 결과로 저장', JSON.parse(store['mateon.partner']).name === '복구한 상대' && store['mateon.me'] === savedMe);
+  check('완료한 상대 초안 정리', !store['mateon.draft.partner'] && !store['mateon.activeDraft']);
+  resumedDraft.invite = encodeResult(SAMPLE_RESULTS.partner);
+  store['mateon.draft.partner'] = JSON.stringify(resumedDraft);
+  store['mateon.activeDraft'] = JSON.stringify('partner');
+  reloadApp('?invite=' + resumedDraft.invite, '#/home');
+  check('같은 초대 링크로 재방문하면 진단 복구', location.hash === '#/survey' && lastHTML.includes('20 / 20'));
+  click('answer', {idx:0});
+  await new Promise(r=>setTimeout(r,260));
+  check('초대 수신자의 이름 보존', JSON.parse(store['mateon.me']).name === '복구한 상대');
+  check('초대한 메이트 연결 및 초안 정리', JSON.parse(store['mateon.partner']).name === SAMPLE_RESULTS.partner.name && !store['mateon.draft.partner']);
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
