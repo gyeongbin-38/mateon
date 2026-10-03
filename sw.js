@@ -1,4 +1,4 @@
-const CACHE = 'mateon-v10';
+const CACHE = 'mateon-v11';
 const ASSETS = ['.','index.html','brand.html','css/tokens.css','css/styles.css','css/mateon.css','css/home.css','js/data.js','js/card.js','js/mateon.js','assets/icon-192.png','assets/icon-512.png','assets/og-image.png','assets/logo-symbol.svg','assets/logo-lockup.svg','assets/app-icon.svg','assets/together-home.svg','manifest.webmanifest'];
 ASSETS.push('assets/character-sheet.png');
 self.addEventListener('install', e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())));
