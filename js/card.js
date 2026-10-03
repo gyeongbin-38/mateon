@@ -145,6 +145,7 @@ var MateCard = (function () {
     ctx.restore();
 
     var bw = badge(ctx, W / 2 - 60, cy + 30, o.code, '#FFF0F1', CORAL_D, 26);
+    ctx.textAlign = 'center';
     ctx.fillStyle = INK;
     ctx.font = '800 68px ' + FONT;
     ctx.fillText(o.name, W / 2, cy + 135);
@@ -164,6 +165,7 @@ var MateCard = (function () {
     gauge(ctx, cx + 90, gy, cw - 180, '생활 교류 활성도', o.ePct, '#FF99A3', CORAL_D, o.eLabel);
     gauge(ctx, cx + 90, gy + 100, cw - 180, '생활 자극 민감도', o.rPct, '#99BCFF', BLUE_D, o.rLabel);
 
+    ctx.textAlign = 'center';
     ctx.fillStyle = MUTE;
     ctx.font = '500 24px ' + FONT;
     ctx.fillText('생활 성향을 이해하고 대화를 시작하는 참고 도구예요', W / 2, 1250);
