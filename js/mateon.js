@@ -557,6 +557,13 @@
   }
 
   /* ================= View: 개인 결과 ================= */
+  // Original artwork: E increases left-to-right; R4 is the top row.
+  function characterArt(c, lazy) {
+    var x = [126,430,734,1031][+c.code[1]-1];
+    var y = [843,604,365,123][+c.code[3]-1];
+    return '<span class="character-art"><img src="assets/character-sheet.png" alt="' + esc(c.name) + ' 캐릭터" width="1361" height="1156" ' + (lazy ? 'loading="lazy"' : 'fetchpriority="high"') + ' style="left:' + (-x/294*100) + '%;top:' + (-y/229*100) + '%"></span>';
+  }
+
   function resultShareText(r, c) {
     return 'MATE:ON 동거 성향 진단 결과\n' +
       '나의 동거 캐릭터: ' + c.name + ' (' + c.code + ')\n' +
@@ -639,27 +646,31 @@
 
     var typesLink = '<div class="cta-col" style="margin-top:16px"><button class="btn btn-tertiary btn-md" data-action="types" type="button">16유형 도감 보기</button></div>';
 
-    shell('' +
+    shell('<div class="result-page">' +
       '<p class="eyebrow caption" style="text-align:center;display:block">' + (isMine ? '나의 동거 캐릭터' : esc(r.name) + '님의 동거 캐릭터') + '</p>' +
-      '<div class="card char-hero">' +
+      '<div class="card char-hero result-hero tone-r' + c.code[3] + '">' +
       '<span class="char-code">' + c.code + '</span>' +
       '<h2 class="char-name">' + esc(c.name) + '</h2>' +
+      characterArt(c, false) +
       '<p class="char-quote">' + esc(c.quote) + '</p>' +
       '<div class="char-meta">' +
-      '<span class="badge badge-neutral">확신도 ' + esc(r.conf) + '</span>' +
-      (c2 ? '<span class="badge badge-info">비슷한 유형 · ' + esc(c2.name) + '</span>' : '') +
+      '<span class="badge badge-neutral">응답 일치도 ' + esc(r.conf) + '</span>' +
+      (c2 && c2.id !== c.id ? '<button class="similar-type" data-action="type" data-id="' + c2.id + '" type="button">비슷한 유형 · ' + esc(c2.name) + ' →</button>' : '') +
       '</div>' +
       '</div>' +
+      '<p class="result-context">20문항에서 발견한 생활 성향이에요. 응답 일치도는 유형 간 점수 차이를 요약한 것으로, 진단 정확도를 뜻하지 않아요.</p>' +
+      '<section class="result-takeaway" aria-label="오늘의 생활 팁"><span>함께 살 때 기억해 주세요</span><p>' + esc(c.dos[0]) + '</p></section>' +
+      ctas +
+      (isMine ? '<div class="result-sharing"><p>공유 링크에는 유형·성향 수치·생활 기준이 포함돼요. 링크를 가진 사람이 결과를 볼 수 있어요.</p><button class="similar-type" data-action="share-name" type="button" aria-pressed="' + (S.shareName !== false) + '">공유할 때 닉네임 ' + (S.shareName !== false ? '포함 · 눌러서 제외' : '제외 · 눌러서 포함') + '</button></div>' : '') +
 
-      '<div class="card" style="margin-top:16px">' +
-      '<h4 class="card-title">나의 성향 좌표</h4>' +
+      '<details class="card result-details" style="margin-top:16px"><summary>나의 성향 좌표 · 수치와 해석</summary>' +
       '<div class="gauge-block">' +
       gaugeHTML('생활 교류 활성도 (E)', r.eAvg, false) +
       gaugeHTML('생활 자극 민감도 (R)', r.rAvg, true) +
       '</div>' +
       '<div style="margin-top:20px">' + matrixHTML(r.charId, null, r.name || '나') + '</div>' +
       '<p class="caption text-muted" style="margin-top:16px">수치는 순위나 궁합 점수가 아니라, 20개 응답에서 나타난 성향의 위치예요. 결과는 판정이 아니라 대화를 돕는 참고 도구예요.</p>' +
-      '</div>' +
+      '</details>' +
 
       '<div class="card" style="margin-top:16px">' +
       '<h4 class="card-title">같이 살면 나는 이런 사람</h4>' +
@@ -677,7 +688,7 @@
       '</div>' +
 
       '<div class="card" style="margin-top:16px">' +
-      '<h4 class="card-title">나의 갈등 시퀀스</h4>' +
+      '<h4 class="card-title">갈등이 생겼을 때의 내 흐름</h4>' +
       '<div class="seq">' + seq + '</div>' +
       '</div>' +
 
@@ -689,8 +700,8 @@
       '<div class="card" style="margin-top:16px">' +
       '<h4 class="card-title">나와 살 때 사용설명서</h4>' +
       '<div class="do-grid">' +
-      '<div class="do-col do"><h5>DO</h5><ul>' + c.dos.map(function (t) { return '<li>· ' + esc(t) + '</li>'; }).join('') + '</ul></div>' +
-      '<div class="do-col dont"><h5>DON&#39;T</h5><ul>' + c.donts.map(function (t) { return '<li>· ' + esc(t) + '</li>'; }).join('') + '</ul></div>' +
+      '<div class="do-col do"><h5>이렇게 해주세요</h5><ul>' + c.dos.map(function (t) { return '<li>· ' + esc(t) + '</li>'; }).join('') + '</ul></div>' +
+      '<div class="do-col dont"><h5>이건 피해주세요</h5><ul>' + c.donts.map(function (t) { return '<li>· ' + esc(t) + '</li>'; }).join('') + '</ul></div>' +
       '</div>' +
       '</div>' +
 
@@ -699,7 +710,7 @@
       '<div class="comfort-chips">' + c.comfort.map(function (t) { return '<span class="badge badge-brand">' + esc(t) + '</span>'; }).join('') + '</div>' +
       '</div>' +
 
-      lifeHTML + histHTML + ctas + typesLink);
+      lifeHTML + histHTML + typesLink + '</div>');
   }
 
   /* ================= View: 상대 초대 ================= */
@@ -1055,7 +1066,7 @@
         dist = '<span class="tc-dist">' + lbl + '</span>';
       }
       return '<button class="' + cls + '" data-action="type" data-id="' + c.id + '" type="button" style="--i:' + i + '">' +
-        '<span class="tc-code">' + c.code + '</span><span class="tc-name">' + esc(c.name) + '</span>' + dist + '</button>';
+        characterArt(c, true) + '<span class="tc-code">' + c.code + '</span><span class="tc-name">' + esc(c.name) + '</span>' + dist + '</button>';
     }).join('');
 
     var legend = '';
@@ -1086,9 +1097,10 @@
       '<div class="survey-top"><button class="back-btn" data-action="types" type="button" aria-label="도감으로">' +
       '<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>' +
       '<span class="progress-num">유형 도감</span></div>' +
-      '<div class="card char-hero">' +
+      '<div class="card char-hero result-hero">' +
       '<span class="char-code">' + c.code + '</span>' +
       '<h2 class="char-name">' + esc(c.name) + '</h2>' +
+      characterArt(c, false) +
       '<p class="char-quote">' + esc(c.quote) + '</p></div>' +
       '<div class="card" style="margin-top:16px"><h4 class="card-title">같이 살면 이런 사람</h4>' +
       '<ul class="trait-list">' + c.traits.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>' +
@@ -1329,12 +1341,19 @@
     document.head.appendChild(s);
   }
 
-  function saveResultImage() {
+  async function saveResultImage() {
     var r = S.flow === 'partner' ? S.partner : S.me;
     if (!r) return;
     var c = charById(r.charId);
     var el = E_LEVELS[eLevel(r.eAvg)], rl = R_LEVELS[rLevel(r.rAvg)];
+    showToast('캐릭터 카드를 만들고 있어요');
+    var art = new Image();
+    try {
+      await new Promise(function(resolve,reject) { art.onload=resolve; art.onerror=reject; art.src='assets/character-sheet.png'; });
+      if(document.fonts && document.fonts.ready) await document.fonts.ready;
+    } catch(e) { showToast('캐릭터 이미지를 불러오지 못했어요. 연결을 확인하고 다시 시도해 주세요'); return; }
     var cv = MateCard.resultCard({
+      art: art,
       code: c.code, name: c.name, quote: c.quote,
       ePct: pct(r.eAvg), rPct: pct(r.rAvg),
       eLabel: eLevel(r.eAvg) + ' ' + el.label, rLabel: rLevel(r.rAvg) + ' ' + rl.label,

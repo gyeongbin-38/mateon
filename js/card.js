@@ -125,17 +125,17 @@ var MateCard = (function () {
     glow(ctx, W * 0.5, H * 0.1, W * 0.6, '#FFC2C8', 0.5);
     glow(ctx, W * 0.1, H, W * 0.4, '#C2D7FF', 0.45);
 
-    drawLogo(ctx, W / 2 - 64, 90, 1.0);
+    drawLogo(ctx, W / 2 - 40, 35, 0.625);
     ctx.fillStyle = INK;
     ctx.font = '800 34px ' + FONT;
     ctx.textAlign = 'center';
-    ctx.fillText('MATE:ON', W / 2, 240);
+    ctx.fillText('MATE:ON', W / 2, 145);
     ctx.fillStyle = MUTE;
     ctx.font = '500 24px ' + FONT;
-    ctx.fillText('동거 성향 진단 결과', W / 2, 282);
+    ctx.fillText('나의 동거 캐릭터', W / 2, 190);
 
     // 메인 카드
-    var cx = 90, cy = 340, cw = W - 180, ch = 620;
+    var cx = 60, cy = 220, cw = W - 120, ch = 970;
     ctx.save();
     ctx.shadowColor = 'rgba(255,66,85,0.18)';
     ctx.shadowBlur = 40; ctx.shadowOffsetY = 12;
@@ -144,36 +144,39 @@ var MateCard = (function () {
     ctx.fill();
     ctx.restore();
 
-    var bw = badge(ctx, W / 2 - 60, cy + 56, o.code, '#FFF0F1', CORAL_D, 26);
+    var bw = badge(ctx, W / 2 - 60, cy + 30, o.code, '#FFF0F1', CORAL_D, 26);
     ctx.fillStyle = INK;
     ctx.font = '800 68px ' + FONT;
-    ctx.fillText(o.name, W / 2, cy + 220);
+    ctx.fillText(o.name, W / 2, cy + 135);
+    if(o.art) {
+      var sx=[126,430,734,1031][+o.code[1]-1], sy=[843,604,365,123][+o.code[3]-1];
+      ctx.drawImage(o.art,sx,sy,294,229,250,385,580,452);
+    }
 
     ctx.fillStyle = SUB;
     ctx.font = '500 30px ' + FONT;
     var ql = wrapText(ctx, o.quote, cw - 160);
     ql.forEach(function (line, i) {
-      ctx.fillText(line, W / 2, cy + 290 + i * 46);
+      ctx.fillText(line, W / 2, 890 + i * 42);
     });
 
-    var gy = cy + 300 + ql.length * 46 + 40;
+    var gy = 1010;
     gauge(ctx, cx + 90, gy, cw - 180, '생활 교류 활성도', o.ePct, '#FF99A3', CORAL_D, o.eLabel);
     gauge(ctx, cx + 90, gy + 100, cw - 180, '생활 자극 민감도', o.rPct, '#99BCFF', BLUE_D, o.rLabel);
 
     ctx.fillStyle = MUTE;
     ctx.font = '500 24px ' + FONT;
-    ctx.fillText('16개 동거 캐릭터 중 하나예요', W / 2, cy + ch - 56);
+    ctx.fillText('생활 성향을 이해하고 대화를 시작하는 참고 도구예요', W / 2, 1250);
 
     // 하단
     ctx.fillStyle = SUB;
     ctx.font = '600 28px ' + FONT;
-    ctx.fillText('너는 어떤 유형일까?', W / 2, H - 210);
+    ctx.fillText('너는 어떤 유형일까?', W / 2, 1300);
     ctx.fillStyle = MUTE;
     ctx.font = '400 22px ' + FONT;
-    ctx.fillText('함께 살 준비, 서로를 아는 것부터.', W / 2, H - 160);
+    // Keep the share card focused on the character and two readable axes.
     ctx.fillStyle = CORAL_D;
     ctx.font = '700 24px ' + FONT;
-    ctx.fillText('MATE:ON', W / 2, H - 110);
     ctx.textAlign = 'left';
     return c;
   }

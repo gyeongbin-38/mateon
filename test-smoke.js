@@ -134,6 +134,10 @@ async function answerAll() {
   check('완료 후 draft 정리', !store['mateon.draft.me']);
   const me = JSON.parse(store['mateon.me']);
   check('캐릭터 ID 유효', me.charId >= 1 && me.charId <= 16);
+  check('결과에 원본 캐릭터 이미지 연결', lastHTML.includes('assets/character-sheet.png') && lastHTML.includes('character-art'));
+  check('주요 행동을 상세 수치보다 먼저 배치', lastHTML.indexOf('data-action="saveimg"') < lastHTML.indexOf('result-details'));
+  check('수치 상세는 펼치기 제공', lastHTML.includes('<details class="card result-details"') && lastHTML.includes('<summary>'));
+  check('응답 일치도 의미 안내', lastHTML.includes('진단 정확도를 뜻하지 않아요'));
 
   console.log('== 4. 초대 링크 인코딩 ==');
   click('invite');
