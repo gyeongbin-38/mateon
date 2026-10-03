@@ -162,6 +162,7 @@ var MateCard = (function () {
     });
 
     var gy = 1010;
+    ctx.textAlign = 'left';
     gauge(ctx, cx + 90, gy, cw - 180, '생활 교류 활성도', o.ePct, '#FF99A3', CORAL_D, o.eLabel);
     gauge(ctx, cx + 90, gy + 100, cw - 180, '생활 자극 민감도', o.rPct, '#99BCFF', BLUE_D, o.rLabel);
 
