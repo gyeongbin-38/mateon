@@ -335,6 +335,7 @@
   }
 
   function shell(content) {
+    if (homeCarouselObserver) { homeCarouselObserver.disconnect(); homeCarouselObserver = null; }
     app.innerHTML = '<div class="app-shell' + (currentRoute() === 'home' ? ' is-home' : '') + '">' + headerHTML() +
       '<main class="app-main" id="main">' + content + '</main>' + bottomNavHTML() + '</div>';
     window.scrollTo(0, 0);
@@ -420,6 +421,42 @@
     if (!draft || !Array.isArray(draft.answers) || !draft.answers.length || !draft.profile) return '';
     return '<button class="draft-banner" type="button" data-action="resume-survey"><span><strong>' + esc(draft.profile.name || (flow === 'partner' ? '메이트' : '나')) + '님의 진단 이어하기</strong><small>' + draft.answers.length + ' / 20 문항 완료 · 자동 저장됨</small></span>' + mobileIcon('arrow') + '</button>';
   }
+  var homeCarouselObserver = null;
+  function bindHomeCarousel(startId) {
+    var track = document.getElementById('home-carousel');
+    if (!track) return;
+    var slides = Array.from(track.children);
+    var width = track.clientWidth;
+    var index = 0;
+    var previous = document.getElementById('character-previous');
+    var next = document.getElementById('character-next');
+    var status = document.getElementById('character-position');
+    function update() {
+      if(track.clientWidth !== width) return;
+      index = Math.max(0,Math.min(slides.length-1,Math.round(track.scrollLeft / track.clientWidth)));
+      status.textContent = (index+1) + ' / ' + slides.length;
+      previous.disabled = index === 0; next.disabled = index === slides.length-1;
+      slides.forEach(function(slide,i) {
+        slide.setAttribute('aria-hidden',String(i !== index));
+        slide.querySelector('button').tabIndex = i === index ? 0 : -1;
+      });
+    }
+    function move(step) {
+      var target = Math.max(0,Math.min(slides.length-1,index+step));
+      track.scrollTo({left:target*track.clientWidth,behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
+    }
+    previous.addEventListener('click',function(){move(-1);});
+    next.addEventListener('click',function(){move(1);});
+    track.addEventListener('scroll',update,{passive:true});
+    track.addEventListener('keydown',function(e){
+      if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();move(e.key==='ArrowLeft'?-1:1);}
+    });
+    track.scrollLeft=index*track.clientWidth; update();
+    if(window.ResizeObserver) {
+      homeCarouselObserver = new ResizeObserver(function(){if(width===track.clientWidth)return;width=track.clientWidth;track.scrollLeft=index*width;update();});
+      homeCarouselObserver.observe(track);
+    }
+  }
   function vHome() {
     var draft = S.answers.length > 0 && S.answers.length < QUESTIONS.length;
     var action = !S.me ? (draft ? 'resume-survey' : 'start') : (!S.partner ? 'invite' : 'report');
@@ -428,21 +465,24 @@
     var count = (S.me?1:0)+(S.me&&S.partner?1:0)+(S.agreement?1:0);
     var saved = load('mateon.talks') || {};
     var stats=checklistStats();
-    var homeCharacters = S.me ? [charById(S.me.charId)] : [charById(12), charById(7)];
-    if (S.me && S.partner) homeCharacters.push(charById(S.partner.charId));
-    var portraits = '<div class="home-characters' + (homeCharacters.length === 1 ? ' single' : '') + '" aria-label="' + (S.me ? '우리의 동거 캐릭터' : '동거 캐릭터 미리보기') + '">' + homeCharacters.map(function(c,i) {
-      return '<figure class="home-character">' + characterArt(c,false) + '<figcaption><span>' + (S.me ? (i === 0 ? '나의 캐릭터' : '메이트의 캐릭터') : c.code) + '</span><strong>' + esc(c.name) + '</strong></figcaption></figure>';
-    }).join('') + '</div>';
+    var startId = S.me ? S.me.charId : 12;
+    var carouselCharacters = [charById(startId)].concat(CHARACTERS.filter(function(c){return c.id!==startId;}));
+    var portraits = '<div class="character-carousel"><div class="character-track" id="home-carousel" role="region" aria-roledescription="캐러셀" aria-label="16가지 동거 캐릭터 · 좌우 방향키로 이동" tabindex="0">' + carouselCharacters.map(function(c,i) {
+      var mine = S.me && c.id === S.me.charId;
+      var partner = S.partner && c.id === S.partner.charId;
+      return '<article class="character-slide" role="group" aria-roledescription="슬라이드" aria-label="' + (i+1) + ' / 16 · ' + esc(c.name) + '"><span class="carousel-label">' + c.code + ' · ' + (mine?'나의 캐릭터':partner?'메이트의 캐릭터':'캐릭터 미리보기') + '</span>' + characterArt(c,c.id!==startId) + '<h3>' + esc(c.name) + '</h3><p>' + esc(c.quote) + '</p><button class="carousel-detail" data-action="type" data-id="' + c.id + '" type="button">이 캐릭터 알아보기 ' + mobileIcon('arrow') + '</button></article>';
+    }).join('') + '</div><div class="carousel-controls"><button id="character-previous" class="icon-button" type="button" aria-label="이전 캐릭터">' + mobileIcon('arrow') + '</button><span id="character-position" role="status" aria-live="polite"></span><button id="character-next" class="icon-button" type="button" aria-label="다음 캐릭터">' + mobileIcon('arrow') + '</button></div><p class="carousel-hint">옆으로 넘겨 다른 메이트도 만나보세요</p></div>';
     var connection = '<section class="connection-strip" aria-label="메이트 연결 상태"><div class="paired-avatars"><span>'+esc(S.me?S.me.name.slice(0,1):'나')+'</span><span>'+ (S.partner ? esc(S.partner.name.slice(0,1)) : mobileIcon('plus')) +'</span></div><div><strong>'+ (S.partner?esc(S.partner.name)+'님과 함께':S.me?'메이트를 초대해 보세요':'서로를 알아가는 첫걸음') +'</strong><p>'+ (S.partner?'두 사람의 생활방식을 함께 맞춰봐요':S.me?'결과 링크로 우리의 성향을 비교해요':'내 성향을 알아본 뒤, 메이트와 연결해요') +'</p></div><button class="icon-button" data-action="'+(S.me?'invite':'start')+'" aria-label="메이트 연결하기" type="button">'+mobileIcon('arrow')+'</button></section>';
     shell('<div class="mobile-home">'+
-      '<section class="app-greeting"><p>'+ (S.me ? esc(S.me.name)+'님, 반가워요' : '함께 살 준비, 서로를 아는 것부터.') +'</p><h1>우리의 일상,<br>조금 더 가까이<span class="coral-dot">.</span></h1></section>'+
+      '<section class="app-greeting"><p>'+ (S.me ? esc(S.me.name)+'님, 반가워요' : '함께 살 준비, 서로를 아는 것부터.') +'</p><h1>우리의 일상,<br> 조금 더 가까이<span class="coral-dot">.</span></h1></section>'+
       draftBannerHTML() +
       '<section class="today-mission"><div class="mission-top"><span class="mission-label">'+(!S.me?'나를 알아가는 시간':S.partner?'함께 맞춰가는 생활':'우리의 다음 단계')+'</span><span class="mission-count">'+(count<3?'0'+(count+1):'03')+' <span>/ 03</span></span></div><h2>'+title+'</h2><p>'+(!S.me?'16가지 캐릭터 속, 나의 생활방식을 발견해요.':(!S.partner?'나와 메이트의 생활방식을 맞춰봐요.':'잘 맞는 부분도, 대화가 필요한 부분도.'))+'</p>'+portraits+'<div class="mission-footer"><span>'+ (draft ? S.answers.length+' / 20 문항 완료 · 자동 저장됨' : S.me?'나를 알고, 서로를 이해하는 시간':'동거 성향 테스트 · 20문항 · 약 3분')+'</span><button class="mobile-primary home-primary" data-action="'+action+'" type="button">'+cta+mobileIcon('arrow')+'</button></div></section>'+
-      connection +
+      '<div class="home-support">' + connection +
       '<div class="app-shortcuts"><button type="button" data-action="'+(S.me?'result':'start')+'"><span class="shortcut-icon pink">'+mobileIcon('user')+'</span>나의 성향</button><button type="button" data-action="'+(S.me&&S.partner?'report':'demo')+'"><span class="shortcut-icon blue">'+mobileIcon('heart')+'</span>궁합 리포트</button><button type="button" data-action="checklist"><span class="shortcut-icon mint">'+NAV_ICONS.checklist+'</span>입주 준비</button></div>'+
       '<section class="conversation-section"><div class="mobile-section-head"><h2>오늘의 대화</h2><span>마음을 나누는 1분</span></div><div class="conversation-card"><div class="conversation-top"><span>'+HOME_TALKS[talkIndex][0]+'</span><button class="icon-button" data-action="next-talk" type="button" aria-label="다른 대화 주제">'+mobileIcon('refresh')+'</button></div><h3>'+HOME_TALKS[talkIndex][1]+'</h3><button type="button" class="conversation-open" data-action="talk-open">'+(saved[talkIndex]?'내 답변 다시 보기':'내 생각 남기기')+mobileIcon('arrow')+'</button></div></section>'+
       '<button class="preparation-row" type="button" data-action="space"><span class="preparation-icon">'+NAV_ICONS.home+'</span><span><strong>우리의 입주 준비</strong><small>'+stats.total+'개 중 '+stats.done+'개 완료했어요</small></span><span class="tiny-ring" style="--done:'+Math.round(stats.done/stats.total*100)+'%">'+Math.round(stats.done/stats.total*100)+'%</span>'+mobileIcon('arrow')+'</button>'+
-      '</div>');
+      '</div></div>');
+    bindHomeCarousel(startId);
   }
   function vSpace() {
     var stats=checklistStats(); var notes=load('mateon.talks') || {};
@@ -567,7 +607,8 @@
   function characterArt(c, lazy) {
     var x = [126,430,734,1031][+c.code[1]-1];
     var y = [843,604,365,123][+c.code[3]-1];
-    return '<span class="character-art"><img src="assets/character-sheet.png" alt="' + esc(c.name) + ' 캐릭터" width="1361" height="1156" ' + (lazy ? 'loading="lazy"' : 'fetchpriority="high"') + ' style="left:' + (-x/294*100) + '%;top:' + (-y/229*100) + '%"></span>';
+    var height = +c.code[3] === 1 ? 202 : 229;
+    return '<span class="character-art" style="aspect-ratio:294/' + height + '"><img src="assets/character-sheet.png" alt="' + esc(c.name) + ' 캐릭터" width="1361" height="1156" ' + (lazy ? 'loading="lazy"' : 'fetchpriority="high"') + ' style="left:' + (-x/294*100) + '%;top:' + (-y/height*100) + '%"></span>';
   }
 
   function resultShareText(r, c) {

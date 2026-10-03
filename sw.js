@@ -1,5 +1,5 @@
-const CACHE = 'mateon-v12';
-const VERSION = '20261003-12';
+const CACHE = 'mateon-v13';
+const VERSION = '20261003-13';
 const ASSETS = ['.','index.html','brand.html','css/tokens.css','css/styles.css','css/mateon.css','css/home.css','js/data.js','js/card.js','js/mateon.js','assets/icon-192.png','assets/icon-512.png','assets/og-image.png','assets/logo-symbol.svg','assets/logo-lockup.svg','assets/app-icon.svg','assets/together-home.svg','manifest.webmanifest'];
 ASSETS.push('assets/character-sheet.png');
 const SHELL = ASSETS.map(p => /\.(js|css)$/.test(p) ? p + '?v=' + VERSION : p);
