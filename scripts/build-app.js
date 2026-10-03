@@ -19,7 +19,7 @@ async function main() {
   let html=fs.readFileSync(path.join(root,'index.html'),'utf8');
   // Native assets are bundled; no CDN/font request is needed to launch offline.
   html=html.replace(/^.*<link[^>]*https:\/\/cdn\.jsdelivr\.net[^>]*>.*$/gm,'')
-    .replace('<script src="js/data.js">','<script src="js/native.js"></script>\n  <script src="js/data.js">');
+    .replace(/<script src="js\/data\.js(?:\?[^\"]*)?">/,match=>'<script src="js/native.js"></script>\n  '+match);
   fs.writeFileSync(path.join(output,'index.html'),html);
   for(const file of ['manifest.webmanifest','brand.html']) fs.copyFileSync(path.join(root,file),path.join(output,file));
   await build({entryPoints:[path.join(root,'native/bridge.js')],outfile:path.join(output,'js/native.js'),bundle:true,format:'iife',platform:'browser',target:['safari15','chrome100'],minify:true});
