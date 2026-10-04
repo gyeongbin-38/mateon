@@ -164,7 +164,7 @@ body {max-width:480px;box-shadow:0 0 0 1px #3039430a;}
 .app-greeting h1 {font-size:26px;}
 .today-mission {padding:16px;border-radius:24px;}
 .character-carousel {margin-block:12px;}
-.character-slide .character-art {width:min(100%,280px,22svh);margin-bottom:10px;}
+.character-slide .character-art {width:100%;max-width:none;margin-bottom:10px;border-radius:20px;}
 .character-slide h3 {font-size:24px;}
 .carousel-label {margin-bottom:8px;}
 .carousel-hint {margin-top:6px;}
