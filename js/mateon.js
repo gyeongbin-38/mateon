@@ -470,7 +470,7 @@
     var portraits = '<div class="character-carousel"><div class="character-track" id="home-carousel" role="region" aria-roledescription="캐러셀" aria-label="16가지 동거 캐릭터 · 좌우 방향키로 이동" tabindex="0">' + carouselCharacters.map(function(c,i) {
       var mine = S.me && c.id === S.me.charId;
       var partner = S.partner && c.id === S.partner.charId;
-      return '<article class="character-slide" role="group" aria-roledescription="슬라이드" aria-label="' + (i+1) + ' / 16 · ' + esc(c.name) + '"><span class="carousel-label">' + c.code + ' · ' + (mine?'나의 캐릭터':partner?'메이트의 캐릭터':'캐릭터 미리보기') + '</span>' + characterArt(c,c.id!==startId) + '<h3>' + esc(c.name) + '</h3><p>' + esc(c.quote) + '</p><button class="carousel-detail" data-action="type" data-id="' + c.id + '" type="button">이 캐릭터 알아보기 ' + mobileIcon('arrow') + '</button></article>';
+      return '<article class="character-slide" role="group" aria-roledescription="슬라이드" aria-label="' + (i+1) + ' / 16 · ' + esc(c.name) + '"><span class="carousel-label">' + c.code + ' · ' + (mine?'나의 캐릭터':partner?'메이트의 캐릭터':'캐릭터 미리보기') + '</span>' + characterArt(c,c.id!==startId,true) + '<h3>' + esc(c.name) + '</h3><p>' + esc(c.quote) + '</p><button class="carousel-detail" data-action="type" data-id="' + c.id + '" type="button">이 캐릭터 알아보기 ' + mobileIcon('arrow') + '</button></article>';
     }).join('') + '</div><div class="carousel-controls"><button id="character-previous" class="icon-button" type="button" aria-label="이전 캐릭터">' + mobileIcon('arrow') + '</button><span id="character-position" role="status" aria-live="polite"></span><button id="character-next" class="icon-button" type="button" aria-label="다음 캐릭터">' + mobileIcon('arrow') + '</button></div><p class="carousel-hint">옆으로 넘겨 다른 메이트도 만나보세요</p></div>';
     var connection = '<section class="connection-strip" aria-label="메이트 연결 상태"><div class="paired-avatars"><span>'+esc(S.me?S.me.name.slice(0,1):'나')+'</span><span>'+ (S.partner ? esc(S.partner.name.slice(0,1)) : mobileIcon('plus')) +'</span></div><div><strong>'+ (S.partner?esc(S.partner.name)+'님과 함께':S.me?'메이트를 초대해 보세요':'서로를 알아가는 첫걸음') +'</strong><p>'+ (S.partner?'두 사람의 생활방식을 함께 맞춰봐요':S.me?'결과 링크로 우리의 성향을 비교해요':'내 성향을 알아본 뒤, 메이트와 연결해요') +'</p></div><button class="icon-button" data-action="'+(S.me?'invite':'start')+'" aria-label="메이트 연결하기" type="button">'+mobileIcon('arrow')+'</button></section>';
     shell('<div class="mobile-home">'+
@@ -603,8 +603,14 @@
   }
 
   /* ================= View: 개인 결과 ================= */
-  // Original artwork: E increases left-to-right; R4 is the top row.
-  function characterArt(c, lazy) {
+  // Character sheets: E increases left-to-right; R4 is the top row.
+  function characterArt(c, lazy, cutout) {
+    if (cutout) {
+      var cutoutX = [0,340,680,1021][+c.code[1]-1];
+      var cutoutY = [880,605,330,0][+c.code[3]-1];
+      var cutoutHeight = [276,289,285,330][+c.code[3]-1];
+      return '<span class="character-art character-art-cutout" style="aspect-ratio:340.25/' + cutoutHeight + '"><img src="assets/character-sheet-cutout-v2.png" alt="' + esc(c.name) + ' 캐릭터" width="1361" height="1156" ' + (lazy ? 'loading="lazy"' : 'fetchpriority="high"') + ' style="left:' + (-cutoutX/340.25*100) + '%;top:' + (-cutoutY/cutoutHeight*100) + '%"></span>';
+    }
     var x = [126,430,734,1031][+c.code[1]-1];
     var y = [843,604,365,123][+c.code[3]-1];
     var height = +c.code[3] === 1 ? 202 : 229;
