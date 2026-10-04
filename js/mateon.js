@@ -607,8 +607,8 @@
   function characterArt(c, lazy, cutout) {
     if (cutout) {
       var cutoutX = [0,340,680,1021][+c.code[1]-1];
-      var cutoutY = [880,605,330,0][+c.code[3]-1];
-      var cutoutHeight = [276,289,285,330][+c.code[3]-1];
+      var cutoutY = [890,610,330,0][+c.code[3]-1];
+      var cutoutHeight = [266,280,280,330][+c.code[3]-1];
       return '<span class="character-art character-art-cutout" style="aspect-ratio:340.25/' + cutoutHeight + '"><img src="assets/character-sheet-cutout-v2.png" alt="' + esc(c.name) + ' 캐릭터" width="1361" height="1156" ' + (lazy ? 'loading="lazy"' : 'fetchpriority="high"') + ' style="left:' + (-cutoutX/340.25*100) + '%;top:' + (-cutoutY/cutoutHeight*100) + '%"></span>';
     }
     var x = [126,430,734,1031][+c.code[1]-1];
