@@ -16,7 +16,11 @@ let package = Package(
         .package(name: "CapacitorClipboard", path: "..\..\..\node_modules\@capacitor\clipboard"),
         .package(name: "CapacitorFilesystem", path: "..\..\..\node_modules\@capacitor\filesystem"),
         .package(name: "CapacitorHaptics", path: "..\..\..\node_modules\@capacitor\haptics"),
-        .package(name: "CapacitorShare", path: "..\..\..\node_modules\@capacitor\share")
+        .package(name: "CapacitorLocalNotifications", path: "..\..\..\node_modules\@capacitor\local-notifications"),
+        .package(name: "CapacitorShare", path: "..\..\..\node_modules\@capacitor\share"),
+        .package(name: "CapawesomeCapacitorAppShortcuts", path: "..\..\..\node_modules\@capawesome\capacitor-app-shortcuts"),
+        .package(name: "CapgoCapacitorUpdater", path: "..\..\..\node_modules\@capgo\capacitor-updater"),
+        .package(name: "CapacitorSecureStoragePlugin", path: "..\..\..\node_modules\capacitor-secure-storage-plugin")
     ],
     targets: [
         .target(
@@ -28,7 +32,11 @@ let package = Package(
                 .product(name: "CapacitorClipboard", package: "CapacitorClipboard"),
                 .product(name: "CapacitorFilesystem", package: "CapacitorFilesystem"),
                 .product(name: "CapacitorHaptics", package: "CapacitorHaptics"),
-                .product(name: "CapacitorShare", package: "CapacitorShare")
+                .product(name: "CapacitorLocalNotifications", package: "CapacitorLocalNotifications"),
+                .product(name: "CapacitorShare", package: "CapacitorShare"),
+                .product(name: "CapawesomeCapacitorAppShortcuts", package: "CapawesomeCapacitorAppShortcuts"),
+                .product(name: "CapgoCapacitorUpdater", package: "CapgoCapacitorUpdater"),
+                .product(name: "CapacitorSecureStoragePlugin", package: "CapacitorSecureStoragePlugin")
             ]
         )
     ]

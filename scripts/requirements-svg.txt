@@ -1,0 +1,2 @@
+# External build tool; see SVG-EXPORT-NOTES.md for licensing.
+PyMuPDF==1.28.2

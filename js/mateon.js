@@ -10,6 +10,12 @@
   var toastEl = document.getElementById('toast');
   var toastTimer = null;
 
+  /* js/lifetools.js 의 순수 유틸 — 본 파일에 남은 호출부는 그대로 둔다 */
+  var ML = window.MateLife || {};
+  var p2 = ML.p2, dateStr = ML.dateStr, fmtWon = ML.fmtWon,
+    mondayOf = ML.mondayOf, isoWeekKey = ML.isoWeekKey, weekRangeLabel = ML.weekRangeLabel,
+    expenseShare = ML.expenseShare, parseReceiptText = ML.parseReceiptText;
+
   /* ================= Utils ================= */
   function showToast(msg) {
     if (!toastEl) return;
@@ -88,6 +94,17 @@
     setTheme(saved || (prefersDark ? 'dark' : 'light'));
   })();
 
+  function applyFontSize() {
+    root.dataset.font = (S && S.fontSize === 'large') ? 'large' : '';
+  }
+  applyFontSize();
+
+  function syncNativeReminders() {
+    if (window.MateNative && window.MateNative.syncReminders) {
+      window.MateNative.syncReminders(S.reminders).catch(function () { });
+    }
+  }
+
   /* ================= Scoring =================
      4-bit 직교 대비 코드: E1=(0,1) E2=(0,0) E3=(1,0) E4=(1,1), R도 동일.
      선택지 코드와 캐릭터 코드의 해밍 거리 d → 가중치 = 2 - d  */
@@ -163,6 +180,7 @@
     answers: [],
     profile: { name: '', relation: '', stage: '' },
     checkedRules: [],
+    rulesReady: false,
     customRules: load('mateon.customRules') || [],
     signs: { me: false, partner: false },
     lifeQ: 0,
@@ -173,6 +191,29 @@
     shareName: load('mateon.shareName') !== false,
     resetArm: false,
     delArm: null,
+    /* 생활 도구 데이터 */
+    expenses: load('mateon.expenses') || [],
+    settled: load('mateon.settled') || [],
+    chores: load('mateon.chores'),
+    choreLog: load('mateon.choreLog') || {},
+    events: load('mateon.events') || [],
+    checkins: load('mateon.checkins') || [],
+    customChecklist: load('mateon.customChecklist') || [],
+    conflictLog: load('mateon.conflictLog') || [],
+    shopping: load('mateon.shopping') || [],
+    lovemap: load('mateon.lovemap') || { idx: 0, known: 0, asked: 0 },
+    reminders: (function (r) { return { checkin: !r || r.checkin !== false, agreement: !r || r.agreement !== false }; })(load('mateon.reminders')),
+    inviteDays: load('mateon.inviteDays') || 7,
+    fontSize: load('mateon.fontSize') === 'large' ? 'large' : 'normal',
+    seen: load('mateon.seen') === true,
+    syncCfg: load('mateon.sync'),
+    inviteExpired: false,
+    pendingUpdate: null,
+    cgStep: 0, cgDomain: 'D',
+    delArm2: null,
+    expCat: '생활비', expPayer: 'me', evWho: 'both',
+    splitMode: 'equal', splitShare: '5:5', shopCat: '식료품',
+    lastRoute: '',
   };
 
   /* ---- 설문 진행 자동 저장 (새로고침 복구) ---- */
@@ -184,30 +225,32 @@
     remove('mateon.draft.' + S.flow);
     if (load('mateon.activeDraft') === S.flow) remove('mateon.activeDraft');
   }
+  function isValidDraft(d) {
+    return !!(d && Array.isArray(d.answers) && d.answers.length > 0 && d.answers.length <= QUESTIONS.length &&
+      Number.isInteger(d.q) && d.q >= 0 && d.q < QUESTIONS.length &&
+      d.profile && typeof d.profile.name === 'string' &&
+      d.answers.every(function(a) { var q = a && QUESTIONS.find(function(q) { return q.id === a.qid; }); return q && q.options.some(function(o) { return o.code === a.code; }); }));
+  }
+
   function restoreDraft(flowKey) {
     if (flowKey !== 'me' && flowKey !== 'partner') return false;
     var d = load('mateon.draft.' + flowKey);
-    if (d && Array.isArray(d.answers) && d.answers.length > 0 && d.answers.length <= QUESTIONS.length &&
-        Number.isInteger(d.q) && d.q >= 0 && d.q < QUESTIONS.length &&
-        d.profile && typeof d.profile.name === 'string' &&
-        d.answers.every(function(a) { var q = a && QUESTIONS.find(function(q) { return q.id === a.qid; }); return q && q.options.some(function(o) { return o.code === a.code; }); })) {
-      if (S.invite && d.invite !== encodeResult(S.invite)) return false;
-      var invite = d.invite ? decodeResult(d.invite) : null;
-      if (d.invite && !invite) return false;
-      if (flowKey === 'partner' && !invite && !S.me) return false;
-      S.flow = flowKey;
-      S.q = d.q;
-      S.answers = d.answers;
-      S.profile = { name: d.profile.name.slice(0,12), relation: typeof d.profile.relation === 'string' ? d.profile.relation : '', stage: typeof d.profile.stage === 'string' ? d.profile.stage : '' };
-      S.invite = invite;
-      return true;
-    }
-    return false;
+    if (!isValidDraft(d)) return false;
+    if (S.invite && d.invite !== encodeResult(S.invite)) return false;
+    var invite = d.invite ? decodeResult(d.invite) : null;
+    if (d.invite && !invite) return false;
+    if (flowKey === 'partner' && !invite && !S.me) return false;
+    S.flow = flowKey;
+    S.q = d.q;
+    S.answers = d.answers;
+    S.profile = { name: d.profile.name.slice(0,12), relation: typeof d.profile.relation === 'string' ? d.profile.relation : '', stage: typeof d.profile.stage === 'string' ? d.profile.stage : '' };
+    S.invite = invite;
+    return true;
   }
 
-  /* ---- 초대 링크 인코딩/디코딩 (v2 압축 배열, v1 객체 하위호환) ---- */
-  function encodeResult(r) {
-    var arr = [
+  /* ---- 초대 링크 인코딩/디코딩 (v3 만료·난독화, v2 압축 배열, v1 객체 하위호환) ---- */
+  function resultToArr(r) {
+    return [
       r.name, r.relation || '', r.stage || '',
       +r.eAvg.toFixed(2), +r.rAvg.toFixed(2),
       r.charId, r.char2Id, r.conf || '',
@@ -217,8 +260,51 @@
       }),
       r.life ? r.life.map(function (x) { return x.level; }) : null,
     ];
-    var b64 = btoa(unescape(encodeURIComponent(JSON.stringify(arr))));
-    return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  function b64urlEncode(s) {
+    return btoa(unescape(encodeURIComponent(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  function b64urlDecode(s) {
+    return decodeURIComponent(escape(atob(s.replace(/-/g, '+').replace(/_/g, '/'))));
+  }
+  function encodeResult(r) {
+    return b64urlEncode(JSON.stringify(resultToArr(r)));
+  }
+
+  /* v3: XOR 스트림 난독화 + 만료 시각. URL 안에 결과가 그대로 읽히지 않게 하고,
+     일정 시간이 지나면 링크가 더 이상 열리지 않게 한다. (난독화이지 암호화는 아님) */
+  function xorStream(seed) {
+    return function () { seed = (Math.imul(seed, 1103515245) + 12345) >>> 0; return (seed >>> 16) & 0xff; };
+  }
+  var INVITE_XOR_SEED = 0x9E3779B9;
+  function encodeInvite(r, days) {
+    var payload = JSON.stringify({ v: 3, d: resultToArr(r), e: Date.now() + (days || 7) * 86400000, n: Math.floor(Math.random() * 1e9).toString(36) });
+    var bytes = new TextEncoder().encode(payload);
+    var next = xorStream(INVITE_XOR_SEED);
+    for (var i = 0; i < bytes.length; i++) bytes[i] ^= next();
+    var s = '';
+    for (i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+    return 'z' + btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  /* 반환: {result, expired, exp, legacy} | null */
+  function decodeInvite(token) {
+    if (typeof token !== 'string' || !token.length) return null;
+    if (token[0] === 'z') {
+      try {
+        var bin = atob(token.slice(1).replace(/-/g, '+').replace(/_/g, '/'));
+        var bytes = new Uint8Array(bin.length);
+        for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        var next = xorStream(INVITE_XOR_SEED);
+        for (i = 0; i < bytes.length; i++) bytes[i] ^= next();
+        var obj = JSON.parse(new TextDecoder().decode(bytes));
+        if (!obj || obj.v !== 3 || !Array.isArray(obj.d)) return null;
+        var res = decodeResult(b64urlEncode(JSON.stringify(obj.d)));
+        if (!res) return null;
+        return { result: res, expired: !!(obj.e && Date.now() > obj.e), exp: obj.e || 0 };
+      } catch (e) { return null; }
+    }
+    var legacy = decodeResult(token);
+    return legacy ? { result: legacy, expired: false, legacy: true } : null;
   }
 
   function decodeResult(str) {
@@ -262,7 +348,11 @@
 
   (function parseInvite() {
     var m = location.search.match(/[?&]invite=([A-Za-z0-9_-]+)/);
-    if (m) S.invite = decodeResult(m[1]);
+    if (m) {
+      var dec = decodeInvite(m[1]);
+      if (dec && dec.result && !dec.expired) S.invite = dec.result;
+      else if (dec && dec.expired) S.inviteExpired = true;
+    }
     var p = location.search.match(/[?&]pair=([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)/);
     if (p) {
       var a = decodeResult(p[1]), b = decodeResult(p[2]);
@@ -272,9 +362,43 @@
 
   restoreDraft(S.invite ? 'partner' : (load('mateon.activeDraft') || 'me'));
 
+  /* ---- 공개 배포 링크 ----
+     네이티브에서도 HTTPS 링크를 공유한다. 앱 링크가 연결되면 앱이 열리고,
+     미설치 사용자는 웹 초대/리포트 화면으로 자연스럽게 이어진다. */
+  var DEFAULT_CONFIG = {
+    appId: 'io.github.gyeongbin38.mateon',
+    version: '0.3.0',
+    webBaseUrl: 'https://gyeongbin-38.github.io/mateon/',
+    customScheme: 'mateon',
+    privacyPolicyUrl: 'https://gyeongbin-38.github.io/mateon/#/privacy'
+  };
+
+  function appConfig() {
+    var cfg = window.MATEON_CONFIG || {};
+    return {
+      appId: cfg.appId || DEFAULT_CONFIG.appId,
+      version: cfg.version || DEFAULT_CONFIG.version,
+      webBaseUrl: cfg.webBaseUrl || DEFAULT_CONFIG.webBaseUrl,
+      customScheme: cfg.customScheme || DEFAULT_CONFIG.customScheme,
+      privacyPolicyUrl: cfg.privacyPolicyUrl || DEFAULT_CONFIG.privacyPolicyUrl
+    };
+  }
+
+  function webBaseURL() {
+    var base = appConfig().webBaseUrl;
+    return base.slice(-1) === '/' ? base : base + '/';
+  }
+
+  function localBaseURL() {
+    return location.href.split('?')[0].split('#')[0];
+  }
+
+  function publicBaseURL() {
+    return window.MateNative ? webBaseURL() : localBaseURL();
+  }
+
   function pairURL() {
-    if (window.MateNative) return 'mateon://pair?data=' + encodeResult(S.me) + '.' + encodeResult(S.partner);
-    return location.origin + location.pathname + '?pair=' + encodeResult(S.me) + '.' + encodeResult(S.partner) + '#/report';
+    return publicBaseURL() + '?pair=' + encodeResult(S.me) + '.' + encodeResult(S.partner) + '#/report';
   }
 
   /* ================= Logo SVG ================= */
@@ -314,7 +438,7 @@
     var r = currentRoute();
     if (nav === 'home') return ['home', 'onboarding', 'survey', 'result', 'invite', 'report', 'lifecheck'].indexOf(r) >= 0;
     if (nav === 'types') return r === 'types' || r === 'type-detail';
-    if (nav === 'space') return ['space','checklist','agreement'].indexOf(r) >= 0;
+    if (nav === 'space') return ['space','checklist','agreement','settle','shopping','lovemap','chores','calendar','checkin','conflict'].indexOf(r) >= 0;
     if (nav === 'settings') return r === 'settings' || r === 'privacy' || r === 'terms';
     return false;
   }
@@ -336,8 +460,11 @@
 
   function shell(content) {
     if (homeCarouselObserver) { homeCarouselObserver.disconnect(); homeCarouselObserver = null; }
+    var offline = (typeof navigator !== 'undefined' && navigator.onLine === false);
     app.innerHTML = '<div class="app-shell' + (currentRoute() === 'home' ? ' is-home' : '') + '">' + headerHTML() +
-      '<main class="app-main" id="main">' + content + '</main>' + bottomNavHTML() + '</div>';
+      (offline ? '<div class="offline-bar" role="status">오프라인이에요. 기록은 이 기기에 안전하게 저장돼요.</div>' : '') +
+      '<main class="app-main" id="main">' + content + '</main>' + bottomNavHTML() +
+      tutorialHTML() + '</div>';
     window.scrollTo(0, 0);
   }
 
@@ -391,12 +518,34 @@
   }
 
   /* ================= View: 홈 ================= */
-  var talkIndex = 0;
   var HOME_TALKS = [
-    ['생활 리듬', '혼자만의 시간이 필요할 때, 어떻게 알려주면 좋을까요?'],
-    ['공간과 청결', '우리 집의 깨끗함은 어느 정도면 충분할까요?'],
-    ['생활비', '함께 쓰는 물건의 비용은 어떻게 나누면 편할까요?']
+    ['생활 리듬', '혼자만의 시간이 필요할 때, 어떻게 알려주면 좋을까요?', '혼자 있는 시간이 길어질 때 서로가 서운해하지 않으려면 어떤 게 필요할까요?'],
+    ['공간과 청결', '우리 집의 깨끗함은 어느 정도면 충분할까요?', '서로의 "치웠다" 기준이 다르다면 어디에 맞추는 게 좋을까요?'],
+    ['생활비', '함께 쓰는 물건의 비용은 어떻게 나누면 편할까요?', '수입 차이가 있을 때 비용 분담은 어떤 기준이 공평할까요?'],
+    ['개인 경계', '서로 물건을 빌릴 때 미리 물어볼 범위는 어디까지일까요?', '반대로, 물어보지 않아도 되는 물건의 기준은 뭘까요?'],
+    ['갈등 대화', '서운한 일이 생겼을 때 바로 말하는 편이 좋을까요, 조금 정리하고 말하는 편이 좋을까요?', '상대가 나랑 다른 방식을 선택했을 때, 어떻게 맞춰갈 수 있을까요?'],
+    ['손님과 일정', '집에 손님을 부를 때 얼마나 미리 알려주면 편할까요?', '손님이 오는 날 공용 공간 정리는 누가 어디까지 할까요?'],
+    ['수면과 소음', '밤에 꼭 지켜지면 좋은 조용한 시간은 언제부터일까요?', '수면 시간이 다른 두 사람이 서로 배려하는 방법은 뭐가 있을까요?'],
+    ['회복 시간', '의견이 부딪힌 뒤에는 바로 대화할까요, 잠시 정리할까요?', '정리 시간이 끝난 뒤 먼저 말을 건네는 게 어색할 때 어떻게 시작할까요?'],
+    ['일상 공유', '하루 중 있었던 일을 서로 얼마나 나누는 게 좋을까요?', '바빠서 대화가 뜸했던 주에는 어떻게 다시 연결될까요?'],
+    ['식사 습관', '같이 먹는 식사는 어느 정도면 서로 부담이 없을까요?', '식사 시간이 안 맞을 때 음식 준비·설거지는 어떻게 나눌까요?'],
+    ['집의 의미', '집이 서로에게 어떤 장소이길 바라나요?', '그 "장소"를 만들기 위해 이번 달에 하나씩 바꿔본다면 뭘까요?'],
+    ['애정 표현', '평소에 고마움을 어떻게 표현하는 게 서로 편할까요?', '표현 방식이 다를 때, 서로가 주고받은 게 같다고 느끼려면 뭐가 필요할까요?'],
+    ['휴일 계획', '주말·휴일은 각자 쓰는 게 좋을까요, 같이 계획하는 게 좋을까요?', '함께 쓰는 날과 각자 쓰는 날, 대략 어떤 비율이 편할까요?'],
+    ['스트레스 신호', '내가 힘들 때 나오는 신호를 메이트가 알아채려면 뭘 알려줘야 할까요?', '그 신호를 알아챘을 때 상대가 해주면 좋은 행동은 뭘까요?'],
+    ['비상 상황', '몸이 아프거나 급한 일이 생겼을 때 서로 어떻게 돌봐주면 좋을까요?', '연락이 안 될 때의 대비 방법(비상연락처·위치 공유)은 어디까지 정해둘까요?'],
+    ['집안일 공정', '집안일을 나눌 때 "공평"은 같은 양일까요, 같은 체감일까요?', '한쪽이 바쁜 시기가 되면 그동안 분담을 어떻게 조정할까요?'],
+    ['미래 이야기', '1년 뒤 우리의 생활이 어떤 모습이면 좋겠어요?', '그 모습에 가까워지려면 지금 시작할 작은 습관 하나는 뭘까요?'],
+    ['감사 찾기', '최근에 메이트가 해준 것 중 고마웠던 일 하나는?', '그 고마움을 말로 전한다면 지금 어떻게 말할 수 있을까요?'],
+    ['혼자 있는 규칙', '메이트가 집을 비우는 날, 혼자 있는 시간을 어떻게 쓰면 좋을까요?', '혼자 있는 날에도 서로에게 알려주면 좋은 것과 안 알려도 되는 것의 기준은?'],
+    ['집 소개', '집에 처음 온 사람에게 우리 집을 어떻게 소개하고 싶어요?', '그 소개가 사실이 되려면 우리가 지금 채우면 좋은 것 하나는 뭘까요?']
   ];
+  var talkIndex = (function () {
+    var now = new Date();
+    var yearStart = new Date(now.getFullYear(), 0, 0);
+    var day = Math.floor((now - yearStart) / 86400000);
+    return day % HOME_TALKS.length;
+  })();
   function mobileIcon(name) {
     var paths = {
       heart: '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/>',
@@ -413,7 +562,25 @@
   function checklistStats() {
     var total=0, done=0;
     CHECKLIST.forEach(function(g) { g.items.forEach(function(t,i) {total++; if(S.checklist[g.cat+':'+i]) done++;}); });
+    S.customChecklist.forEach(function(x) { total++; if(S.checklist['own:'+x.id]) done++; });
     return {total:total,done:done};
+  }
+  function savedAgreementForPair() {
+    var ag = S.agreement;
+    if (!ag || !S.me || !S.partner) return null;
+    if (ag.me !== (S.me.name || '나') || ag.partner !== (S.partner.name || '상대')) return null;
+    if (ag.meCharId && ag.meCharId !== S.me.charId) return null;
+    if (ag.partnerCharId && ag.partnerCharId !== S.partner.charId) return null;
+    return Array.isArray(ag.rules) && ag.rules.length ? ag : null;
+  }
+  function agreementRules() {
+    var ag = savedAgreementForPair();
+    if (S.rulesReady) return S.checkedRules;
+    if (ag && Array.isArray(ag.rules) && ag.rules.length) return ag.rules;
+    return BASE_RULES.map(function (r) { return r.text; });
+  }
+  function sameTextList(a, b) {
+    return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every(function (v, i) { return v === b[i]; });
   }
   function draftBannerHTML() {
     var flow = load('mateon.activeDraft') || 'me';
@@ -431,15 +598,20 @@
     var previous = document.getElementById('character-previous');
     var next = document.getElementById('character-next');
     var status = document.getElementById('character-position');
+    var dots = track.parentElement ? Array.from(track.parentElement.querySelectorAll('.carousel-dot')) : [];
     function update() {
       if(track.clientWidth !== width) return;
       index = Math.max(0,Math.min(slides.length-1,Math.round(track.scrollLeft / track.clientWidth)));
       status.textContent = (index+1) + ' / ' + slides.length;
       previous.disabled = index === 0; next.disabled = index === slides.length-1;
       slides.forEach(function(slide,i) {
-        slide.setAttribute('aria-hidden',String(i !== index));
-        slide.querySelector('button').tabIndex = i === index ? 0 : -1;
+        var active = i === index;
+        slide.setAttribute('aria-hidden',String(!active));
+        if (active) slide.setAttribute('aria-current','true'); else slide.removeAttribute('aria-current');
+        var button = slide.querySelector('button');
+        if (button) button.tabIndex = active ? 0 : -1;
       });
+      dots.forEach(function(dot,i) { dot.classList.toggle('on', i === index); });
     }
     function move(step) {
       var target = Math.max(0,Math.min(slides.length-1,index+step));
@@ -457,36 +629,70 @@
       homeCarouselObserver.observe(track);
     }
   }
+  function personalTalkHTML() {
+    if (!S.me || !S.partner) return '';
+    var rows = DOMAINS.map(function (d) {
+      return { d: d, gap: domainGap(S.me.domains[d.id], S.partner.domains[d.id]) };
+    }).filter(function (r) { return r.gap >= 1.5; }).sort(function (x, y) { return y.gap - x.gap; });
+    if (!rows.length) return '';
+    var dom = rows[0].d;
+    var scenario = (CONFLICT_SCENARIOS[dom.id] || {}).prevention || '';
+    return '<div class="personal-talk"><span class="pt-tag">우리에게 맞춘 주제</span><p>“' + esc('요즘 ' + dom.area + ' 얘기, 우리 한번 나눠볼까요?') + '”' +
+      (scenario ? '<small>' + esc(scenario) + '</small>' : '') + '</div>';
+  }
   function vHome() {
     var draft = S.answers.length > 0 && S.answers.length < QUESTIONS.length;
     var action = !S.me ? (draft ? 'resume-survey' : 'start') : (!S.partner ? 'invite' : 'report');
     var title = !S.me ? (draft ? '나를 알아가는 중이에요' : '나는 어떤 메이트일까?') : (!S.partner ? '이제, 서로를 알아볼 차례' : '우리의 다름을 알아봐요');
     var cta = !S.me ? (draft ? '이어서 진단하기' : '나의 동거 성향 알아보기') : (!S.partner ? '메이트 초대하기' : '우리 둘 리포트 보기');
-    var count = (S.me?1:0)+(S.me&&S.partner?1:0)+(S.agreement?1:0);
+    var savedAg = savedAgreementForPair();
+    var count = (S.me?1:0)+(S.me&&S.partner?1:0)+(savedAg?1:0);
     var saved = load('mateon.talks') || {};
     var stats=checklistStats();
     var startId = S.me ? S.me.charId : 12;
     var carouselCharacters = [charById(startId)].concat(CHARACTERS.filter(function(c){return c.id!==startId;}));
+    var steps = [['나 진단',!!S.me],['메이트 연결',!!(S.me&&S.partner)],['합의서 저장',!!savedAg]];
+    var nextStep = 0;
+    while (nextStep < steps.length && steps[nextStep][1]) nextStep++;
+    var missionSteps = '<div class="mission-steps" aria-label="함께 준비하는 단계">' + steps.map(function(step,i) {
+      var done = step[1], current = i === nextStep;
+      return '<span class="mission-step' + (done?' done':current?' current':'') + '"' + (current?' aria-current="step"':'') + '><i aria-hidden="true">' + (done?'✓':(i+1)) + '</i>' + step[0] + '</span>';
+    }).join('') + '</div>';
     var portraits = '<div class="character-carousel"><div class="character-track" id="home-carousel" role="region" aria-roledescription="캐러셀" aria-label="16가지 동거 캐릭터 · 좌우 방향키로 이동" tabindex="0">' + carouselCharacters.map(function(c,i) {
       var mine = S.me && c.id === S.me.charId;
       var partner = S.partner && c.id === S.partner.charId;
-      return '<article class="character-slide" role="group" aria-roledescription="슬라이드" aria-label="' + (i+1) + ' / 16 · ' + esc(c.name) + '"><span class="carousel-label">' + c.code + ' · ' + (mine?'나의 캐릭터':partner?'메이트의 캐릭터':'캐릭터 미리보기') + '</span>' + characterArt(c,c.id!==startId,true) + '<h3>' + esc(c.name) + '</h3><p>' + esc(c.quote) + '</p><button class="carousel-detail" data-action="type" data-id="' + c.id + '" type="button">이 캐릭터 알아보기 ' + mobileIcon('arrow') + '</button></article>';
-    }).join('') + '</div><div class="carousel-controls"><button id="character-previous" class="icon-button" type="button" aria-label="이전 캐릭터">' + mobileIcon('arrow') + '</button><span id="character-position" role="status" aria-live="polite"></span><button id="character-next" class="icon-button" type="button" aria-label="다음 캐릭터">' + mobileIcon('arrow') + '</button></div><p class="carousel-hint">옆으로 넘겨 다른 메이트도 만나보세요</p></div>';
+      return '<article class="character-slide" role="group" aria-roledescription="슬라이드" aria-label="' + (i+1) + ' / 16 · ' + esc(c.name) + '" aria-hidden="' + (i!==0) + '"' + (i===0?' aria-current="true"':'') + '><span class="carousel-label">' + c.code + ' · ' + (mine?'나의 캐릭터':partner?'메이트의 캐릭터':'캐릭터 미리보기') + '</span>' + characterArt(c,c.id!==startId,true) + '<h3>' + esc(c.name) + '</h3><p>' + esc(c.quote) + '</p><button class="carousel-detail" data-action="type" data-id="' + c.id + '" type="button" tabindex="' + (i===0?'0':'-1') + '">이 캐릭터 알아보기 ' + mobileIcon('arrow') + '</button></article>';
+    }).join('') + '</div><div class="carousel-dots" aria-hidden="true">' + carouselCharacters.map(function(c,i) { return '<span class="carousel-dot' + (i===0?' on':'') + '"></span>'; }).join('') + '</div><div class="carousel-controls"><button id="character-previous" class="icon-button" type="button" aria-label="이전 캐릭터">' + mobileIcon('arrow') + '</button><span id="character-position" role="status" aria-live="polite"></span><button id="character-next" class="icon-button" type="button" aria-label="다음 캐릭터">' + mobileIcon('arrow') + '</button></div><p class="carousel-hint">옆으로 넘겨 다른 메이트도 만나보세요</p></div>';
     var connection = '<section class="connection-strip" aria-label="메이트 연결 상태"><div class="paired-avatars"><span>'+esc(S.me?S.me.name.slice(0,1):'나')+'</span><span>'+ (S.partner ? esc(S.partner.name.slice(0,1)) : mobileIcon('plus')) +'</span></div><div><strong>'+ (S.partner?esc(S.partner.name)+'님과 함께':S.me?'메이트를 초대해 보세요':'서로를 알아가는 첫걸음') +'</strong><p>'+ (S.partner?'두 사람의 생활방식을 함께 맞춰봐요':S.me?'결과 링크로 우리의 성향을 비교해요':'내 성향을 알아본 뒤, 메이트와 연결해요') +'</p></div><button class="icon-button" data-action="'+(S.me?'invite':'start')+'" aria-label="메이트 연결하기" type="button">'+mobileIcon('arrow')+'</button></section>';
     shell('<div class="mobile-home">'+
       '<section class="app-greeting"><p>'+ (S.me ? esc(S.me.name)+'님, 반가워요' : '함께 살 준비, 서로를 아는 것부터.') +'</p><h1>우리의 일상,<br> 조금 더 가까이<span class="coral-dot">.</span></h1></section>'+
       draftBannerHTML() +
-      '<section class="today-mission"><div class="mission-top"><span class="mission-label">'+(!S.me?'나를 알아가는 시간':S.partner?'함께 맞춰가는 생활':'우리의 다음 단계')+'</span><span class="mission-count">'+(count<3?'0'+(count+1):'03')+' <span>/ 03</span></span></div><h2>'+title+'</h2><p>'+(!S.me?'16가지 캐릭터 속, 나의 생활방식을 발견해요.':(!S.partner?'나와 메이트의 생활방식을 맞춰봐요.':'잘 맞는 부분도, 대화가 필요한 부분도.'))+'</p>'+portraits+'<div class="mission-footer"><span>'+ (draft ? S.answers.length+' / 20 문항 완료 · 자동 저장됨' : S.me?'나를 알고, 서로를 이해하는 시간':'동거 성향 테스트 · 20문항 · 약 3분')+'</span><button class="mobile-primary home-primary" data-action="'+action+'" type="button">'+cta+mobileIcon('arrow')+'</button></div></section>'+
+      '<section class="today-mission"><div class="mission-top"><span class="mission-label">'+(!S.me?'나를 알아가는 시간':S.partner?'함께 맞춰가는 생활':'우리의 다음 단계')+'</span><span class="mission-count">'+(count<3?'0'+(count+1):'03')+' <span>/ 03</span></span></div><h2>'+title+'</h2><p>'+(!S.me?'16가지 캐릭터 속, 나의 생활방식을 발견해요.':(!S.partner?'나와 메이트의 생활방식을 맞춰봐요.':'잘 맞는 부분도, 대화가 필요한 부분도.'))+'</p>'+missionSteps+portraits+'<div class="mission-footer"><span>'+ (draft ? S.answers.length+' / 20 문항 완료 · 자동 저장됨' : S.me?'나를 알고, 서로를 이해하는 시간':'동거 성향 테스트 · 20문항 · 약 3분')+'</span><button class="mobile-primary home-primary" data-action="'+action+'" type="button">'+cta+mobileIcon('arrow')+'</button></div></section>'+
       '<div class="home-support">' + connection +
       '<div class="app-shortcuts"><button type="button" data-action="'+(S.me?'result':'start')+'"><span class="shortcut-icon pink">'+mobileIcon('user')+'</span>나의 성향</button><button type="button" data-action="'+(S.me&&S.partner?'report':'demo')+'"><span class="shortcut-icon blue">'+mobileIcon('heart')+'</span>궁합 리포트</button><button type="button" data-action="checklist"><span class="shortcut-icon mint">'+NAV_ICONS.checklist+'</span>입주 준비</button></div>'+
-      '<section class="conversation-section"><div class="mobile-section-head"><h2>오늘의 대화</h2><span>마음을 나누는 1분</span></div><div class="conversation-card"><div class="conversation-top"><span>'+HOME_TALKS[talkIndex][0]+'</span><button class="icon-button" data-action="next-talk" type="button" aria-label="다른 대화 주제">'+mobileIcon('refresh')+'</button></div><h3>'+HOME_TALKS[talkIndex][1]+'</h3><button type="button" class="conversation-open" data-action="talk-open">'+(saved[talkIndex]?'내 답변 다시 보기':'내 생각 남기기')+mobileIcon('arrow')+'</button></div></section>'+
+      (S.me && S.partner ? '<div class="app-shortcuts life"><button type="button" data-action="settle"><span class="shortcut-icon pink">'+mobileIcon('plus')+'</span>생활비</button><button type="button" data-action="chores"><span class="shortcut-icon blue">'+NAV_ICONS.checklist+'</span>역할 분담</button><button type="button" data-action="calendar"><span class="shortcut-icon mint">'+mobileIcon('plus')+'</span>우리 일정</button><button type="button" data-action="checkin"><span class="shortcut-icon pink">'+mobileIcon('heart')+'</span>주간 점검</button></div>' : '') +
+      (S.inviteExpired ? '<div class="note-box warn" style="margin:14px 0"><span>받은 초대 링크가 만료됐어요. 메이트에게 새 링크를 요청해 주세요.</span></div>' : '') +
+      (S.me && S.partner && !thisCheckin() ? '<button class="checkin-banner" type="button" data-action="checkin"><span>'+mobileIcon('heart')+'</span><span><strong>이번 주 우리 생활 어땠어요?</strong><small>일주일 한 번, 가볍게 점검해요</small></span>'+mobileIcon('arrow')+'</button>' : '') +
+      '<section class="conversation-section"><div class="mobile-section-head"><h2>오늘의 대화</h2><span>주제 '+(talkIndex+1)+' / '+HOME_TALKS.length+'</span></div><div class="conversation-card"><div class="conversation-top"><span>'+HOME_TALKS[talkIndex][0]+'</span><button class="icon-button" data-action="next-talk" type="button" aria-label="다른 대화 주제">'+mobileIcon('refresh')+'</button></div><h3>'+HOME_TALKS[talkIndex][1]+'</h3><button type="button" class="conversation-open" data-action="talk-open">'+(saved[talkIndex]?'내 답변 다시 보기':'내 생각 남기기')+mobileIcon('arrow')+'</button></div>'+personalTalkHTML()+'</section>'+
       '<button class="preparation-row" type="button" data-action="space"><span class="preparation-icon">'+NAV_ICONS.home+'</span><span><strong>우리의 입주 준비</strong><small>'+stats.total+'개 중 '+stats.done+'개 완료했어요</small></span><span class="tiny-ring" style="--done:'+Math.round(stats.done/stats.total*100)+'%">'+Math.round(stats.done/stats.total*100)+'%</span>'+mobileIcon('arrow')+'</button>'+
       '</div></div>');
     bindHomeCarousel(startId);
   }
   function vSpace() {
     var stats=checklistStats(); var notes=load('mateon.talks') || {};
-    shell('<section class="space-page"><p class="app-overline">OUR SPACE</p><h1 class="mobile-title">우리 공간</h1><p class="mobile-subtitle">함께 정하고, 하나씩 쌓아가는 일상</p><div class="space-summary"><span>'+NAV_ICONS.home+'</span><h2>우리의 시작을 준비해요</h2><p>입주 준비 '+stats.done+' / '+stats.total+' 완료</p><div class="space-progress"><i style="width:'+(stats.done/stats.total*100)+'%"></i></div></div><div class="app-list"><button type="button" data-action="checklist">'+NAV_ICONS.checklist+'<span><strong>입주 체크리스트</strong><small>계약부터 생활용품까지</small></span>'+mobileIcon('arrow')+'</button><button type="button" data-action="'+(S.me&&S.partner?'report':'demo')+'">'+mobileIcon('heart')+'<span><strong>우리집 생활규칙</strong><small>'+(S.agreement?'저장한 합의서가 있어요':'서로 편안한 기준을 정해요')+'</small></span>'+mobileIcon('arrow')+'</button><button type="button" data-action="'+(S.me?'invite':'start')+'">'+mobileIcon('user')+'<span><strong>메이트 연결</strong><small>'+(S.partner?esc(S.partner.name)+'님과 연결됨':'함께할 메이트 초대하기')+'</small></span>'+mobileIcon('arrow')+'</button></div><div class="mobile-section-head"><h2>나의 대화 기록</h2><span>'+Object.keys(notes).filter(function(k){return HOME_TALKS[k];}).length+'개</span></div>'+ (Object.keys(notes).filter(function(k){return HOME_TALKS[k];}).length ? Object.keys(notes).filter(function(k){return HOME_TALKS[k];}).map(function(k){return '<button class="saved-talk" data-action="talk-open" data-talk="'+k+'" type="button"><span>'+HOME_TALKS[k][0]+'</span><strong>'+esc(HOME_TALKS[k][1])+'</strong><p>'+esc(notes[k].text)+'</p></button>';}).join('') : '<div class="empty-notes">'+mobileIcon('chat')+'<p>아직 남긴 이야기가 없어요.</p><button type="button" data-action="talk-open">첫 생각 남기기</button></div>')+'<p class="device-note">대화 기록은 이 기기에만 저장돼요.</p></section>');
+    var savedAg=savedAgreementForPair();
+    var rulesAction=S.me&&S.partner?(savedAg?'agreement':'report'):'demo';
+    var rulesLabel=savedAg?'저장된 합의서 보기':(S.me&&S.partner?'서로 편안한 기준을 정해요':'샘플로 먼저 살펴보기');
+    var checkinDone = thisCheckin();
+    var lifeTools = '<div class="mobile-section-head"><h2>생활 도구</h2><span>함께 쓰는 일상</span></div><div class="app-list">' +
+      '<button type="button" data-action="settle">'+mobileIcon('plus')+'<span><strong>생활비 정산</strong><small>함께 쓴 돈 기록하고 나누기 · 영수증 스캔</small></span>'+mobileIcon('arrow')+'</button>' +
+      '<button type="button" data-action="shopping">'+NAV_ICONS.checklist+'<span><strong>같이 살 것</strong><small>'+(S.shopping.filter(function(x){return !x.done;}).length?S.shopping.filter(function(x){return !x.done;}).length+'개 사야 해요':'장볼 때 함께 보는 목록')+'</small></span>'+mobileIcon('arrow')+'</button>' +
+      '<button type="button" data-action="chores">'+NAV_ICONS.checklist+'<span><strong>역할 분담</strong><small>집안일 담당, 매주 자동 교체</small></span>'+mobileIcon('arrow')+'</button>' +
+      '<button type="button" data-action="calendar">'+mobileIcon('plus')+'<span><strong>우리 일정</strong><small>이사일·정산일·점검일</small></span>'+mobileIcon('arrow')+'</button>' +
+      '<button type="button" data-action="checkin">'+mobileIcon('heart')+'<span><strong>주간 체크인</strong><small>'+(checkinDone?'이번 주 점검 완료':'일주일 한 번, 우리 생활 돌아보기')+'</small></span>'+mobileIcon('arrow')+'</button>' +
+      '<button type="button" data-action="lovemap">'+mobileIcon('heart')+'<span><strong>러브맵 퀴즈</strong><small>서로의 세계를 얼마나 아는지</small></span>'+mobileIcon('arrow')+'</button>' +
+      '<button type="button" data-action="conflict">'+mobileIcon('chat')+'<span><strong>갈등 가이드</strong><small>서운한 일이 생겼을 때 차근차근</small></span>'+mobileIcon('arrow')+'</button></div>';
+    shell('<section class="space-page"><p class="app-overline">OUR SPACE</p><h1 class="mobile-title">우리 공간</h1><p class="mobile-subtitle">함께 정하고, 하나씩 쌓아가는 일상</p><div class="space-summary"><span>'+NAV_ICONS.home+'</span><h2>우리의 시작을 준비해요</h2><p>입주 준비 '+stats.done+' / '+stats.total+' 완료</p><div class="space-progress"><i style="width:'+(stats.done/stats.total*100)+'%"></i></div></div><div class="app-list"><button type="button" data-action="checklist">'+NAV_ICONS.checklist+'<span><strong>입주 체크리스트</strong><small>계약부터 생활용품까지</small></span>'+mobileIcon('arrow')+'</button><button type="button" data-action="'+rulesAction+'">'+mobileIcon('heart')+'<span><strong>우리집 생활규칙</strong><small>'+rulesLabel+'</small></span>'+mobileIcon('arrow')+'</button><button type="button" data-action="'+(S.me?'invite':'start')+'">'+mobileIcon('user')+'<span><strong>메이트 연결</strong><small>'+(S.partner?esc(S.partner.name)+'님과 연결됨':'함께할 메이트 초대하기')+'</small></span>'+mobileIcon('arrow')+'</button></div>'+lifeTools+'<div class="mobile-section-head"><h2>나의 대화 기록</h2><span>'+Object.keys(notes).filter(function(k){return HOME_TALKS[k];}).length+'개</span></div>'+ (Object.keys(notes).filter(function(k){return HOME_TALKS[k];}).length ? Object.keys(notes).filter(function(k){return HOME_TALKS[k];}).map(function(k){return '<button class="saved-talk" data-action="talk-open" data-talk="'+k+'" type="button"><span>'+HOME_TALKS[k][0]+'</span><strong>'+esc(HOME_TALKS[k][1])+'</strong><p>'+esc(notes[k].text)+'</p></button>';}).join('') : '<div class="empty-notes">'+mobileIcon('chat')+'<p>아직 남긴 이야기가 없어요.</p><button type="button" data-action="talk-open">첫 생각 남기기</button></div>')+'<p class="device-note">대화 기록은 이 기기에만 저장돼요.</p></section>');
   }
   var talkDialog = null;
   var talkOpener = null;
@@ -497,7 +703,8 @@
     talkDialog=document.createElement('dialog');
     talkDialog.className='talk-sheet';
     talkDialog.setAttribute('aria-labelledby','talk-title');
-    talkDialog.innerHTML='<div class="sheet-handle" aria-hidden="true"></div><div class="sheet-heading"><span>오늘의 대화 · '+HOME_TALKS[talkIndex][0]+'</span><button class="icon-button" type="button" aria-label="닫기" data-sheet-close>'+mobileIcon('close')+'</button></div><h2 id="talk-title">'+HOME_TALKS[talkIndex][1]+'</h2><label for="talk-note">나의 생각</label><textarea id="talk-note" maxlength="500" rows="4" placeholder="정답은 없어요. 편하게 적어보세요.">'+esc(notes[talkIndex]?notes[talkIndex].text:'')+'</textarea><p class="sheet-hint">이 기기에만 저장되며, 메이트에게 자동 전송되지 않아요.</p><button class="mobile-primary" type="button" data-sheet-save>내 생각 저장하기</button>';
+    var follow = HOME_TALKS[talkIndex][2];
+    talkDialog.innerHTML='<div class="sheet-handle" aria-hidden="true"></div><div class="sheet-heading"><span>오늘의 대화 · '+HOME_TALKS[talkIndex][0]+'</span><button class="icon-button" type="button" aria-label="닫기" data-sheet-close>'+mobileIcon('close')+'</button></div><h2 id="talk-title">'+HOME_TALKS[talkIndex][1]+'</h2>'+(follow?'<p class="talk-follow"><span>이어서 물어보기</span>'+esc(follow)+'</p>':'')+'<label for="talk-note">나의 생각</label><textarea id="talk-note" maxlength="500" rows="4" placeholder="정답은 없어요. 편하게 적어보세요.">'+esc(notes[talkIndex]?notes[talkIndex].text:'')+'</textarea><p class="sheet-hint">이 기기에만 저장되며, 메이트에게 자동 전송되지 않아요.</p><button class="mobile-primary" type="button" data-sheet-save>내 생각 저장하기</button>';
     if(notes[talkIndex]) talkDialog.innerHTML += '<button class="connection-cancel" type="button" data-sheet-delete>이 기록 삭제하기</button>';
     var deleteArmed=false;
     document.body.appendChild(talkDialog);
@@ -609,12 +816,12 @@
       var cutoutX = [0,340,680,1021][+c.code[1]-1];
       var cutoutY = [890,610,330,0][+c.code[3]-1];
       var cutoutHeight = [266,280,280,330][+c.code[3]-1];
-      return '<span class="character-art character-art-cutout" style="aspect-ratio:340.25/' + cutoutHeight + '"><img src="assets/character-sheet-cutout-v2.png" alt="' + esc(c.name) + ' 캐릭터" width="1361" height="1156" ' + (lazy ? 'loading="lazy"' : 'fetchpriority="high"') + ' style="left:' + (-cutoutX/340.25*100) + '%;top:' + (-cutoutY/cutoutHeight*100) + '%"></span>';
+      return '<span class="character-art character-art-cutout" style="aspect-ratio:340.25/' + cutoutHeight + '"><picture><source srcset="assets/character-sheet-cutout-v2.webp" type="image/webp"><img src="assets/character-sheet-cutout-v2.png" alt="' + esc(c.name) + ' 캐릭터" width="1361" height="1156" ' + (lazy ? 'loading="lazy"' : 'fetchpriority="high"') + ' style="left:' + (-cutoutX/340.25*100) + '%;top:' + (-cutoutY/cutoutHeight*100) + '%"></picture></span>';
     }
     var x = [126,430,734,1031][+c.code[1]-1];
     var y = [843,604,365,123][+c.code[3]-1];
     var height = +c.code[3] === 1 ? 202 : 229;
-    return '<span class="character-art" style="aspect-ratio:294/' + height + '"><img src="assets/character-sheet.png" alt="' + esc(c.name) + ' 캐릭터" width="1361" height="1156" ' + (lazy ? 'loading="lazy"' : 'fetchpriority="high"') + ' style="left:' + (-x/294*100) + '%;top:' + (-y/height*100) + '%"></span>';
+    return '<span class="character-art" style="aspect-ratio:294/' + height + '"><picture><source srcset="assets/character-sheet.webp" type="image/webp"><img src="assets/character-sheet.png" alt="' + esc(c.name) + ' 캐릭터" width="1361" height="1156" ' + (lazy ? 'loading="lazy"' : 'fetchpriority="high"') + ' style="left:' + (-x/294*100) + '%;top:' + (-y/height*100) + '%"></picture></span>';
   }
 
   function resultShareText(r, c) {
@@ -626,11 +833,9 @@
   }
 
   function inviteURL(r) {
-    var base = location.href.split('?')[0].split('#')[0];
     var rr = r;
     if (S.shareName === false) rr = Object.assign({}, r, { name: '동거인' });
-    if (window.MateNative) return 'mateon://invite?data=' + encodeResult(rr);
-    return base + '?invite=' + encodeResult(rr);
+    return publicBaseURL() + '?invite=' + encodeInvite(rr, S.inviteDays);
   }
 
   function vResult() {
@@ -767,25 +972,63 @@
   }
 
   /* ================= View: 상대 초대 ================= */
+  /* {r:result} | {expired:true} | null */
   function resultFromLink(value) {
     if (typeof value !== 'string' || value.length > 12000) return null;
     try {
       var url = new URL(value.trim());
-      if (url.protocol === 'mateon:' && url.hostname === 'invite') return decodeResult(url.searchParams.get('data') || '');
-      if (url.protocol === 'https:' || url.protocol === 'http:') return decodeResult(url.searchParams.get('invite') || '');
+      var customScheme = appConfig().customScheme + ':';
+      var raw = null;
+      if ((url.protocol === customScheme || url.protocol === 'mateon:') && url.hostname === 'invite') raw = url.searchParams.get('data') || '';
+      else if (url.protocol === 'https:' || url.protocol === 'http:') raw = url.searchParams.get('invite') || '';
+      if (!raw) return null;
+      var dec = decodeInvite(raw);
+      if (!dec || !dec.result) return null;
+      if (dec.expired) return { expired: true };
+      return { r: dec.result };
     } catch (e) { /* an invalid link must not change the current partner */ }
     return null;
   }
 
+  function qrSVG(text) {
+    try {
+      if (typeof window.qrcode !== 'function') return '';
+      var q = window.qrcode(0, 'M');
+      q.addData(text);
+      q.make();
+      var n = q.getModuleCount(), cell = 4, pad = 18, size = n * cell + pad * 2;
+      var d = '';
+      for (var r = 0; r < n; r++) for (var c = 0; c < n; c++)
+        if (q.isDark(r, c)) d += 'M' + (c * cell + pad) + ' ' + (r * cell + pad) + 'h' + cell + 'v' + cell + 'h-' + cell + 'z';
+      return '<svg viewBox="0 0 ' + size + ' ' + size + '" class="qr-svg" role="img" aria-label="초대 링크 QR 코드"><rect width="' + size + '" height="' + size + '" rx="14" fill="#fff"/><path d="' + d + '" fill="#303943"/></svg>';
+    } catch (e) { return ''; }
+  }
+
   function connectionHTML() {
     var pending = S.pendingPartner;
+    var preview = '';
+    if (pending) {
+      var c = charById(pending.charId);
+      var update = '';
+      if (S.partner) {
+        var old = charById(S.partner.charId);
+        var changed = S.partner.charId !== pending.charId;
+        update = '<div class="update-diff"><span class="badge ' + (changed ? 'badge-warning' : 'badge-info') + '">' + (changed ? '유형이 바뀌었어요' : '최신 결과') + '</span>' +
+          '<p>' + esc(S.partner.name || '메이트') + ' · ' + esc(old.name) + ' (' + old.code + ')<span class="diff-arrow">→</span>' + esc(pending.name || '메이트') + ' · ' + esc(c.name) + ' (' + c.code + ')</p>' +
+          '<p class="caption text-muted">기존 연결을 새 결과로 업데이트해요. 내 진단은 그대로예요.</p></div>';
+      }
+      preview = '<div class="connection-preview" role="status"><span class="badge badge-info">연결 전 확인</span><h4>' + esc(pending.name) + '님 · ' + esc(c.name) + ' (' + c.code + ')</h4>' + update +
+        '<p>' + (S.partner ? '연결하면 현재 ' + esc(S.partner.name) + '님의 결과가 이 결과로 바뀌어요.' : '내 진단은 유지하고, 이 결과를 메이트로 연결해요.') + '</p>' +
+        '<button class="mobile-primary" type="button" data-action="confirm-partner">' + (S.partner ? '새 결과로 업데이트' : '이 메이트와 연결하기') + '</button>' +
+        '<button class="connection-cancel" type="button" data-action="cancel-partner">취소</button></div>';
+    }
     return '<section class="card connection-import"><h3 class="card-title">메이트가 보낸 링크 연결하기</h3>' +
       '<p class="body-sm text-muted">상대가 공유한 결과 링크를 붙여넣으면, 실제 진단 수치로 비교할 수 있어요.</p>' +
       '<label class="field-label" for="partner-link">받은 초대 링크</label>' +
       '<input class="input" id="partner-link" type="url" inputmode="url" autocomplete="off" spellcheck="false" maxlength="12000" placeholder="https://… 또는 mateon://invite?…" value="' + esc(S.connectionInput) + '">' +
       '<button class="home-secondary" type="button" data-action="preview-partner">상대 결과 확인하기</button>' +
-      (pending ? '<div class="connection-preview" role="status"><span class="badge badge-info">연결 전 확인</span><h4>' + esc(pending.name) + '님 · ' + esc(charById(pending.charId).name) + '</h4><p>' + (S.partner ? '연결하면 현재 ' + esc(S.partner.name) + '님의 결과가 이 결과로 바뀌어요.' : '내 진단은 유지하고, 이 결과를 메이트로 연결해요.') + '</p><button class="mobile-primary" type="button" data-action="confirm-partner">이 메이트와 연결하기</button><button class="connection-cancel" type="button" data-action="cancel-partner">취소</button></div>' : '') +
-      '<p class="connection-hint">링크를 만들 당시의 결과예요. 상대가 다시 진단하면 새 링크로 연결해 주세요.</p></section>';
+      preview +
+      '<p class="connection-hint">링크를 만든 뒤 ' + S.inviteDays + '일이 지나면 자동으로 만료돼요. 상대가 다시 진단하면 새 링크로 업데이트할 수 있어요.</p></section>';
   }
 
   function vInvite() {
@@ -827,9 +1070,18 @@
       '<h4 class="card-title">초대 링크 보내기</h4>' +
       '<p class="body-sm text-muted" style="margin-bottom:12px">내 결과가 담긴 링크예요. 상대가 열어서 진단하면 바로 비교됩니다.</p>' +
       '<div class="invite-link-box"><code>' + esc(url) + '</code></div>' +
-      '<div class="cta-col" style="margin-top:16px">' +
-      '<button class="btn btn-secondary btn-md" data-action="copylink" type="button">링크 복사하기</button>' +
+      '<div class="chip-row" style="margin-top:14px"><span class="field-label" style="align-self:center;margin-right:4px">링크 유효기간</span>' +
+      [1, 7, 30].map(function (d) { return '<button class="chip' + (S.inviteDays === d ? ' selected' : '') + '" data-action="invite-days" data-v="' + d + '" type="button">' + d + '일</button>'; }).join('') +
       '</div>' +
+      '<div class="cta-col" style="margin-top:14px">' +
+      '<button class="btn btn-secondary btn-md" data-action="copylink" type="button">링크 복사하기</button>' +
+      '<button class="btn btn-secondary btn-md" data-action="share-invite" type="button">공유하기</button>' +
+      '</div>' +
+      '</div>' +
+      '<div class="card qr-card">' +
+      '<h4 class="card-title">QR로 바로 연결</h4>' +
+      '<div class="qr-box">' + qrSVG(url) + '</div>' +
+      '<p class="caption text-muted">같은 공간에 있을 때 상대 카메라로 스캔하면 바로 초대 화면이 열려요.</p>' +
       '</div>' +
       shareInfo +
       '<div class="card">' +
@@ -883,6 +1135,7 @@
     });
     var all = (S.me && S.partner) ? recommendedRules(S.me, S.partner) : [];
     S.checkedRules = all.map(function (r) { return r.text; }).concat(keepCustom);
+    S.rulesReady = true;
     S.signs = { me: false, partner: false };
   }
 
@@ -904,7 +1157,12 @@
     // 추천 규칙: gap 있는 도메인의 규칙 + 기본 규칙
     var gapDomains = gapped.map(function (r) { return r.d.id; });
     var allRules = recommendedRules(me, you);
-    if (!S.checkedRules.length) S.checkedRules = allRules.map(function (r) { return r.text; });
+    var savedAg = shared ? null : savedAgreementForPair();
+    if (!shared && !S.rulesReady) {
+      S.checkedRules = (savedAg ? savedAg.rules : allRules.map(function (r) { return r.text; })).slice();
+      S.rulesReady = true;
+      if (savedAg) S.signs = { me: true, partner: true };
+    }
 
     var pairCards = '' +
       '<div class="pair-cards">' +
@@ -1053,26 +1311,45 @@
   /* ================= View: 우리집 합의서 ================= */
   function vAgreement() {
     if (!S.me || !S.partner) { go('home'); return; }
-    var rules = S.checkedRules.length ? S.checkedRules : BASE_RULES.map(function (r) { return r.text; });
+    var ag = savedAgreementForPair();
+    if (ag && !S.rulesReady) {
+      S.checkedRules = ag.rules.slice();
+      S.rulesReady = true;
+      S.signs = { me: true, partner: true };
+    }
+    var rules = agreementRules();
     var today = new Date();
-    var dateStr = today.getFullYear() + '년 ' + (today.getMonth() + 1) + '월 ' + today.getDate() + '일';
+    var todayStr = today.getFullYear() + '년 ' + (today.getMonth() + 1) + '월 ' + today.getDate() + '일';
+    var differs = !!(ag && !sameTextList(rules, ag.rules));
+    var dateStr = ag && !differs ? ag.date : todayStr;
+    var version = ag ? (ag.rev || 1) : 0;
     var done = S.signs.me && S.signs.partner;
-    var ag = S.agreement;
 
-    var ruleRows = rules.map(function (t) {
+    var ruleRows = rules.length ? rules.map(function (t) {
       return '<div class="agree-rule"><svg aria-hidden="true" class="check-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>' + esc(t) + '</span></div>';
-    }).join('');
+    }).join('') : '<div class="empty-rules">선택된 규칙이 없어요. 리포트에서 함께 지킬 규칙을 골라주세요.</div>';
 
-    var savedNote = ag ? '<div class="note-box good" style="margin-top:16px"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg><span>' + esc(ag.date) + '에 저장된 합의서가 있어요. (' + ag.rules.length + '개 규칙)</span></div>' : '';
+    var savedNote = ag ? '<div class="note-box good" style="margin-top:16px"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg><span>' + esc(ag.date) + '에 저장된 합의서 v' + version + '이 있어요. (' + ag.rules.length + '개 규칙)' + (ag.updated ? ' ' + esc(ag.updated) + '에 수정됐어요.' : '') + (differs ? ' 현재 화면은 저장본과 다른 선택이에요.' : ' 저장된 규칙을 불러왔어요.') + '</span></div>' : '';
+    var diffHTML = '';
+    if (ag && differs) {
+      var added = rules.filter(function (t) { return ag.rules.indexOf(t) < 0; });
+      var removed = ag.rules.filter(function (t) { return rules.indexOf(t) < 0; });
+      diffHTML = '<div class="agree-diff">' +
+        '<div class="diff-head"><strong>저장된 합의서와 다른 선택이에요</strong><button class="btn btn-tertiary btn-sm" data-action="restore-agree" type="button">저장본으로 되돌리기</button></div>' +
+        (added.length ? '<div class="diff-group"><span class="badge badge-brand">추가됨 ' + added.length + '</span><ul>' + added.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul></div>' : '') +
+        (removed.length ? '<div class="diff-group"><span class="badge badge-warning">제외됨 ' + removed.length + '</span><ul>' + removed.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul></div>' : '') +
+        '</div>';
+    }
+    var saveLabel = !rules.length ? '규칙을 한 개 이상 선택해 주세요' : done ? (differs ? '변경된 합의서 저장하기' : '합의서 저장하기') : '두 분 모두 동의하면 저장할 수 있어요';
 
     shell('' +
       '<p class="eyebrow caption">Our Agreement</p>' +
       '<h2 class="view-title">우리집 합의서</h2>' +
-      '<p class="view-desc body-md">막연했던 기준을 명확한 약속으로 남겨보세요.<br>각자 서명 칸을 눌러 동의를 표시할 수 있어요.</p>' +
+      '<p class="view-desc body-md">막연했던 기준을 명확한 약속으로 남겨보세요.<br>규칙이 바뀌면 저장본과 비교한 뒤 다시 동의할 수 있어요.</p>' +
       '<div class="agree-doc" style="margin-top:24px">' +
       '<div class="agree-doc-head">' +
       logoSVG(56) +
-      '<h3 class="heading-sm" style="margin-top:8px">우리집 생활 합의서</h3>' +
+      '<h3 class="heading-sm" style="margin-top:8px">우리집 생활 합의서' + (version ? ' <span class="rev-tag">v' + version + '</span>' : '') + '</h3>' +
       '<p class="caption text-muted">' + esc(S.me.name || '나') + ' · ' + esc(S.partner.name || '상대') + ' — ' + dateStr + '</p>' +
       '</div>' +
       ruleRows +
@@ -1081,9 +1358,9 @@
       '<button class="sign-box' + (S.signs.partner ? ' signed' : '') + '" data-action="sign" data-who="partner" type="button">' + esc(S.partner.name || '상대') + (S.signs.partner ? ' · 동의함' : ' · 서명하기') + '</button>' +
       '</div>' +
       '</div>' +
-      savedNote +
+      savedNote + diffHTML +
       '<div class="cta-col">' +
-      (done ? '<button class="btn btn-primary btn-lg" data-action="save-agree" type="button">합의서 저장하기</button>' : '<button class="btn btn-primary btn-lg" type="button" disabled>두 분 모두 동의하면 저장할 수 있어요</button>') +
+      (done && rules.length ? '<button class="btn btn-primary btn-lg" data-action="save-agree" type="button">' + saveLabel + '</button>' : '<button class="btn btn-primary btn-lg" type="button" disabled>' + saveLabel + '</button>') +
       '<button class="btn btn-secondary btn-md" data-action="agree-img" type="button">합의서 이미지로 저장</button>' +
       '<button class="btn btn-secondary btn-md" data-action="agree-ics" type="button">한 달 뒤 점검일 캘린더 추가</button>' +
       '<button class="btn btn-secondary btn-md" data-action="copy-agree" type="button">합의서 텍스트 복사</button>' +
@@ -1093,10 +1370,12 @@
   }
 
   function agreementText() {
-    var rules = S.checkedRules.length ? S.checkedRules : BASE_RULES.map(function (r) { return r.text; });
+    var rules = agreementRules();
+    var ag = savedAgreementForPair();
     var today = new Date();
-    var dateStr = today.getFullYear() + '년 ' + (today.getMonth() + 1) + '월 ' + today.getDate() + '일';
-    return '우리집 생활 합의서 — ' + (S.me.name || '나') + ' & ' + (S.partner.name || '상대') + ' (' + dateStr + ')\n\n' +
+    var dateStr = ag && sameTextList(rules, ag.rules) ? ag.date : today.getFullYear() + '년 ' + (today.getMonth() + 1) + '월 ' + today.getDate() + '일';
+    var version = ag ? ' v' + (ag.rev || 1) : '';
+    return '우리집 생활 합의서 — ' + (S.me.name || '나') + ' & ' + (S.partner.name || '상대') + ' (' + dateStr + version + ')\n\n' +
       rules.map(function (t, i) { return (i + 1) + '. ' + t; }).join('\n') +
       '\n\nMATE:ON에서 만들었어요. 함께 살 준비, 서로를 아는 것부터.';
   }
@@ -1220,6 +1499,10 @@
         if (S.checklist[g.cat + ':' + i]) done++;
       });
     });
+    S.customChecklist.forEach(function (x) {
+      total++;
+      if (S.checklist['own:' + x.id]) done++;
+    });
     var pctDone = total ? Math.round(done / total * 100) : 0;
 
     var groups = CHECKLIST.map(function (g) {
@@ -1234,6 +1517,19 @@
         }).join('');
     }).join('');
 
+    var customDone = S.customChecklist.filter(function (x) { return S.checklist['own:' + x.id]; }).length;
+    var customHTML = '<div class="check-cat"><h4>직접 추가한 항목</h4><span class="cat-count">' + customDone + '/' + S.customChecklist.length + '</span></div>' +
+      (S.customChecklist.length ? S.customChecklist.map(function (x) {
+        var key = 'own:' + x.id;
+        var on = !!S.checklist[key];
+        return '<div class="rule-item-wrap"><button class="rule-item' + (on ? ' checked' : '') + '" data-action="check" data-v="' + esc(key) + '" type="button">' +
+          '<span class="rule-check"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>' +
+          '<span' + (on ? ' style="text-decoration:line-through;opacity:.6"' : '') + '>' + esc(x.text) + '</span></button>' +
+          armBtn('cl-del', x.id, '삭제', '확인') + '</div>';
+      }).join('') : '<p class="body-sm text-muted" style="margin:4px 0 10px">우리집만의 준비 항목이 있으면 직접 추가해 보세요.</p>') +
+      '<div class="custom-rule"><input id="cl-custom-in" class="input" maxlength="40" autocomplete="off" placeholder="예: 벌레 퇴치제 사기">' +
+      '<button class="btn btn-secondary btn-md" data-action="cl-add" type="button">추가</button></div>';
+
     shell('' +
       '<p class="eyebrow caption">Move-in Checklist</p>' +
       '<h2 class="view-title">입주 체크리스트</h2>' +
@@ -1241,8 +1537,299 @@
       '<div class="check-progress">' +
       '<div class="progress"><div class="progress-fill" style="width:' + pctDone + '%"></div></div>' +
       '<span class="progress-num">' + pctDone + '%</span></div>' +
-      groups +
+      groups + customHTML +
       '<div class="cta-col"><button class="btn btn-tertiary btn-md" data-action="home" type="button">홈으로</button></div>');
+  }
+
+  /* ================= 생활 도구 공통 ================= */
+  function uid() { return 'x' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  function payerName(w) { return w === 'me' ? ((S.me && S.me.name) || '나') : ((S.partner && S.partner.name) || '메이트'); }
+  function listPageHead(over, title, desc) {
+    return '<p class="app-overline">' + esc(over) + '</p><h1 class="mobile-title">' + esc(title) + '</h1><p class="mobile-subtitle">' + esc(desc) + '</p>';
+  }
+  function armBtn(act, v, label, armLabel) {
+    var armed = S.delArm2 === act + ':' + v;
+    return '<button class="' + (armed ? 'btn-danger-text' : 'item-del') + '" data-action="' + act + '" data-v="' + esc(v) + '" type="button">' + (armed ? armLabel : label) + '</button>';
+  }
+
+  /* ================= View: 생활비 정산 ================= */
+  function settleNet() { return ML.settleNetOf(S.expenses); }
+  var SPLIT_MODES = [
+    { id: 'equal', label: '반반' },
+    { id: 'percent', label: '비율 %' },
+    { id: 'exact', label: '정확 금액' },
+  ];
+  function vSettle() {
+    var list = S.expenses.slice().sort(function (a, b) { return b.ts - a.ts; });
+    var meP = 0, youP = 0;
+    S.expenses.forEach(function (x) { if (x.payer === 'me') meP += x.amount; else youP += x.amount; });
+    var net = settleNet();
+    var netText = !S.expenses.length ? '아직 기록이 없어요' :
+      net === 0 ? '딱 맞게 나눴어요' :
+      net > 0 ? esc(payerName('you')) + '님이 ' + esc(payerName('me')) + '님께 ' + fmtWon(net) : esc(payerName('me')) + '님이 ' + esc(payerName('you')) + '님께 ' + fmtWon(-net);
+
+    var months = {};
+    list.forEach(function (x) { var k = dateStr(x.ts).slice(0, 7); (months[k] = months[k] || []).push(x); });
+    var listHTML = Object.keys(months).sort().reverse().map(function (mk) {
+      var sub = months[mk].reduce(function (a, x) { return a + x.amount; }, 0);
+      return '<div class="settle-month"><span>' + (+mk.slice(5)) + '월</span><span>' + fmtWon(sub) + '</span></div>' +
+        months[mk].map(function (x) {
+          var sh = expenseShare(x);
+          var shareTag = sh === 0.5 ? '' : ' · ' + Math.round(sh * 100) + ':' + Math.round((1 - sh) * 100);
+          return '<div class="settle-row"><span class="settle-cat">' + esc(x.cat || '기타') + '</span>' +
+            '<span class="settle-info"><strong>' + esc(x.memo || '지출') + '</strong><small>' + esc(payerName(x.payer)) + ' · ' + fmtDate(x.ts) + shareTag + '</small></span>' +
+            '<span class="settle-amt">' + fmtWon(x.amount) + '</span>' + armBtn('exp-del', x.id, '삭제', '확인') + '</div>';
+        }).join('');
+    }).join('');
+
+    var settledHTML = S.settled.length ? '<details class="card" style="margin-top:16px"><summary>지난 정산 기록 (' + S.settled.length + ')</summary>' +
+      S.settled.slice().reverse().map(function (z) {
+        return '<div class="settle-row"><span class="settle-info"><strong>' + esc(z.label) + '</strong><small>' + esc(payerName(z.net > 0 ? 'you' : 'me')) + ' → ' + esc(payerName(z.net > 0 ? 'me' : 'you')) + ' ' + fmtWon(Math.abs(z.net)) + '</small></span></div>';
+      }).join('') + '</details>' : '';
+
+    shell(listPageHead('LIFE TOOLS', '생활비 정산', '함께 쓴 돈을 기록하고, 누가 얼마를 낼지 계산해요') +
+      '<div class="settle-hero"><span>정산하면</span><strong>' + netText + '</strong><p>' + esc(payerName('me')) + ' ' + fmtWon(meP) + ' · ' + esc(payerName('you')) + ' ' + fmtWon(youP) + ' 지출</p></div>' +
+      '<div class="card" style="margin-top:16px"><h4 class="card-title">지출 추가</h4>' +
+      '<div class="field-group"><label class="field-label" for="exp-memo">내용</label><input id="exp-memo" class="input" maxlength="30" placeholder="예: 쓰레기봉투·세탁세제" autocomplete="off"></div>' +
+      '<div class="field-group"><label class="field-label" for="exp-amt">금액</label><input id="exp-amt" class="input" type="number" inputmode="numeric" min="1" max="100000000" placeholder="0" autocomplete="off"><span class="field-unit">원</span></div>' +
+      '<div class="field-group"><span class="field-label">낸 사람</span><div class="chip-row">' +
+      ['me', 'you'].map(function (w) { return '<button class="chip' + (S.expPayer === w ? ' selected' : '') + '" data-action="exp-payer" data-v="' + w + '" type="button">' + esc(payerName(w)) + '</button>'; }).join('') + '</div></div>' +
+      '<div class="field-group"><span class="field-label">나누는 방법</span><div class="chip-row">' +
+      SPLIT_MODES.map(function (m) { return '<button class="chip' + (S.splitMode === m.id ? ' selected' : '') + '" data-action="exp-split" data-v="' + m.id + '" type="button">' + m.label + '</button>'; }).join('') + '</div>' +
+      (S.splitMode === 'percent' ? '<div class="split-input"><input id="exp-share" class="input" type="number" inputmode="numeric" min="0" max="100" value="50" aria-label="내가 부담하는 비율"><span class="field-unit">%를 ' + esc(payerName('me')) + '이 부담</span></div>' : '') +
+      (S.splitMode === 'exact' ? '<div class="split-input"><input id="exp-share" class="input" type="number" inputmode="numeric" min="0" placeholder="0" aria-label="내가 부담하는 금액"><span class="field-unit">원을 ' + esc(payerName('me')) + '이 부담</span></div>' : '') +
+      '</div>' +
+      '<div class="field-group" style="margin-bottom:0"><span class="field-label">분류</span><div class="chip-row">' +
+      EXPENSE_CATS.map(function (c) { return '<button class="chip' + (S.expCat === c ? ' selected' : '') + '" data-action="exp-cat" data-v="' + esc(c) + '" type="button">' + esc(c) + '</button>'; }).join('') + '</div></div>' +
+      '<div class="cta-row" style="margin-top:14px"><button class="mobile-primary" data-action="exp-add" type="button">지출 기록하기</button>' +
+      '<button class="btn btn-secondary btn-md" data-action="exp-ocr" type="button">영수증 스캔</button></div>' +
+      '<input id="exp-receipt" type="file" accept="image/*" capture="environment" hidden></div>' +
+      (S.expenses.length ? '<div class="cta-col"><button class="btn btn-secondary btn-md" data-action="exp-copy" type="button">정산 내역 복사</button><button class="btn btn-tertiary btn-md" data-action="exp-settle" type="button">이번 정산 마감하기</button></div>' : '') +
+      (listHTML ? '<div class="sec-head" style="margin-top:22px"><h3>지출 내역</h3><span class="badge badge-brand">' + S.expenses.length + '건</span></div>' + listHTML : '<div class="empty-notes" style="margin-top:22px">' + mobileIcon('chat') + '<p>아직 지출 기록이 없어요.<br>첫 공동 지출을 기록해 보세요.</p></div>') +
+      settledHTML +
+      '<p class="device-note">기록은 이 기기에만 저장돼요. 건별로 나누는 방법(반반·비율·정확 금액)을 정할 수 있어요.</p>');
+  }
+
+  /* ================= View: 같이 살 것 (공유 쇼핑리스트) ================= */
+  function vShopping() {
+    var items = S.shopping.slice().sort(function (a, b) { return (a.done - b.done) || (b.ts - a.ts); });
+    var open = items.filter(function (x) { return !x.done; });
+    var done = items.filter(function (x) { return x.done; });
+
+    var row = function (x) {
+      return '<div class="chore-row' + (x.done ? ' done' : '') + '">' +
+        '<button class="chore-check" data-action="shop-done" data-v="' + x.id + '" type="button" aria-pressed="' + x.done + '" aria-label="' + esc(x.name) + ' 샀어요">' +
+        '<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></button>' +
+        '<span class="chore-name">' + esc(x.name) + '</span>' +
+        '<span class="chore-who shop">' + esc(x.cat) + '</span>' +
+        armBtn('shop-del', x.id, '삭제', '확인') + '</div>';
+    };
+
+    var presets = SHOP_PRESETS.filter(function (p) { return !S.shopping.some(function (x) { return x.name === p; }); });
+
+    shell(listPageHead('LIFE TOOLS', '같이 살 것', '장볼 때 필요한 것을 함께 적어두는 목록') +
+      '<div class="settle-hero mint"><span>남은 항목</span><strong>' + open.length + '개' + (done.length ? ' · 산 것 ' + done.length + '개' : '') + '</strong>' +
+      '<p>메이트와 동기화가 켜져 있으면 목록이 함께 업데이트돼요</p></div>' +
+      '<div class="card" style="margin-top:16px"><h4 class="card-title">필요한 것 추가</h4>' +
+      '<div class="custom-rule"><input id="shop-in" class="input" maxlength="30" placeholder="예: 휴지, 라면, 행주" autocomplete="off">' +
+      '<button class="btn btn-secondary btn-md" data-action="shop-add" type="button">추가</button></div>' +
+      '<div class="chip-row" style="margin-top:10px">' + SHOP_CATS.map(function (c) { return '<button class="chip' + (S.shopCat === c ? ' selected' : '') + '" data-action="shop-cat" data-v="' + esc(c) + '" type="button">' + esc(c) + '</button>'; }).join('') + '</div>' +
+      (presets.length ? '<div class="chip-row" style="margin-top:10px">' + presets.map(function (p) { return '<button class="chip" data-action="shop-preset" data-v="' + esc(p) + '" type="button">+ ' + esc(p) + '</button>'; }).join('') + '</div>' : '') + '</div>' +
+      (open.length ? '<div style="margin:18px 0 6px">' + open.map(row).join('') + '</div>' : '<div class="empty-notes" style="margin-top:18px">' + mobileIcon('chat') + '<p>살 것이 없어요.<br>필요한 게 생기면 바로 적어두세요.</p></div>') +
+      (done.length ? '<details class="card" style="margin-top:14px"><summary>산 것 (' + done.length + ')</summary>' + done.map(row).join('') +
+        '<button class="btn btn-tertiary btn-md" data-action="shop-clear" type="button" style="margin-top:10px">산 것 모두 지우기</button></details>' : '') +
+      '<p class="device-note">목록은 이 기기에 저장되고, 동기화가 켜져 있으면 메이트와 공유돼요.</p>');
+  }
+
+  /* ================= View: 러브맵 퀴즈 ================= */
+  function lovemapSave() { save('mateon.lovemap', S.lovemap); }
+  function vLovemap() {
+    var lm = S.lovemap;
+    var total = LOVE_MAP_QUESTIONS.length;
+    var doneAll = lm.asked >= total;
+    var pct = Math.round(lm.asked / total * 100);
+    var msg = !lm.asked ? '서로의 세계를 얼마나 아는지 알아봐요' :
+      (lm.asked && lm.known / lm.asked >= 0.8) ? '서로를 꽤 잘 알고 있어요!' :
+      (lm.known / lm.asked >= 0.5) ? '아는 만큼 더 궁금해지는 사이예요' : '아직 모르는 게 많아요. 더 물어봐요';
+
+    var q = doneAll ? null : LOVE_MAP_QUESTIONS[lm.idx % total];
+    shell(listPageHead('PLAY', '러브맵 퀴즈', '메이트의 세계를 얼마나 알고 있는지 맞혀보기') +
+      '<div class="settle-hero"><span>' + lm.asked + ' / ' + total + ' 질문</span><strong>' + msg + '</strong>' +
+      '<div class="lovemap-bar"><i style="width:' + pct + '%"></i></div></div>' +
+      (q ? '<div class="lovemap-card"><span class="lovemap-no">Q' + (lm.asked + 1) + '</span><h3>' + esc(q) + '</h3>' +
+        '<p class="body-sm text-muted">먼저 마음속으로 답을 떠올린 뒤, 메이트에게 물어보세요.</p></div>' +
+        '<div class="cta-row"><button class="mobile-primary" data-action="lm-know" type="button">맞혔어요</button>' +
+        '<button class="btn btn-secondary btn-md" data-action="lm-dont" type="button">몰랐어요</button></div>' +
+        '<button class="btn btn-tertiary btn-md" data-action="lm-skip" type="button" style="margin-top:10px">이 질문 건너뛰기</button>'
+      : '<div class="empty-notes">' + mobileIcon('heart') + '<p>' + total + '개 질문을 모두 나눴어요.<br>서로를 더 알아가는 데 끝은 없어요.</p>' +
+        '<button class="btn btn-secondary btn-md" data-action="lm-reset" type="button">처음부터 다시 하기</button></div>') +
+      '<p class="device-note">정답은 없어요 — 질문을 나누는 것 자체가 목적이에요. 진행은 이 기기에 저장돼요.</p>');
+  }
+
+  /* ================= View: 역할 분담 ================= */
+  function choreState() {
+    if (!S.chores || !Array.isArray(S.chores.items)) S.chores = { items: [], anchor: mondayOf(Date.now()), rot: [] };
+    return S.chores;
+  }
+  function choreOwner(i, weekTs) {
+    var ch = choreState();
+    var off = Math.round((mondayOf(weekTs) - mondayOf(ch.anchor)) / (7 * 86400000));
+    return ((ch.rot[i] || 0) + off) % 2 === 0 ? 'me' : 'you';
+  }
+  function saveChores() { save('mateon.chores', S.chores); }
+  function vChores() {
+    var ch = choreState();
+    var now = Date.now(), wk = isoWeekKey(now);
+    var log = S.choreLog[wk] || {};
+    var doneCount = ch.items.filter(function (it) { return log[it.id]; }).length;
+
+    var itemsHTML = ch.items.length ? ch.items.map(function (it, i) {
+      var who = choreOwner(i, now);
+      var done = !!log[it.id];
+      return '<div class="chore-row' + (done ? ' done' : '') + '">' +
+        '<button class="chore-check" data-action="chore-done" data-v="' + it.id + '" type="button" aria-pressed="' + done + '" aria-label="' + esc(it.name) + ' 완료">' +
+        '<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></button>' +
+        '<span class="chore-name">' + esc(it.name) + '</span>' +
+        '<span class="chore-who ' + who + '">' + esc(payerName(who)) + '</span>' +
+        armBtn('chore-del', it.id, '삭제', '확인') + '</div>';
+    }).join('') : '<div class="empty-notes">' + mobileIcon('chat') + '<p>아직 나눌 집안일이 없어요.<br>아래에서 추가하거나 추천 항목을 눌러보세요.</p></div>';
+
+    var presets = CHORE_PRESETS.filter(function (p) { return !ch.items.some(function (it) { return it.name === p; }); });
+
+    shell(listPageHead('LIFE TOOLS', '역할 분담', '집안일 담당을 정하고, 매주 자동으로 바꿔요') +
+      '<div class="settle-hero mint"><span>이번 주 ' + weekRangeLabel(now) + '</span><strong>' + doneCount + ' / ' + ch.items.length + ' 완료</strong>' +
+      '<p>매주 월요일마다 담당이 서로 바뀌어요</p></div>' +
+      '<div style="margin:18px 0 6px">' + itemsHTML + '</div>' +
+      '<div class="card" style="margin-top:16px"><h4 class="card-title">집안일 추가</h4>' +
+      '<div class="custom-rule"><input id="chore-in" class="input" maxlength="16" placeholder="예: 화장실 청소" autocomplete="off">' +
+      '<button class="btn btn-secondary btn-md" data-action="chore-add" type="button">추가</button></div>' +
+      (presets.length ? '<div class="chip-row" style="margin-top:12px">' + presets.map(function (p) { return '<button class="chip" data-action="chore-preset" data-v="' + esc(p) + '" type="button">+ ' + esc(p) + '</button>'; }).join('') + '</div>' : '') + '</div>' +
+      (ch.items.length ? '<div class="card" style="margin-top:16px"><h4 class="card-title">다음 주 미리보기</h4>' +
+        ch.items.map(function (it, i) { return '<div class="chore-next"><span>' + esc(it.name) + '</span><span>' + esc(payerName(choreOwner(i, now + 7 * 86400000))) + '</span></div>'; }).join('') + '</div>' : '') +
+      '<p class="device-note">담당은 매주 월요일에 자동으로 서로 교체돼요. 기록은 이 기기에만 저장돼요.</p>');
+  }
+
+  /* ================= View: 우리 일정 ================= */
+  function vCalendar() {
+    var today = dateStr(Date.now());
+    var evs = S.events.slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+    var upcoming = evs.filter(function (e) { return e.date >= today; });
+    var past = evs.filter(function (e) { return e.date < today; });
+
+    function row(e, isPast) {
+      var d = new Date(e.date + 'T12:00:00');
+      var dd = isPast ? '' : (e.date === today ? '<span class="badge badge-brand">오늘</span>' : '');
+      return '<div class="event-row' + (isPast ? ' past' : '') + '"><span class="event-date"><b>' + d.getDate() + '</b><i>' + (d.getMonth() + 1) + '월</i></span>' +
+        '<span class="event-info"><strong>' + esc(e.title) + '</strong>' + (e.memo ? '<small>' + esc(e.memo) + '</small>' : '') +
+        '<small>' + esc(e.who === 'me' ? payerName('me') : e.who === 'you' ? payerName('you') : '함께') + '</small></span>' +
+        dd + '<button class="item-del" data-action="ev-ics" data-v="' + e.id + '" type="button">ICS</button>' + armBtn('ev-del', e.id, '삭제', '확인') + '</div>';
+    }
+
+    shell(listPageHead('LIFE TOOLS', '우리 일정', '이사일, 정산일, 점검일 같은 중요한 날을 함께 기록해요') +
+      '<div class="card" style="margin-top:20px"><h4 class="card-title">일정 추가</h4>' +
+      '<div class="field-group"><label class="field-label" for="ev-date">날짜</label><input id="ev-date" class="input" type="date" value="' + today + '"></div>' +
+      '<div class="field-group"><label class="field-label" for="ev-title">제목</label><input id="ev-title" class="input" maxlength="30" placeholder="예: 전세 만기일" autocomplete="off"></div>' +
+      '<div class="field-group"><label class="field-label" for="ev-memo">메모 (선택)</label><input id="ev-memo" class="input" maxlength="60" placeholder="예: 오후 2시 집주인 연락" autocomplete="off"></div>' +
+      '<div class="field-group" style="margin-bottom:0"><span class="field-label">누구의 일정</span><div class="chip-row">' +
+      [['both', '함께'], ['me', payerName('me')], ['you', payerName('you')]].map(function (w) {
+        return '<button class="chip' + (S.evWho === w[0] ? ' selected' : '') + '" data-action="ev-who" data-v="' + w[0] + '" type="button">' + esc(w[1]) + '</button>';
+      }).join('') + '</div></div>' +
+      '<button class="mobile-primary" data-action="ev-add" type="button" style="margin-top:14px">일정 추가하기</button></div>' +
+      (upcoming.length ? '<div class="sec-head" style="margin-top:22px"><h3>다가오는 일정</h3><span class="badge badge-brand">' + upcoming.length + '</span></div>' + upcoming.map(function (e) { return row(e); }).join('') : '<div class="empty-notes" style="margin-top:22px">' + mobileIcon('chat') + '<p>예정된 일정이 없어요.<br>중요한 날을 추가해 보세요.</p></div>') +
+      (past.length ? '<details class="card" style="margin-top:16px"><summary>지난 일정 (' + past.length + ')</summary>' + past.map(function (e) { return row(e, true); }).join('') + '</details>' : '') +
+      '<p class="device-note">일정은 이 기기에만 저장돼요. ICS로 내보내면 캘린더 앱에 추가할 수 있어요.</p>');
+  }
+
+  /* ================= View: 주간 체크인 ================= */
+  function thisCheckin() {
+    var wk = isoWeekKey();
+    return S.checkins.find(function (c) { return c.week === wk; }) || null;
+  }
+  function vCheckin() {
+    var wk = isoWeekKey();
+    var cur = S.checkins.find(function (c) { return c.week === wk; });
+    var rules = agreementRules();
+    var moodSel = cur ? cur.mood : 0;
+    var keptSel = cur ? (cur.kept || []) : [];
+
+    var historyHTML = '';
+    var past = S.checkins.filter(function (c) { return c.week !== wk; }).slice(-4).reverse();
+    if (past.length) {
+      historyHTML = '<div class="sec-head" style="margin-top:22px"><h3>지난 체크인</h3></div>' +
+        past.map(function (c) {
+          var m = CHECKIN_MOODS.find(function (x) { return x.v === c.mood; });
+          return '<div class="checkin-hist"><span class="ch-emoji">' + (m ? m.emoji : '·') + '</span><span><strong>' + esc(c.week) + '</strong><small>' + (m ? esc(m.label) : '') + (c.fix ? ' · ' + esc(c.fix) : '') + '</small></span></div>';
+        }).join('');
+    }
+
+    shell(listPageHead('LIFE TOOLS', '이번 주 체크인', '일주일에 한 번, 우리 생활이 어땠는지 가볍게 돌아봐요') +
+      '<div class="card" style="margin-top:20px"><h4 class="card-title">' + weekRangeLabel(Date.now()) + ' · 이번 주 우리 생활은?</h4>' +
+      '<div class="mood-row" role="radiogroup" aria-label="이번 주 기분">' +
+      CHECKIN_MOODS.map(function (m) {
+        return '<button class="mood-btn' + (moodSel === m.v ? ' on' : '') + '" data-action="ci-mood" data-v="' + m.v + '" type="button" role="radio" aria-checked="' + (moodSel === m.v) + '" aria-label="' + esc(m.label) + '"><span>' + m.emoji + '</span><small>' + esc(m.label) + '</small></button>';
+      }).join('') + '</div></div>' +
+      (rules.length ? '<div class="card" style="margin-top:14px"><h4 class="card-title">잘 지켜진 우리 규칙</h4>' +
+        rules.slice(0, 8).map(function (t, i) {
+          var on = keptSel.indexOf(i) >= 0;
+          return '<button class="rule-item' + (on ? ' checked' : '') + '" data-action="ci-kept" data-v="' + i + '" type="button" aria-pressed="' + on + '"><span class="rule-check"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span>' + esc(t) + '</span></button>';
+        }).join('') + '</div>' : '') +
+      '<div class="card" style="margin-top:14px"><h4 class="card-title">다음 주에 나누고 싶은 것 (선택)</h4>' +
+      '<div class="field-group" style="margin-bottom:0"><input id="ci-fix" class="input" maxlength="80" placeholder="예: 주말엔 같이 청소하기" value="' + esc(cur ? cur.fix || '' : '') + '" autocomplete="off"></div></div>' +
+      '<div class="cta-col"><button class="btn btn-primary btn-lg" data-action="ci-save" type="button">' + (cur ? '체크인 수정하기' : '체크인 저장하기') + '</button></div>' +
+      historyHTML +
+      '<p class="device-note">체크인은 이 기기에만 저장돼요.</p>');
+  }
+
+  /* ================= View: 갈등 가이드 ================= */
+  var cgTimerId = null;
+  function vConflict() {
+    var step = S.cgStep;
+    var dom = CONFLICT_DOMAINS.find(function (d) { return d.id === S.cgDomain; }) || CONFLICT_DOMAINS[0];
+    var mc = S.me ? charById(S.me.charId) : null;
+    var yc = S.partner ? charById(S.partner.charId) : null;
+    var head = listPageHead('CONFLICT GUIDE', '갈등이 생겼을 때', '감정이 올라올 때일수록 순서가 중요해요') +
+      '<div class="cg-steps" aria-label="갈등 대응 단계">' + ['상황 선택', '멈추기', '말하기', '합의하기'].map(function (t, i) {
+        return '<span class="cg-step' + (i === step ? ' on' : i < step ? ' done' : '') + '"><i>' + (i < step ? '✓' : i + 1) + '</i>' + t + '</span>';
+      }).join('') + '</div>';
+
+    var body = '';
+    if (step === 0) {
+      body = '<div class="card" style="margin-top:18px"><h4 class="card-title">어떤 일이 있었나요?</h4>' +
+        CONFLICT_DOMAINS.map(function (d) {
+          return '<button class="conflict-pick' + (S.cgDomain === d.id ? ' on' : '') + '" data-action="cg-domain" data-v="' + d.id + '" type="button"><strong>' + esc(d.title) + '</strong><small>' + esc(d.hint) + '</small></button>';
+        }).join('') +
+        '<button class="mobile-primary" data-action="cg-next" type="button" style="margin-top:14px">다음 · 잠시 멈추기</button></div>';
+    } else if (step === 1) {
+      var started = S.cgStart;
+      var left = started ? Math.max(0, Math.ceil((started + 30 * 60000 - Date.now()) / 60000)) : 30;
+      body = '<div class="card" style="margin-top:18px;text-align:center"><span class="cg-timer" id="cg-timer">' + left + '</span><p class="body-md">분 각자 정리 시간</p>' +
+        '<p class="body-sm text-muted" style="margin:14px 0">' + esc(CONFLICT_STEP_TIPS.calm) + '</p>' +
+        (mc ? '<div class="note-box info" style="margin-bottom:14px"><span>나의 첫 반응: ' + esc(mc.conflictSeq[0]) + ' → ' + esc(mc.conflictSeq[1] || '') + '</span></div>' : '') +
+        (yc ? '<div class="note-box info" style="margin-bottom:14px"><span>' + esc(S.partner.name || '메이트') + '님의 첫 반응: ' + esc(yc.conflictSeq[0]) + ' → ' + esc(yc.conflictSeq[1] || '') + '</span></div>' : '') +
+        (started ? '<button class="btn btn-tertiary btn-md" data-action="cg-reset-timer" type="button">타이머 다시 시작</button>' : '<button class="mobile-primary" data-action="cg-timer" type="button">30분 타이머 시작</button>') +
+        '<button class="btn btn-primary btn-lg" data-action="cg-next" type="button" style="margin-top:12px">정리됐어요 · 대화 준비</button></div>';
+    } else if (step === 2) {
+      var sc = CONFLICT_SCENARIOS[S.cgDomain];
+      body = '<div class="card" style="margin-top:18px"><h4 class="card-title">이렇게 시작해 보세요</h4>' +
+        '<p class="body-sm text-muted" style="margin-bottom:12px">' + esc(CONFLICT_STEP_TIPS.talk) + '</p>' +
+        (sc ? '<div class="note-box info" style="margin-bottom:12px"><span><strong>' + esc(sc.title) + '</strong> · ' + esc(sc.prevention) + '</span></div>' : '') +
+        '<div class="talk-guide"><span>내가 먼저</span><p>“' + esc('요즘 ' + dom.title.replace(/요$/, ' 것 같아서, 내가 예민한 건지 한번 이야기하고 싶었어') ) + '”</p></div>' +
+        (mc && yc ? '<div class="do-grid" style="margin-top:14px"><div class="do-col do"><h5>' + esc(S.me.name || '나') + '에게 맞는 방식</h5><ul>' + yc.dos.map(function (t) { return '<li>· ' + esc(t) + '</li>'; }).join('') + '</ul></div>' +
+          '<div class="do-col dont"><h5>' + esc(S.partner.name || '메이트') + '님이 피해줬으면 하는 것</h5><ul>' + mc.donts.map(function (t) { return '<li>· ' + esc(t) + '</li>'; }).join('') + '</ul></div></div>' : '') +
+        '<button class="mobile-primary" data-action="cg-next" type="button" style="margin-top:14px">합의하러 가기</button></div>';
+    } else {
+      body = '<div class="card" style="margin-top:18px"><h4 class="card-title">작은 약속 하나 정하기</h4>' +
+        '<p class="body-sm text-muted" style="margin-bottom:12px">' + esc(CONFLICT_STEP_TIPS.agree) + '</p>' +
+        '<div class="field-group"><input id="cg-note" class="input" maxlength="80" placeholder="예: 밤 11시 이후엔 이어폰 쓰기" autocomplete="off"></div>' +
+        '<div class="cta-col"><button class="btn btn-primary btn-md" data-action="cg-save" type="button">합의 기록하기</button>' +
+        '<button class="btn btn-secondary btn-md" data-action="cg-save-rule" type="button">생활규칙으로도 추가</button>' +
+        '<button class="btn btn-tertiary btn-md" data-action="cg-restart" type="button">처음으로</button></div></div>' +
+        (S.conflictLog.length ? '<div class="sec-head" style="margin-top:20px"><h3>지난 합의</h3></div>' +
+          S.conflictLog.slice().reverse().slice(0, 5).map(function (l) {
+            return '<div class="checkin-hist"><span><strong>' + esc(l.note) + '</strong><small>' + fmtDate(l.ts) + ' · ' + esc((CONFLICT_DOMAINS.find(function (d) { return d.id === l.domain; }) || {}).title || '') + '</small></span></div>';
+          }).join('') : '');
+    }
+    shell(head + body);
   }
 
   /* ================= View: 설정 ================= */
@@ -1259,12 +1846,265 @@
     { k: 'mateon.shareName', t: '초대 링크 닉네임 설정' },
     { k: 'mateon.activeDraft', t: '진단 이어하기 상태' },
     { k: 'ds-theme', t: '테마 설정' },
+    { k: 'mateon.expenses', t: '생활비 지출 기록' },
+    { k: 'mateon.settled', t: '지난 정산 기록' },
+    { k: 'mateon.chores', t: '역할 분담 목록' },
+    { k: 'mateon.choreLog', t: '집안일 완료 기록' },
+    { k: 'mateon.events', t: '우리 일정' },
+    { k: 'mateon.checkins', t: '주간 체크인' },
+    { k: 'mateon.customChecklist', t: '직접 추가한 준비 항목' },
+    { k: 'mateon.conflictLog', t: '갈등 합의 기록' },
+    { k: 'mateon.shopping', t: '같이 살 것 목록' },
+    { k: 'mateon.lovemap', t: '러브맵 퀴즈 진행' },
+    { k: 'mateon.tb', t: '동기화 내부 상태' },
+    { k: 'mateon.reminders', t: '알림 설정' },
+    { k: 'mateon.inviteDays', t: '초대 링크 유효기간' },
+    { k: 'mateon.fontSize', t: '글자 크기 설정' },
+    { k: 'mateon.seen', t: '앱 소개 확인 여부' },
+    { k: 'mateon.sync', t: '동기화 설정' },
   ];
+  var BACKUP_KEYS = DATA_ITEMS.map(function (it) { return it.k; });
+  var CHECKLIST_KEYS = {};
+  CHECKLIST.forEach(function (g) { g.items.forEach(function (t, i) { CHECKLIST_KEYS[g.cat + ':' + i] = true; }); });
+
+  function rawGet(key) {
+    try { return localStorage.getItem(key); } catch (e) { return null; }
+  }
+
+  function validStoredResult(r) {
+    if (!r || typeof r !== 'object' || typeof r.name !== 'string' || r.name.length > 100) return false;
+    if (!charById(r.charId) || !charById(r.char2Id)) return false;
+    var values = [r.eAvg, r.rAvg];
+    if (!r.domains || typeof r.domains !== 'object') return false;
+    DOMAINS.forEach(function (d) {
+      var v = r.domains[d.id];
+      values.push(v && v.e, v && v.r);
+    });
+    if (r.life && (!Array.isArray(r.life) || r.life.length > LIFE_QUESTIONS.length || !r.life.every(function (x) {
+      return x && typeof x.area === 'string' && x.area.length <= 30 && typeof x.label === 'string' && x.label.length <= 30 && x.level >= 1 && x.level <= 3;
+    }))) return false;
+    return values.every(function (v) { return typeof v === 'number' && Number.isFinite(v) && v >= 1 && v <= 4; });
+  }
+
+  function validAgreement(ag) {
+    return !!(ag && typeof ag === 'object' && Array.isArray(ag.rules) && ag.rules.length > 0 && ag.rules.length <= 60 &&
+      ag.rules.every(function (t) { return typeof t === 'string' && t.length > 0 && t.length <= 80; }) &&
+      typeof ag.me === 'string' && ag.me.length <= 100 && typeof ag.partner === 'string' && ag.partner.length <= 100 &&
+      (!ag.meCharId || charById(ag.meCharId)) && (!ag.partnerCharId || charById(ag.partnerCharId)) &&
+      (!ag.date || typeof ag.date === 'string') && (!ag.updated || typeof ag.updated === 'string') &&
+      (!ag.rev || (Number.isInteger(ag.rev) && ag.rev >= 1)) && (!ag.ts || typeof ag.ts === 'number'));
+  }
+
+  function validHistoryEntry(h) {
+    return !!(h && typeof h === 'object' && charById(h.charId) &&
+      typeof h.eAvg === 'number' && h.eAvg >= 1 && h.eAvg <= 4 &&
+      typeof h.rAvg === 'number' && h.rAvg >= 1 && h.rAvg <= 4 &&
+      (!h.name || typeof h.name === 'string') && (!h.ts || typeof h.ts === 'number'));
+  }
+
+  function validBackupValue(key, value) {
+    if (key === 'mateon.me' || key === 'mateon.partner') return validStoredResult(value);
+    if (key === 'mateon.agreement') return validAgreement(value);
+    if (key === 'mateon.history') return Array.isArray(value) && value.length <= 10 && value.every(validHistoryEntry);
+    if (key === 'mateon.checklist') {
+      return !!(value && typeof value === 'object' && !Array.isArray(value) &&
+        Object.keys(value).every(function (k) { return CHECKLIST_KEYS[k] && typeof value[k] === 'boolean'; }));
+    }
+    if (key === 'mateon.talks') {
+      return !!(value && typeof value === 'object' && !Array.isArray(value) &&
+        Object.keys(value).every(function (k) {
+          var i = +k, n = value[k];
+          return Number.isInteger(i) && HOME_TALKS[i] && n && typeof n.text === 'string' && n.text.length <= 500 && (!n.ts || typeof n.ts === 'number');
+        }));
+    }
+    if (key === 'mateon.customRules') return Array.isArray(value) && value.length <= 50 && value.every(function (t) { return typeof t === 'string' && t.length > 0 && t.length <= 60; });
+    if (key === 'mateon.draft.me' || key === 'mateon.draft.partner') {
+      return isValidDraft(value) && (!value.invite || !!decodeResult(value.invite));
+    }
+    if (key === 'mateon.shareName') return typeof value === 'boolean';
+    if (key === 'mateon.activeDraft') return value === 'me' || value === 'partner';
+    if (key === 'ds-theme') return value === 'light' || value === 'dark';
+    if (key === 'mateon.expenses') return Array.isArray(value) && value.length <= 500 && value.every(function (x) {
+      return x && typeof x.id === 'string' && x.id.length <= 24 && typeof x.ts === 'number' &&
+        (x.payer === 'me' || x.payer === 'you') && typeof x.amount === 'number' && x.amount > 0 && x.amount <= 100000000 &&
+        typeof x.memo === 'string' && x.memo.length <= 40 && typeof x.cat === 'string' && x.cat.length <= 12 &&
+        (x.share === undefined || (typeof x.share === 'number' && x.share >= 0 && x.share <= 1));
+    });
+    if (key === 'mateon.settled') return Array.isArray(value) && value.length <= 200 && value.every(function (z) {
+      return z && typeof z.ts === 'number' && typeof z.label === 'string' && z.label.length <= 40 && typeof z.net === 'number' && Number.isFinite(z.net);
+    });
+    if (key === 'mateon.chores') return !!(value && typeof value === 'object' && typeof value.anchor === 'number' &&
+      Array.isArray(value.items) && value.items.length <= 30 && value.items.every(function (it) { return it && typeof it.id === 'string' && it.id.length <= 24 && typeof it.name === 'string' && it.name.length > 0 && it.name.length <= 20; }) &&
+      Array.isArray(value.rot) && value.rot.length <= 30 && value.rot.every(function (n) { return n === 0 || n === 1; }));
+    if (key === 'mateon.choreLog') return !!(value && typeof value === 'object' && !Array.isArray(value) &&
+      Object.keys(value).every(function (k) {
+        var log = value[k];
+        return /^\d{4}-\d{2}-\d{2}$/.test(k) && log && typeof log === 'object' && !Array.isArray(log) &&
+          Object.keys(log).every(function (id) { return typeof log[id] === 'boolean'; });
+      }));
+    if (key === 'mateon.events') return Array.isArray(value) && value.length <= 300 && value.every(function (e) {
+      return e && typeof e.id === 'string' && e.id.length <= 24 && /^\d{4}-\d{2}-\d{2}$/.test(e.date) &&
+        typeof e.title === 'string' && e.title.length > 0 && e.title.length <= 30 &&
+        (!e.memo || (typeof e.memo === 'string' && e.memo.length <= 60)) &&
+        (e.who === 'me' || e.who === 'you' || e.who === 'both');
+    });
+    if (key === 'mateon.checkins') return Array.isArray(value) && value.length <= 60 && value.every(function (c) {
+      return c && /^\d{4}-W\d{2}$/.test(c.week) && c.mood >= 1 && c.mood <= 5 &&
+        (!c.kept || (Array.isArray(c.kept) && c.kept.length <= 20 && c.kept.every(function (i) { return Number.isInteger(i) && i >= 0; }))) &&
+        (!c.fix || (typeof c.fix === 'string' && c.fix.length <= 80)) && typeof c.ts === 'number';
+    });
+    if (key === 'mateon.customChecklist') return Array.isArray(value) && value.length <= 50 && value.every(function (x) {
+      return x && typeof x.id === 'string' && x.id.length <= 24 && typeof x.text === 'string' && x.text.length > 0 && x.text.length <= 40;
+    });
+    if (key === 'mateon.conflictLog') return Array.isArray(value) && value.length <= 100 && value.every(function (l) {
+      return l && typeof l.ts === 'number' && typeof l.note === 'string' && l.note.length > 0 && l.note.length <= 80 && typeof l.domain === 'string' && l.domain.length <= 2;
+    });
+    if (key === 'mateon.shopping') return Array.isArray(value) && value.length <= 200 && value.every(function (x) {
+      return x && typeof x.id === 'string' && x.id.length <= 24 && typeof x.name === 'string' && x.name.length > 0 && x.name.length <= 30 &&
+        SHOP_CATS.indexOf(x.cat) !== -1 && typeof x.done === 'boolean' && typeof x.ts === 'number';
+    });
+    if (key === 'mateon.lovemap') return !!(value && typeof value === 'object' &&
+      Number.isInteger(value.idx) && value.idx >= 0 && value.idx <= LOVE_MAP_QUESTIONS.length &&
+      Number.isInteger(value.known) && value.known >= 0 && Number.isInteger(value.asked) && value.asked >= 0 &&
+      (!value.askedIdx || (Array.isArray(value.askedIdx) && value.askedIdx.length <= LOVE_MAP_QUESTIONS.length && value.askedIdx.every(function (i) { return Number.isInteger(i); }))));
+    if (key === 'mateon.tb') return Array.isArray(value);
+    if (key === 'mateon.reminders') return !!(value && typeof value === 'object' && typeof value.checkin === 'boolean' && typeof value.agreement === 'boolean');
+    if (key === 'mateon.inviteDays') return value === 1 || value === 7 || value === 30;
+    if (key === 'mateon.fontSize') return value === 'normal' || value === 'large';
+    if (key === 'mateon.seen') return value === true;
+    if (key === 'mateon.sync') return !!(value && typeof value === 'object' && typeof value.endpoint === 'string' && value.endpoint.length <= 200 &&
+      typeof value.room === 'string' && value.room.length <= 64 && (value.slot === 'a' || value.slot === 'b') && (!value.token || (typeof value.token === 'string' && value.token.length <= 200)));
+    return false;
+  }
+
+  function buildBackup() {
+    var data = {};
+    BACKUP_KEYS.forEach(function (key) {
+      var raw = rawGet(key);
+      if (raw === null) return;
+      if (key === 'ds-theme') { data[key] = raw; return; }
+      try { data[key] = JSON.parse(raw); } catch (e) { /* malformed values are not exported */ }
+    });
+    return {
+      app: 'MATE:ON', schema: 1,
+      appId: appConfig().appId,
+      version: appConfig().version,
+      exportedAt: new Date().toISOString(),
+      data: data
+    };
+  }
+
+  function parseBackup(text) {
+    if (typeof text !== 'string' || text.length > 524288) return null;
+    try {
+      var payload = JSON.parse(text);
+      if (!payload || payload.app !== 'MATE:ON' || payload.schema !== 1 || !payload.data || typeof payload.data !== 'object' || Array.isArray(payload.data)) return null;
+      var keys = Object.keys(payload.data);
+      if (keys.some(function (k) { return BACKUP_KEYS.indexOf(k) < 0; })) return null;
+      if (keys.some(function (k) { return !validBackupValue(k, payload.data[k]); })) return null;
+      var clean = {};
+      keys.forEach(function (k) { clean[k] = payload.data[k]; });
+      return clean;
+    } catch (e) { return null; }
+  }
+
+  function hydrateStateFromStorage() {
+    S.me = load('mateon.me');
+    S.partner = load('mateon.partner');
+    S.agreement = load('mateon.agreement');
+    S.history = load('mateon.history') || [];
+    S.checklist = load('mateon.checklist') || {};
+    S.customRules = load('mateon.customRules') || [];
+    S.shareName = load('mateon.shareName') !== false;
+    S.expenses = load('mateon.expenses') || [];
+    S.settled = load('mateon.settled') || [];
+    S.chores = load('mateon.chores');
+    S.choreLog = load('mateon.choreLog') || {};
+    S.events = load('mateon.events') || [];
+    S.checkins = load('mateon.checkins') || [];
+    S.customChecklist = load('mateon.customChecklist') || [];
+    S.conflictLog = load('mateon.conflictLog') || [];
+    var rm = load('mateon.reminders');
+    S.reminders = { checkin: !rm || rm.checkin !== false, agreement: !rm || rm.agreement !== false };
+    S.inviteDays = load('mateon.inviteDays') || 7;
+    S.fontSize = load('mateon.fontSize') === 'large' ? 'large' : 'normal';
+    applyFontSize();
+    S.seen = load('mateon.seen') === true;
+    S.syncCfg = load('mateon.sync');
+    S.invite = null; S.pendingPartner = null; S.connectionInput = '';
+    S.flow = 'me'; S.q = 0; S.answers = [];
+    S.profile = { name: '', relation: '', stage: '' };
+    S.checkedRules = []; S.rulesReady = false; S.signs = { me: false, partner: false };
+    S.lifeQ = 0; S.lifeAnswers = []; S.typeId = null; S.viewPair = null;
+    S.resetArm = false; S.delArm = null; S.delArm2 = null;
+    S.cgStep = 0; S.cgDomain = 'D';
+    setTheme(rawGet('ds-theme') === 'dark' ? 'dark' : 'light');
+    restoreDraft(load('mateon.activeDraft') || 'me');
+  }
+
+  function applyBackupData(data) {
+    if (!data || Object.keys(data).some(function (k) { return !validBackupValue(k, data[k]); })) return false;
+    BACKUP_KEYS.forEach(remove);
+    Object.keys(data).forEach(function (key) {
+      if (key === 'ds-theme') {
+        try { localStorage.setItem(key, data[key]); } catch (e) { /* ignore */ }
+      } else save(key, data[key]);
+    });
+    hydrateStateFromStorage();
+    return true;
+  }
+
+  function backupFilename() {
+    var d = new Date();
+    var stamp = String(d.getFullYear()) + ('0' + (d.getMonth() + 1)).slice(-2) + ('0' + d.getDate()).slice(-2);
+    return 'mateon-backup-' + stamp + '.json';
+  }
+
+  function exportBackup() {
+    var text = JSON.stringify(buildBackup(), null, 2);
+    if (window.MateNative) {
+      window.MateNative.shareFile(backupFilename(), text, true).catch(function () { showToast('백업 파일 공유가 완료되지 않았어요'); });
+      return;
+    }
+    if (window.Blob && window.URL && window.URL.createObjectURL) {
+      var blob = new Blob([text], { type: 'application/json;charset=utf-8' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = backupFilename();
+      a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+      showToast('백업 파일을 내려받았어요');
+      return;
+    }
+    copyText(text, '백업 JSON을 복사했어요');
+  }
+
+  function importBackupText(text) {
+    var data = parseBackup(text);
+    if (!data) return false;
+    applyBackupData(data);
+    showToast('백업 데이터를 복원했어요');
+    go('home');
+    return true;
+  }
+
+  function readBackupFile(file) {
+    if (!file) return;
+    if (file.size > 524288) { showToast('백업 파일이 너무 커요'); return; }
+    function done(text) {
+      if (!importBackupText(text)) showToast('MATE:ON 백업 파일이 아니에요');
+    }
+    if (typeof file.text === 'function') { file.text().then(done).catch(function () { showToast('백업 파일을 읽지 못했어요'); }); return; }
+    var reader = new FileReader();
+    reader.onload = function () { done(reader.result); };
+    reader.onerror = function () { showToast('백업 파일을 읽지 못했어요'); };
+    reader.readAsText(file, 'utf-8');
+  }
 
   function vSettings() {
     var shareOn = S.shareName !== false;
     var rows = DATA_ITEMS.map(function (it) {
-      var has = !!load(it.k);
+      var has = it.k === 'ds-theme' ? rawGet(it.k) !== null : !!load(it.k);
       var armed = S.delArm === it.k;
       return '<div class="set-row"><div class="sr-info"><strong class="body-sm">' + esc(it.t) + '</strong></div>' +
         '<span class="sr-state">' + (has ? '저장됨' : '없음') + '</span>' +
@@ -1295,6 +2135,31 @@
       '<span class="share-opt-dot"></span>닉네임 포함 ' + (shareOn ? '켜짐' : '꺼짐') + '</button>' +
       '<div class="cta-col" style="margin-top:16px"><button class="btn btn-tertiary btn-md" data-action="share-home" type="button">친구에게 MATE:ON 공유</button></div>' +
       '</div>' +
+      '<div class="sec-head" style="margin-top:20px"><h3>알림·화면</h3></div>' +
+      '<div class="card">' +
+      '<button class="share-opt' + (S.reminders.checkin ? ' on' : '') + '" data-action="rem-checkin" type="button" aria-pressed="' + S.reminders.checkin + '">' +
+      '<span class="share-opt-dot"></span>주간 체크인 알림 ' + (S.reminders.checkin ? '켜짐' : '꺼짐') + '</button>' +
+      '<button class="share-opt' + (S.reminders.agreement ? ' on' : '') + '" data-action="rem-agree" type="button" aria-pressed="' + S.reminders.agreement + '">' +
+      '<span class="share-opt-dot"></span>합의 점검일 알림 ' + (S.reminders.agreement ? '켜짐' : '꺼짐') + '</button>' +
+      '<p class="caption text-muted" style="margin-top:10px">앱에 설치된 경우에만 알림이 와요. 웹에서는 홈 배너로 안내해요.</p>' +
+      '</div>' +
+      '<div class="sec-head" style="margin-top:20px"><h3>글자 크기</h3></div>' +
+      '<div class="card"><div class="chip-row">' +
+      '<button class="chip' + (S.fontSize === 'normal' ? ' selected' : '') + '" data-action="font-size" data-v="normal" type="button">보통</button>' +
+      '<button class="chip' + (S.fontSize === 'large' ? ' selected' : '') + '" data-action="font-size" data-v="large" type="button">크게</button>' +
+      '</div></div>' +
+      '<div class="sec-head" style="margin-top:20px"><h3>메이트 동기화 (실험적)</h3></div>' +
+      '<div class="card">' + syncCardHTML() + '</div>' +
+      '<div class="sec-head" style="margin-top:20px"><h3>백업</h3></div>' +
+      '<div class="card backup-card">' +
+      '<p class="body-sm text-muted">이 기기의 진단, 합의서, 체크리스트, 대화 기록을 JSON 파일로 옮길 수 있어요. 개인 정보가 포함되니 안전한 곳에 보관해 주세요.</p>' +
+      '<div class="backup-actions">' +
+      '<button class="btn btn-secondary btn-md" data-action="backup-export" type="button">백업 파일 내보내기</button>' +
+      '<button class="btn btn-tertiary btn-md" data-action="backup-import" type="button">백업 파일 불러오기</button>' +
+      '<input id="backup-file" class="backup-file" type="file" accept="application/json,.json" aria-label="MATE:ON 백업 파일 선택">' +
+      '</div>' +
+      '<p class="caption text-muted">복원하면 현재 기기의 MATE:ON 데이터가 백업 파일 내용으로 바뀌어요.</p>' +
+      '</div>' +
       '<div class="sec-head" style="margin-top:20px"><h3>데이터 관리</h3></div>' +
       '<div class="set-group">' + rows + '</div>' +
       '<div style="text-align:center;margin-top:16px">' +
@@ -1304,8 +2169,11 @@
       '<div class="set-group">' +
       '<button class="set-link" data-action="privacy" type="button">개인정보처리방침' + chev + '</button>' +
       '<button class="set-link" data-action="terms" type="button">서비스 이용약관' + chev + '</button>' +
+      '<button class="set-link" data-action="tutorial" type="button">앱 소개 다시 보기' + chev + '</button>' +
+      '<button class="set-link" data-action="app-tour" type="button">기능 둘러보기' + chev + '</button>' +
+      (window.MateNative ? '<button class="set-link" data-action="app-update" type="button">앱 업데이트 확인' + chev + '</button>' : '') +
       '</div>' +
-      '<p class="caption text-muted" style="text-align:center;margin-top:24px">MATE:ON · 동거 성향 진단 서비스</p>');
+      '<p class="caption text-muted" style="text-align:center;margin-top:24px">MATE:ON v' + esc(appConfig().version) + ' · ' + esc(appConfig().appId) + '</p>');
   }
 
   /* ================= View: 개인정보처리방침 / 이용약관 (MVP) ================= */
@@ -1327,7 +2195,8 @@
       '<p>모든 정보는 이용자의 기기 브라우저(localStorage)에만 저장됩니다. 별도의 서버로 전송하거나 수집하지 않으며, 운영자가 이용자의 응답 내용을 열람할 수 없습니다.</p>' +
       '<h4>초대 링크와 공유</h4>' +
       '<p>초대 링크에는 닉네임(끄기 가능), 관계 유형, 유형 코드와 성향 수치가 URL 형태로 포함됩니다. 문항별 응답 내용은 포함되지 않습니다. 링크를 가진 사람은 누구나 그 결과를 볼 수 있으므로, 공유 대상을 신중하게 정해 주세요.</p>' +
-      '<h4>정보의 삭제</h4>' +
+      '<h4>정보의 이동과 삭제</h4>' +
+      '<p>설정 → 백업에서 이 기기의 데이터를 JSON 파일로 내보내고 다시 불러올 수 있습니다. 백업 파일에는 이용자의 진단·합의서·기록이 포함되므로 보관과 공유에 주의해 주세요.</p>' +
       '<p>설정 → 데이터 관리에서 각 항목을 삭제하거나 모든 데이터를 한 번에 삭제할 수 있습니다. 브라우저의 사이트 데이터 삭제 기능으로도 같은 효과를 낼 수 있습니다.</p>' +
       '<h4>쿠키·분석 도구</h4>' +
       '<p>현재 버전은 광고, 분석, 추적 도구를 사용하지 않습니다.</p>' +
@@ -1344,15 +2213,19 @@
       '<h4>이용자의 책임</h4>' +
       '<p>이용자는 자신의 응답과 결과를 스스로 해석하며, 초대 링크 등 공유 기능 사용 시 공유 범위를 확인할 책임이 있습니다. 타인의 동의 없이 그 사람의 결과를 공유하지 말아 주세요.</p>' +
       '<h4>저장 데이터</h4>' +
-      '<p>이용자의 데이터는 기기 브라우저에 저장되며, 기기 변경·브라우저 데이터 삭제 시 복구되지 않을 수 있습니다.</p>' +
+      '<p>이용자의 데이터는 기기 브라우저에 저장되며, 기기 변경·브라우저 데이터 삭제 시 복구되지 않을 수 있습니다. 백업 파일의 보관과 복원은 이용자가 직접 관리합니다.</p>' +
       '<h4>서비스 변경</h4>' +
       '<p>현재 버전은 MVP로, 기능과 화면은 예고 없이 변경·중단될 수 있습니다.</p>');
   }
 
   /* ================= 공유 / 이미지 / ICS ================= */
   function baseURL() {
-    if (window.MateNative) return 'mateon://home';
-    return location.href.split('?')[0].split('#')[0];
+    return publicBaseURL();
+  }
+
+  function assetBaseURL() {
+    var base = publicBaseURL();
+    return base.slice(-1) === '/' ? base : base.slice(0, base.lastIndexOf('/') + 1);
   }
 
   // 카카오 JS 키가 설정되면 카카오톡 공유 사용, 아니면 Web Share → 복사 순 fallback
@@ -1366,7 +2239,7 @@
       try {
         window.Kakao.Share.sendDefault({
           objectType: 'feed',
-          content: { title: title, description: text, imageUrl: baseURL() + 'assets/og-image.png', link: { webUrl: url, mobileWebUrl: url } },
+          content: { title: title, description: text, imageUrl: assetBaseURL() + 'assets/og-image.png', link: { webUrl: url, mobileWebUrl: url } },
           buttons: [{ title: '진단 하러가기', link: { webUrl: url, mobileWebUrl: url } }],
         });
         return;
@@ -1400,6 +2273,18 @@
     var c = charById(r.charId);
     var el = E_LEVELS[eLevel(r.eAvg)], rl = R_LEVELS[rLevel(r.rAvg)];
     showToast('캐릭터 카드를 만들고 있어요');
+    if (window.MateScreenshot && document.createElement) {
+      try {
+        var node = buildResultCardDom(r, c, el, rl);
+        document.body.appendChild(node);
+        try {
+          if (document.fonts && document.fonts.ready) await document.fonts.ready;
+          var dataUrl = await MateScreenshot.domToPng(node, { scale: 2 });
+          exportDataUrl(dataUrl, 'mateon-' + c.code + '-result.png');
+          return;
+        } finally { node.remove(); }
+      } catch (e) { /* DOM 렌더 실패 시 캔버스 경로로 폴백 */ }
+    }
     var art = new Image();
     try {
       await new Promise(function(resolve,reject) { art.onload=resolve; art.onerror=reject; art.src='assets/character-sheet.png'; });
@@ -1414,12 +2299,45 @@
     exportCard(cv, 'mateon-' + c.code + '-result.png');
   }
 
+  /* 공유용 결과 카드를 DOM으로 만든다 (modern-screenshot → PNG, 540x675 @2x = 1080x1350) */
+  function buildResultCardDom(r, c, el, rl) {
+    var node = document.createElement('div');
+    node.className = 'share-card-dom';
+    node.innerHTML =
+      '<div class="sc-brand"><img src="assets/logo-symbol.svg" alt="" width="26" height="26"><span>MATE:ON</span></div>' +
+      '<div class="sc-art">' + characterArt(c, false, true) + '</div>' +
+      '<div class="sc-code">' + esc(c.code) + '</div>' +
+      '<h2 class="sc-name">' + esc(c.name) + '</h2>' +
+      '<p class="sc-quote">' + esc(c.quote) + '</p>' +
+      '<div class="sc-bars">' +
+      '<div class="sc-bar"><span>교류 활성도 ' + eLevel(r.eAvg) + ' ' + esc(el.label) + '</span><i><b style="width:' + pct(r.eAvg) + '%"></b></i></div>' +
+      '<div class="sc-bar"><span>자극 민감도 ' + rLevel(r.rAvg) + ' ' + esc(rl.label) + '</span><i><b class="blue" style="width:' + pct(r.rAvg) + '%"></b></i></div>' +
+      '</div>' +
+      '<p class="sc-foot">' + esc(r.name || '나') + '의 동거 캐릭터 · ' + esc(webBaseURL().replace(/^https?:\/\//, '')) + '</p>';
+    return node;
+  }
+
+  function exportDataUrl(dataUrl, filename) {
+    if (window.MateNative) {
+      window.MateNative.shareFile(filename, dataUrl.split(',')[1])
+        .catch(function () { showToast('이미지 공유가 완료되지 않았어요'); });
+      return;
+    }
+    var a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = filename;
+    a.click();
+    showToast('이미지 다운로드를 시작했어요');
+  }
+
   function saveAgreeImage() {
-    var rules = S.checkedRules.length ? S.checkedRules : BASE_RULES.map(function (r) { return r.text; });
+    var rules = agreementRules();
+    var ag = savedAgreementForPair();
     var today = new Date();
+    var dateStr = ag && rules.join('\n') === ag.rules.join('\n') ? ag.date : today.getFullYear() + '년 ' + (today.getMonth() + 1) + '월 ' + today.getDate() + '일';
     var cv = MateCard.agreementCard({
       names: (S.me.name || '나') + ' · ' + (S.partner.name || '상대'),
-      date: today.getFullYear() + '년 ' + (today.getMonth() + 1) + '월 ' + today.getDate() + '일',
+      date: dateStr,
       rules: rules,
     });
     exportCard(cv, 'mateon-agreement.png');
@@ -1457,6 +2375,303 @@
     a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
     showToast('캘린더 파일이 다운로드됐어요');
+  }
+
+  /* ================= 영수증 OCR (tesseract.js, 온디바이스) =================
+     tesseract.min.js는 첫 사용 시에만 로드하고, 코어·언어 데이터는
+     assets/ocr/ 아래에 벤더링해 두었다(오프라인 동작, 외부 전송 없음). */
+  var tessLoading = null;
+  function loadTesseract() {
+    if (window.Tesseract) return Promise.resolve(window.Tesseract);
+    if (tessLoading) return tessLoading;
+    tessLoading = new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = 'js/vendor/tesseract.min.js';
+      s.onload = function () { window.Tesseract ? resolve(window.Tesseract) : reject(new Error('tesseract missing')); };
+      s.onerror = function () { tessLoading = null; reject(new Error('load failed')); };
+      document.head.appendChild(s);
+    });
+    return tessLoading;
+  }
+
+  var ocrBusy = false;
+  function scanReceipt(file) {
+    if (ocrBusy) { showToast('영수증을 읽는 중이에요'); return; }
+    if (!file || !/^image\//.test(file.type || '')) { showToast('이미지 파일을 선택해 주세요'); return; }
+    ocrBusy = true;
+    showToast('영수증을 읽고 있어요. 처음엔 조금 걸릴 수 있어요');
+    var prepared = (ML.preprocessReceiptImage || function (f) { return Promise.resolve(f); })(file);
+    Promise.all([loadTesseract(), prepared]).then(function (r) {
+      var T = r[0], image = r[1];
+      return T.createWorker(['kor', 'eng'], 1, {
+        workerPath: 'assets/ocr/worker.min.js',
+        corePath: 'assets/ocr/tesseract-core-lstm.wasm.js',
+        langPath: 'assets/ocr',
+        gzip: true,
+      }).then(function (worker) { return [worker, image]; });
+    }).then(function (pair) {
+      var worker = pair[0], image = pair[1];
+      return worker.recognize(image).then(function (res) {
+        return worker.terminate().then(function () { return res; });
+      }, function (err) { return worker.terminate().then(function () { throw err; }); });
+    }).then(function (res) {
+      var text = res && res.data && res.data.text || '';
+      var found = parseReceiptText(text);
+      var memoEl = document.getElementById('exp-memo'), amtEl = document.getElementById('exp-amt');
+      if (found.amount && amtEl) { amtEl.value = found.amount; amtEl.classList.remove('input-error'); }
+      if (found.store && memoEl && !memoEl.value.trim()) memoEl.value = found.store;
+      showToast(found.amount ? '금액 ' + fmtWon(found.amount) + '을 읽었어요. 확인 후 기록해 주세요' : '금액을 못 찾았어요. 직접 입력해 주세요');
+    }).catch(function () {
+      showToast('영수증을 읽지 못했어요. 직접 입력해 주세요');
+    }).then(function () { ocrBusy = false; });
+  }
+
+  /* ================= 동기화 어댑터 (옵트인) =================
+     설정에서 엔드포인트·방 코드를 등록하면, 같은 방 코드를 쓰는 메이트끼리
+     슬롯 a/b 문서로 결과·합의서·생활 데이터를 주고받는다.
+     백엔드는 GET/PUT JSON 만 지원하면 되는 최소 계약이며
+     배포용 Cloudflare Worker 템플릿을 scripts/ 아래에 둔다. */
+  function syncOn() { return !!(S.syncCfg && S.syncCfg.endpoint && S.syncCfg.room); }
+  function syncURL(slot) {
+    var base = S.syncCfg.endpoint.replace(/\/+$/, '');
+    return base + '/mateon/' + encodeURIComponent(S.syncCfg.room) + '/' + slot;
+  }
+  function syncHeaders() {
+    var h = { 'Content-Type': 'application/json' };
+    if (S.syncCfg.token) h.Authorization = 'Bearer ' + S.syncCfg.token;
+    return h;
+  }
+  /* ---- TinyBase MergeableStore 기반 동기화 ----
+     목록 데이터(지출·쇼핑·일정·정산·체크인)는 항목당 한 행,
+     문서 데이터(합의서·체크리스트 등)는 키당 한 셀로 두고
+     각자 자기 슬롯에 자기 MergeableStore를 PUT, 상대 슬롯을 GET 해 머지한다.
+     HLC(하이브리드 논리 시계)로 셀 단위 LWW 병합 → 서버는 저장만 하면 됨.
+     TinyBase가 없으면 예전 단일 문서(v1) 형식으로 폴백한다. */
+  var SYNC_ITEM_TABLES = [
+    { prefix: 'e', key: 'mateon.expenses', prop: 'expenses', id: function (x) { return x.id; }, sort: function (a, b) { return a.ts - b.ts; } },
+    { prefix: 'g', key: 'mateon.shopping', prop: 'shopping', id: function (x) { return x.id; }, sort: function (a, b) { return a.ts - b.ts; } },
+    { prefix: 'v', key: 'mateon.events', prop: 'events', id: function (x) { return x.id; }, sort: function (a, b) { return a.date < b.date ? -1 : 1; } },
+    { prefix: 't', key: 'mateon.settled', prop: 'settled', id: function (x) { return x.ts; }, sort: function (a, b) { return a.ts - b.ts; } },
+    { prefix: 'c', key: 'mateon.checkins', prop: 'checkins', id: function (x) { return x.week; }, sort: function (a, b) { return a.week < b.week ? -1 : 1; } },
+  ];
+  var SYNC_WHOLE_KEYS = [
+    'mateon.chores', 'mateon.choreLog', 'mateon.agreement', 'mateon.checklist',
+    'mateon.customChecklist', 'mateon.talks', 'mateon.customRules', 'mateon.lovemap',
+  ];
+  var tbStore = null;
+  function tb() {
+    if (!window.TinyBase || !TinyBase.createMergeableStore) return null;
+    if (tbStore) return tbStore;
+    tbStore = TinyBase.createMergeableStore();
+    var saved = load('mateon.tb');
+    if (saved) { try { tbStore.setMergeableContent(saved); } catch (e) { tbStore = TinyBase.createMergeableStore(); } }
+    return tbStore;
+  }
+  function tbItemPrefix(rid) { var p = rid.split(':')[0]; return SYNC_ITEM_TABLES.some(function (t) { return t.prefix === p; }) ? p : null; }
+  /* 로컬 데이터를 MergeableStore 행으로 반영 (삭제는 툼스톤으로 전파) */
+  function tbIngest() {
+    var s = tb(); if (!s) return false;
+    var wanted = {};
+    SYNC_ITEM_TABLES.forEach(function (t) {
+      (S[t.prop] || []).forEach(function (x) {
+        var rid = t.prefix + ':' + t.id(x);
+        wanted[rid] = true;
+        s.setRow('kv', rid, { d: JSON.stringify(x) });
+      });
+    });
+    s.getRowIds('kv').forEach(function (rid) {
+      if (tbItemPrefix(rid) && !wanted[rid]) s.delRow('kv', rid);
+    });
+    SYNC_WHOLE_KEYS.forEach(function (k) {
+      var v = load(k);
+      if (v === null || v === undefined) { if (s.getCell('kv', 'w:' + k, 'd') !== undefined) s.delCell('kv', 'w:' + k, 'd', true); }
+      else s.setCell('kv', 'w:' + k, 'd', JSON.stringify(v));
+    });
+    if (S.me && S.syncCfg && S.syncCfg.slot) s.setCell('kv', 'me:' + S.syncCfg.slot, 'd', JSON.stringify(S.me));
+    save('mateon.tb', s.getMergeableContent());
+    return true;
+  }
+  function tbApply() {
+    var s = tb(); if (!s) return false;
+    var changed = false;
+    var mySlot = S.syncCfg && S.syncCfg.slot === 'a' ? 'a' : 'b';
+    var remoteMe = s.getCell('kv', 'me:' + (mySlot === 'a' ? 'b' : 'a'), 'd');
+    if (typeof remoteMe === 'string') {
+      try {
+        var p = JSON.parse(remoteMe);
+        if (validStoredResult(p) && (!S.partner || p.ts > (S.partner.ts || 0))) {
+          S.partner = p; save('mateon.partner', p); changed = true;
+        }
+      } catch (e) { }
+    }
+    SYNC_WHOLE_KEYS.forEach(function (k) {
+      var c = s.getCell('kv', 'w:' + k, 'd');
+      if (c === undefined) return;
+      var parsed;
+      try { parsed = JSON.parse(c); } catch (e) { return; }
+      if (!validBackupValue(k, parsed)) return;
+      if (JSON.stringify(load(k)) === c) return;
+      S[k.slice(7)] = parsed; save(k, parsed); changed = true;
+    });
+    SYNC_ITEM_TABLES.forEach(function (t) {
+      var arr = [];
+      s.getRowIds('kv').forEach(function (rid) {
+        if (rid.indexOf(t.prefix + ':') !== 0) return;
+        var d = s.getCell('kv', rid, 'd');
+        if (typeof d !== 'string') return;
+        try { arr.push(JSON.parse(d)); } catch (e) { }
+      });
+      arr.sort(t.sort);
+      if (!validBackupValue(t.key, arr)) return;
+      if (JSON.stringify(S[t.prop] || []) === JSON.stringify(arr)) return;
+      S[t.prop] = arr; save(t.key, arr); changed = true;
+    });
+    return changed;
+  }
+  function mergeRemoteContent(content) {
+    var s = tb(); if (!s) return false;
+    var remote = TinyBase.createMergeableStore();
+    try { remote.setMergeableContent(content); } catch (e) { return false; }
+    s.merge(remote);
+    save('mateon.tb', s.getMergeableContent());
+    return tbApply();
+  }
+  function syncPayload() {
+    return {
+      me: S.me, partner: null, agreement: S.agreement,
+      expenses: S.expenses, settled: S.settled, chores: S.chores,
+      events: S.events, checkins: S.checkins, shopping: S.shopping,
+      lovemap: S.lovemap, ts: Date.now(),
+    };
+  }
+  var syncTimer = null;
+  function scheduleSyncPush() {
+    if (!syncOn()) return;
+    if (syncTimer) clearTimeout(syncTimer);
+    syncTimer = setTimeout(syncPush, 2500);
+  }
+  function syncPush() {
+    if (!syncOn() || !S.me) return;
+    var body;
+    if (tbIngest()) body = JSON.stringify({ v: 2, tb: tb().getMergeableContent() });
+    else body = JSON.stringify(syncPayload());
+    fetch(syncURL(S.syncCfg.slot), { method: 'PUT', headers: syncHeaders(), body: body })
+      .catch(function () { /* 오프라인이면 무시 */ });
+  }
+  function syncPull() {
+    if (!syncOn()) return Promise.resolve(false);
+    var other = S.syncCfg.slot === 'a' ? 'b' : 'a';
+    return fetch(syncURL(other), { headers: syncHeaders() })
+      .then(function (res) { return res.ok ? res.json() : null; })
+      .then(function (data) {
+        if (!data || typeof data !== 'object') return false;
+        if (data.tb && window.TinyBase) return mergeRemoteContent(data.tb);
+        var changed = false;
+        if (data.me && validStoredResult(data.me)) {
+          if (!S.partner || data.me.ts > (S.partner.ts || 0)) {
+            S.partner = data.me; save('mateon.partner', S.partner);
+            changed = true;
+          }
+        }
+        ['expenses', 'settled', 'chores', 'events', 'checkins', 'agreement', 'shopping', 'lovemap'].forEach(function (k) {
+          var key = 'mateon.' + k;
+          if (data[k] != null && validBackupValue(key, data[k])) {
+            var cur = S[k];
+            if (JSON.stringify(cur) !== JSON.stringify(data[k])) { S[k] = data[k]; save(key, data[k]); changed = true; }
+          }
+        });
+        return changed;
+      })
+      .catch(function () { return false; });
+  }
+  function syncCardHTML() {
+    var cfg = S.syncCfg || {};
+    var on = syncOn();
+    return '<p class="body-sm text-muted" style="margin-bottom:10px">같은 방 코드를 쓰는 메이트와 결과·생활 데이터를 주고받아요. 호스팅된 동기화 서버가 필요해요.</p>' +
+      '<div class="field-group"><label class="field-label" for="sync-end">서버 주소</label>' +
+      '<input id="sync-end" class="input" type="url" maxlength="200" placeholder="https://your-worker.workers.dev" value="' + esc(cfg.endpoint || '') + '"></div>' +
+      '<div class="field-group"><label class="field-label" for="sync-room">방 코드 (메이트와 같은 값)</label>' +
+      '<input id="sync-room" class="input" maxlength="40" placeholder="예: dawon-haneul-2026" value="' + esc(cfg.room || '') + '" autocomplete="off"></div>' +
+      '<div class="field-group"><label class="field-label" for="sync-token">접근 토큰 (서버에서 발급, 선택)</label>' +
+      '<input id="sync-token" class="input" type="password" maxlength="200" placeholder="Bearer 토큰" value="' + esc(cfg.token || '') + '" autocomplete="off">' +
+      (window.MateNative && window.MateNative.secureSet ? '<p class="caption text-muted" style="margin-top:6px">토큰은 기기의 암호화 저장소에 보관돼요</p>' : '') + '</div>' +
+      '<div class="field-group"><span class="field-label">이 기기의 슬롯</span><div class="chip-row">' +
+      '<button class="chip' + ((cfg.slot || 'a') === 'a' ? ' selected' : '') + '" data-action="sync-slot" data-v="a" type="button">슬롯 A</button>' +
+      '<button class="chip' + (cfg.slot === 'b' ? ' selected' : '') + '" data-action="sync-slot" data-v="b" type="button">슬롯 B</button>' +
+      '</div><p class="caption text-muted" style="margin-top:6px">둘이 같은 슬롯을 쓰면 서로 덮어써요. 보통 먼저 연 사람이 A.</p></div>' +
+      '<div class="cta-col">' +
+      '<button class="btn btn-secondary btn-md" data-action="sync-save" type="button">' + (on ? '동기화 설정 저장' : '동기화 켜기') + '</button>' +
+      (on ? '<button class="btn btn-tertiary btn-md" data-action="sync-now" type="button">지금 주고받기</button>' +
+            '<button class="btn btn-tertiary btn-md" data-action="sync-off" type="button">동기화 끄기</button>' : '') +
+      '</div>' +
+      (on ? '<p class="caption text-muted" style="margin-top:8px">방 코드를 아는 사람만 접근할 수 있어요. 민감한 데이터는 공유하지 마세요.</p>' : '');
+  }
+
+  /* ================= 갈등 가이드 타이머 ================= */
+  function startCgCountdown() {
+    if (cgTimerId) clearInterval(cgTimerId);
+    cgTimerId = setInterval(function () {
+      var el = document.getElementById('cg-timer');
+      if (!el || !S.cgStart) { clearInterval(cgTimerId); cgTimerId = null; return; }
+      var left = Math.ceil((S.cgStart + 30 * 60000 - Date.now()) / 60000);
+      if (left <= 0) {
+        clearInterval(cgTimerId); cgTimerId = null;
+        el.textContent = '0';
+        var p = el.parentElement ? el.parentElement.querySelector('p') : null;
+        showToast('각자 정리 시간이 끝났어요. 이제 차분히 이야기해 보세요');
+        render();
+        return;
+      }
+      el.textContent = left;
+    }, 15000);
+  }
+
+  /* ================= 첫 방문 튜토리얼 ================= */
+  function tutorialHTML() {
+    if (S.seen) return '';
+    var slides = [
+      { icon: 'user', title: '나의 동거 성향을 알아봐요', desc: '20문항으로 16가지 생활 캐릭터 중 나의 유형을 발견해요.' },
+      { icon: 'heart', title: '메이트와 연결해요', desc: '초대 링크나 QR로 연결하면 두 사람의 리포트가 완성돼요.' },
+      { icon: 'home', title: '함께 사는 일상을 만들어요', desc: '합의서, 생활비, 역할 분담, 주간 점검까지 차근차근.' },
+    ];
+    return '<div class="tutorial-overlay" role="dialog" aria-modal="true" aria-label="MATE:ON 소개">' +
+      '<div class="tutorial-card"><p class="app-overline">MATE:ON</p>' +
+      slides.map(function (s, i) {
+        return '<div class="tut-slide"><span class="tut-icon">' + mobileIcon(s.icon) + '</span><div><strong>' + s.title + '</strong><p>' + s.desc + '</p></div></div>';
+      }).join('') +
+      '<button class="mobile-primary" data-action="tutorial-close" type="button">시작하기</button>' +
+      '<p class="caption text-muted" style="margin-top:10px;text-align:center">설정에서 언제든 다시 볼 수 있어요</p></div></div>';
+  }
+  function maybeTutorial() {
+    if (!document.querySelector) return;
+    var overlay = document.querySelector('.tutorial-overlay');
+    if (!overlay) return;
+    var btn = overlay.querySelector('button');
+    if (btn && btn.focus) btn.focus();
+  }
+
+  /* ---- 기능 둘러보기: driver.js 스포트라이트 투어 ----
+     현재 화면에 존재하는 요소만 스텝으로 잡아 해시 라우팅 SPA에서도 동작 */
+  function startTour() {
+    if (!window.driver || !window.driver.js || !window.driver.js.driver) {
+      showToast('투어 기능을 불러오지 못했어요'); return;
+    }
+    var defs = [
+      { sel: '.app-greeting', title: '오늘의 미션', desc: '진단 진행 상황과 다음 할 일이 여기 모여 있어요.' },
+      { sel: '.connection-strip', title: '메이트 연결', desc: '초대 링크·QR로 서로의 결과를 연결해요.' },
+      { sel: '.conversation-card', title: '오늘의 대화', desc: '매일 바뀌는 주제로 생각을 나눠보세요.' },
+      { sel: '.app-list', title: '생활 도구', desc: '정산·쇼핑·역할 분담·일정·체크인까지, 함께 쓰는 도구 모음이에요.' },
+      { sel: '.bottom-nav', title: '빠른 이동', desc: '홈·우리 공간·유형 찾기·설정을 아래에서 오갈 수 있어요.' },
+    ];
+    var steps = defs.filter(function (d) { return document.querySelector(d.sel); })
+      .map(function (d) { return { element: d.sel, popover: { title: d.title, description: d.desc } }; });
+    if (!steps.length) { showToast('둘러볼 화면이 없어요. 홈에서 시작해 보세요'); return; }
+    var drv = window.driver.js.driver({
+      showProgress: true, progressText: '{{current}} / {{total}}',
+      nextBtnText: '다음', prevBtnText: '이전', doneBtnText: '완료',
+      steps: steps, overlayOpacity: 0.62, popoverClass: 'mateon-driver-pop',
+    });
+    drv.drive();
   }
 
   /* ================= Actions ================= */
@@ -1611,18 +2826,22 @@
     else if (act === 'preview-partner') {
       var linkField = document.getElementById('partner-link');
       S.connectionInput = linkField ? linkField.value.trim() : '';
-      S.pendingPartner = resultFromLink(S.connectionInput);
+      var dec = resultFromLink(S.connectionInput);
+      S.pendingPartner = dec && dec.r ? dec.r : null;
+      if (dec && dec.expired) { render(); showToast('만료된 링크예요. 상대에게 새 링크를 요청해 주세요'); return; }
       if (!S.pendingPartner) { render(); showToast('유효한 MATE:ON 초대 링크를 붙여넣어 주세요'); return; }
       render();
     }
     else if (act === 'cancel-partner') { S.pendingPartner = null; S.connectionInput = ''; render(); }
     else if (act === 'confirm-partner') {
       if (!S.me || !S.pendingPartner) return;
+      var wasUpdate = !!S.partner;
       try { localStorage.setItem('mateon.partner', JSON.stringify(S.pendingPartner)); }
       catch (err) { showToast('저장하지 못했어요. 기기 저장 공간을 확인해 주세요'); return; }
       S.partner = S.pendingPartner; S.pendingPartner = null; S.connectionInput = '';
       S.flow = 'me'; S.viewPair = null; resetRulesForNewPartner();
-      go('report'); showToast('메이트의 실제 결과와 연결했어요');
+      go('report'); showToast(wasUpdate ? '메이트의 최신 결과로 업데이트했어요' : '메이트의 실제 결과와 연결했어요');
+      scheduleSyncPush();
     }
     else if (act === 'partner-survey') {
       S.flow = 'partner'; resetSurvey();
@@ -1638,11 +2857,23 @@
     else if (act === 'report') { go('report'); }
     else if (act === 'rule') {
       var t = el.dataset.v;
+      if (!S.rulesReady) S.checkedRules = agreementRules().slice();
+      S.rulesReady = true;
       var i = S.checkedRules.indexOf(t);
       if (i >= 0) S.checkedRules.splice(i, 1); else S.checkedRules.push(t);
+      S.signs = { me: false, partner: false };
       render();
     }
     else if (act === 'agreement') { go('agreement'); }
+    else if (act === 'restore-agree') {
+      var savedAg = savedAgreementForPair();
+      if (!savedAg) return;
+      S.checkedRules = savedAg.rules.slice();
+      S.rulesReady = true;
+      S.signs = { me: true, partner: true };
+      showToast('저장된 합의서로 되돌렸어요');
+      render();
+    }
     else if (act === 'sign') {
       var who = el.dataset.who;
       S.signs[who] = !S.signs[who];
@@ -1650,13 +2881,21 @@
     }
     else if (act === 'save-agree') {
       var today = new Date();
+      var todayLabel = today.getFullYear() + '년 ' + (today.getMonth() + 1) + '월 ' + today.getDate() + '일';
+      var prevAgreement = savedAgreementForPair();
+      var changed = !!(prevAgreement && !sameTextList(S.checkedRules, prevAgreement.rules));
+      if (!S.checkedRules.length) { showToast('합의서에 담을 규칙을 한 개 이상 선택해 주세요'); return; }
       S.agreement = {
         rules: S.checkedRules.slice(),
         me: S.me.name, partner: S.partner.name,
-        date: today.getFullYear() + '년 ' + (today.getMonth() + 1) + '월 ' + today.getDate() + '일',
+        meCharId: S.me.charId, partnerCharId: S.partner.charId,
+        date: prevAgreement ? prevAgreement.date : todayLabel,
+        updated: prevAgreement && changed ? todayLabel : (prevAgreement ? prevAgreement.updated : null),
+        rev: prevAgreement ? (prevAgreement.rev || 1) + (changed ? 1 : 0) : 1,
+        ts: today.getTime(),
       };
       save('mateon.agreement', S.agreement);
-      showToast('우리집 합의서가 저장됐어요');
+      showToast(changed ? '합의서 v' + S.agreement.rev + '으로 업데이트했어요' : '우리집 합의서가 저장됐어요');
       render();
     }
     else if (act === 'copy-agree') { copyText(agreementText(), '합의서가 복사됐어요'); }
@@ -1665,6 +2904,11 @@
     else if (act === 'types') { go('types'); }
     else if (act === 'type') { S.typeId = +el.dataset.id; go('type-detail'); }
     else if (act === 'checklist') { go('checklist'); }
+    else if (act === 'settle') { go('settle'); }
+    else if (act === 'chores') { go('chores'); }
+    else if (act === 'calendar') { go('calendar'); }
+    else if (act === 'checkin') { go('checkin'); }
+    else if (act === 'conflict') { go('conflict'); }
     else if (act === 'check') {
       var checkY=window.scrollY || 0;
       var key = el.dataset.v;
@@ -1703,7 +2947,10 @@
         S.customRules.push(v);
         save('mateon.customRules', S.customRules);
       }
+      if (!S.rulesReady) S.checkedRules = agreementRules().slice();
+      S.rulesReady = true;
       if (S.checkedRules.indexOf(v) < 0) S.checkedRules.push(v);
+      S.signs = { me: false, partner: false };
       showToast('우리만의 규칙을 추가했어요');
       render();
     }
@@ -1739,13 +2986,18 @@
     }
     else if (act === 'unlink') {
       S.partner = null; remove('mateon.partner');
-      S.checkedRules = []; S.signs = { me: false, partner: false };
+      S.checkedRules = []; S.rulesReady = false; S.signs = { me: false, partner: false };
       showToast('상대 연결을 해제했어요');
       render();
     }
     else if (act === 'settings') { go('settings'); }
     else if (act === 'privacy') { go('privacy'); }
     else if (act === 'terms') { go('terms'); }
+    else if (act === 'backup-export') { exportBackup(); }
+    else if (act === 'backup-import') {
+      var backupInput = document.getElementById('backup-file');
+      if (backupInput) backupInput.click();
+    }
     else if (act === 'del-data') {
       var dk = el.dataset.v;
       if (S.delArm !== dk) {
@@ -1756,15 +3008,354 @@
       S.delArm = null;
       remove(dk);
       if (dk === 'mateon.me') { S.me = null; }
-      if (dk === 'mateon.partner') { S.partner = null; S.checkedRules = []; S.signs = { me: false, partner: false }; }
-      if (dk === 'mateon.agreement') { S.agreement = null; }
+      if (dk === 'mateon.partner') { S.partner = null; S.checkedRules = []; S.rulesReady = false; S.signs = { me: false, partner: false }; }
+      if (dk === 'mateon.agreement') { S.agreement = null; S.checkedRules = []; S.rulesReady = false; S.signs = { me: false, partner: false }; }
       if (dk === 'mateon.history') { S.history = []; }
       if (dk === 'mateon.talks') { /* read fresh on render */ }
       if (dk === 'mateon.checklist') { S.checklist = {}; }
       if (dk === 'mateon.customRules') { S.customRules = []; }
       if (dk === 'mateon.shareName') { S.shareName = true; }
+      if (dk === 'mateon.expenses') { S.expenses = []; }
+      if (dk === 'mateon.settled') { S.settled = []; }
+      if (dk === 'mateon.chores') { S.chores = null; }
+      if (dk === 'mateon.choreLog') { S.choreLog = {}; }
+      if (dk === 'mateon.events') { S.events = []; }
+      if (dk === 'mateon.checkins') { S.checkins = []; }
+      if (dk === 'mateon.customChecklist') { S.customChecklist = []; }
+      if (dk === 'mateon.conflictLog') { S.conflictLog = []; }
+      if (dk === 'mateon.reminders') { S.reminders = { checkin: true, agreement: true }; }
+      if (dk === 'mateon.inviteDays') { S.inviteDays = 7; }
+      if (dk === 'mateon.fontSize') { S.fontSize = 'normal'; applyFontSize(); }
+      if (dk === 'mateon.seen') { S.seen = false; }
+      if (dk === 'mateon.sync') { S.syncCfg = null; }
       showToast('삭제했어요');
       render();
+    }
+    /* ---- 생활비 정산 ---- */
+    else if (act === 'exp-payer') { S.expPayer = el.dataset.v; render(); }
+    else if (act === 'exp-cat') { S.expCat = el.dataset.v; render(); }
+    else if (act === 'exp-split') { S.splitMode = el.dataset.v; render(); }
+    else if (act === 'exp-ocr') {
+      var rec = document.getElementById('exp-receipt');
+      if (rec) rec.click();
+    }
+    else if (act === 'exp-add') {
+      var memoEl = document.getElementById('exp-memo'), amtEl = document.getElementById('exp-amt');
+      var memo = memoEl ? memoEl.value.trim() : '';
+      var amt = amtEl ? Math.round(+String(amtEl.value).replace(/[^\d.]/g, '') || 0) : 0;
+      if (!memo) { if (memoEl) { memoEl.classList.add('input-error'); memoEl.focus(); } showToast('어디에 썼는지 적어주세요'); return; }
+      if (!amt || amt <= 0 || amt > 100000000) { if (amtEl) { amtEl.classList.add('input-error'); amtEl.focus(); } showToast('금액을 확인해 주세요'); return; }
+      var share = 0.5;
+      if (S.splitMode !== 'equal') {
+        var shareEl = document.getElementById('exp-share');
+        var sv = shareEl ? +String(shareEl.value).replace(/[^\d.]/g, '') : NaN;
+        if (S.splitMode === 'percent') {
+          if (!Number.isFinite(sv) || sv < 0 || sv > 100) { if (shareEl) { shareEl.classList.add('input-error'); shareEl.focus(); } showToast('부담 비율을 0~100 사이로 적어주세요'); return; }
+          share = sv / 100;
+        } else if (S.splitMode === 'exact') {
+          if (!Number.isFinite(sv) || sv < 0 || sv > amt) { if (shareEl) { shareEl.classList.add('input-error'); shareEl.focus(); } showToast('내 부담금은 0~총액 사이로 적어주세요'); return; }
+          share = sv / amt;
+        }
+      }
+      var rec2 = { id: uid(), ts: Date.now(), memo: memo, amount: amt, payer: S.expPayer, cat: S.expCat };
+      if (share !== 0.5) rec2.share = Math.round(share * 1000) / 1000;
+      S.expenses.push(rec2);
+      if (S.expenses.length > 500) S.expenses = S.expenses.slice(-500);
+      save('mateon.expenses', S.expenses);
+      showToast('지출을 기록했어요'); render(); scheduleSyncPush();
+    }
+    else if (act === 'exp-del') {
+      var eid = el.dataset.v;
+      if (S.delArm2 !== 'exp-del:' + eid) { S.delArm2 = 'exp-del:' + eid; render(); return; }
+      S.delArm2 = null;
+      S.expenses = S.expenses.filter(function (x) { return x.id !== eid; });
+      save('mateon.expenses', S.expenses); render(); scheduleSyncPush();
+    }
+    else if (act === 'exp-copy') {
+      var meP = 0, youP = 0;
+      S.expenses.forEach(function (x) { if (x.payer === 'me') meP += x.amount; else youP += x.amount; });
+      var net = settleNet();
+      var lines = ['[MATE:ON 생활비 정산]', payerName('me') + ' 지출 ' + fmtWon(meP) + ' / ' + payerName('you') + ' 지출 ' + fmtWon(youP)];
+      lines.push(net === 0 ? '정산: 딱 맞게 나눴어요' : '정산: ' + (net > 0 ? payerName('you') + ' → ' + payerName('me') : payerName('me') + ' → ' + payerName('you')) + ' ' + fmtWon(Math.abs(net)));
+      lines.push('---');
+      S.expenses.slice().sort(function (a, b) { return a.ts - b.ts; }).forEach(function (x) {
+        var sh = expenseShare(x);
+        var tag = sh === 0.5 ? '' : ' [' + Math.round(sh * 100) + ':' + Math.round((1 - sh) * 100) + ']';
+        lines.push(dateStr(x.ts).slice(5) + ' ' + x.memo + ' ' + fmtWon(x.amount) + ' (' + payerName(x.payer) + ')' + tag);
+      });
+      copyText(lines.join('\n'), '정산 내역을 복사했어요');
+    }
+    else if (act === 'exp-settle') {
+      if (!S.expenses.length) return;
+      var netAmt = settleNet();
+      S.settled.push({ ts: Date.now(), label: dateStr(Date.now()) + ' 정산 (' + S.expenses.length + '건)', net: netAmt });
+      if (S.settled.length > 200) S.settled = S.settled.slice(-200);
+      S.expenses = [];
+      save('mateon.settled', S.settled); save('mateon.expenses', S.expenses);
+      showToast(netAmt === 0 ? '정산을 마감했어요' : '정산할 금액 ' + fmtWon(Math.abs(netAmt)) + ' · 기록을 마감했어요');
+      render(); scheduleSyncPush();
+    }
+    /* ---- 같이 살 것 ---- */
+    else if (act === 'shop-cat') { S.shopCat = el.dataset.v; render(); }
+    else if (act === 'shop-add' || act === 'shop-preset') {
+      var sin = document.getElementById('shop-in');
+      var sname = act === 'shop-preset' ? el.dataset.v : (sin ? sin.value.trim() : '');
+      if (!sname) { if (sin) { sin.classList.add('input-error'); sin.focus(); } showToast('살 것을 적어주세요'); return; }
+      if (sname.length > 30) sname = sname.slice(0, 30);
+      if (S.shopping.length >= 200) { showToast('목록이 가득 찼어요. 산 것을 먼저 지워주세요'); return; }
+      if (S.shopping.some(function (x) { return x.name === sname && !x.done; })) { showToast('이미 목록에 있어요'); return; }
+      S.shopping.push({ id: uid(), name: sname, cat: S.shopCat, done: false, ts: Date.now() });
+      save('mateon.shopping', S.shopping);
+      showToast('"' + sname + '"을(를) 추가했어요'); render(); scheduleSyncPush();
+    }
+    else if (act === 'shop-done') {
+      var sid = el.dataset.v;
+      S.shopping.forEach(function (x) { if (x.id === sid) { x.done = !x.done; x.ts = Date.now(); } });
+      save('mateon.shopping', S.shopping); render(); scheduleSyncPush();
+    }
+    else if (act === 'shop-del') {
+      var sid2 = el.dataset.v;
+      if (S.delArm2 !== 'shop-del:' + sid2) { S.delArm2 = 'shop-del:' + sid2; render(); return; }
+      S.delArm2 = null;
+      S.shopping = S.shopping.filter(function (x) { return x.id !== sid2; });
+      save('mateon.shopping', S.shopping); render(); scheduleSyncPush();
+    }
+    else if (act === 'shop-clear') {
+      if (S.delArm2 !== 'shop-clear') { S.delArm2 = 'shop-clear'; showToast('한 번 더 누르면 산 것을 모두 지워요'); return; }
+      S.delArm2 = null;
+      S.shopping = S.shopping.filter(function (x) { return !x.done; });
+      save('mateon.shopping', S.shopping); render(); scheduleSyncPush();
+    }
+    /* ---- 러브맵 퀴즈 ---- */
+    else if (act === 'lm-know' || act === 'lm-dont' || act === 'lm-skip') {
+      var lm = S.lovemap;
+      lm.asked++;
+      if (act === 'lm-know') lm.known++;
+      lm.askedIdx = lm.askedIdx || [];
+      lm.askedIdx.push(lm.idx);
+      if (lm.asked >= LOVE_MAP_QUESTIONS.length) { lm.idx = 0; }
+      else { do { lm.idx = (lm.idx + 1) % LOVE_MAP_QUESTIONS.length; } while (lm.askedIdx.indexOf(lm.idx) !== -1); }
+      lovemapSave();
+      if (act === 'lm-know') showToast('서로를 잘 알고 있네요!');
+      render();
+    }
+    else if (act === 'lm-reset') {
+      S.lovemap = { idx: 0, known: 0, asked: 0, askedIdx: [] };
+      lovemapSave(); render(); showToast('러브맵을 처음부터 다시 시작해요');
+    }
+    /* ---- 역할 분담 ---- */
+    else if (act === 'chore-add') {
+      var cin = document.getElementById('chore-in');
+      var cname = cin ? cin.value.trim() : '';
+      if (!cname) { if (cin) { cin.classList.add('input-error'); cin.focus(); } showToast('집안일 이름을 적어주세요'); return; }
+      if (cname.length > 16) cname = cname.slice(0, 16);
+      var ch = choreState();
+      if (ch.items.length >= 30) { showToast('집안일은 최대 30개까지 추가할 수 있어요'); return; }
+      if (ch.items.some(function (it) { return it.name === cname; })) { showToast('이미 있는 항목이에요'); return; }
+      ch.items.push({ id: uid(), name: cname });
+      ch.rot.push(ch.items.length % 2);
+      saveChores(); showToast('집안일을 추가했어요'); render(); scheduleSyncPush();
+    }
+    else if (act === 'chore-preset') {
+      var ch2 = choreState(); var pname = el.dataset.v;
+      if (ch2.items.length >= 30 || ch2.items.some(function (it) { return it.name === pname; })) return;
+      ch2.items.push({ id: uid(), name: pname });
+      ch2.rot.push(ch2.items.length % 2);
+      saveChores(); render(); scheduleSyncPush();
+    }
+    else if (act === 'chore-del') {
+      var cid = el.dataset.v;
+      if (S.delArm2 !== 'chore-del:' + cid) { S.delArm2 = 'chore-del:' + cid; render(); return; }
+      S.delArm2 = null;
+      var ch3 = choreState();
+      var idx = ch3.items.findIndex(function (it) { return it.id === cid; });
+      if (idx >= 0) { ch3.items.splice(idx, 1); ch3.rot.splice(idx, 1); }
+      saveChores(); render(); scheduleSyncPush();
+    }
+    else if (act === 'chore-done') {
+      var chid = el.dataset.v; var wk = isoWeekKey();
+      if (!S.choreLog[wk]) S.choreLog[wk] = {};
+      S.choreLog[wk][chid] = !S.choreLog[wk][chid];
+      if (!S.choreLog[wk][chid]) delete S.choreLog[wk][chid];
+      save('mateon.choreLog', S.choreLog); render();
+    }
+    /* ---- 우리 일정 ---- */
+    else if (act === 'ev-who') { S.evWho = el.dataset.v; render(); }
+    else if (act === 'ev-add') {
+      var edEl = document.getElementById('ev-date'), etEl = document.getElementById('ev-title'), emEl = document.getElementById('ev-memo');
+      var edate = edEl ? edEl.value : '';
+      var etitle = etEl ? etEl.value.trim() : '';
+      var ememo = emEl ? emEl.value.trim() : '';
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(edate)) { if (edEl) { edEl.classList.add('input-error'); edEl.focus(); } showToast('날짜를 선택해 주세요'); return; }
+      if (!etitle) { if (etEl) { etEl.classList.add('input-error'); etEl.focus(); } showToast('일정 제목을 적어주세요'); return; }
+      if (S.events.length >= 300) { showToast('일정은 최대 300개까지 등록할 수 있어요'); return; }
+      S.events.push({ id: uid(), date: edate, title: etitle.slice(0, 30), memo: ememo.slice(0, 60), who: S.evWho });
+      save('mateon.events', S.events);
+      showToast('일정을 추가했어요'); render(); scheduleSyncPush();
+    }
+    else if (act === 'ev-del') {
+      var evid = el.dataset.v;
+      if (S.delArm2 !== 'ev-del:' + evid) { S.delArm2 = 'ev-del:' + evid; render(); return; }
+      S.delArm2 = null;
+      S.events = S.events.filter(function (e2) { return e2.id !== evid; });
+      save('mateon.events', S.events); render(); scheduleSyncPush();
+    }
+    else if (act === 'ev-ics') {
+      var ev = S.events.find(function (x) { return x.id === el.dataset.v; });
+      if (!ev) return;
+      var evd = ev.date.replace(/-/g, '');
+      var ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//MATEON//KO', 'BEGIN:VEVENT',
+        'UID:mateon-ev-' + ev.id + '@mateon', 'DTSTART;VALUE=DATE:' + evd,
+        'SUMMARY:' + ev.title.replace(/[,;\n]/g, ' ') + ' (MATE:ON)',
+        ev.memo ? 'DESCRIPTION:' + ev.memo.replace(/[,;\n]/g, ' ') : '',
+        'END:VEVENT', 'END:VCALENDAR'].filter(Boolean).join('\r\n');
+      var blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = 'mateon-event.ics'; a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+      showToast('캘린더 파일이 다운로드됐어요');
+    }
+    /* ---- 주간 체크인 ---- */
+    else if (act === 'ci-mood') {
+      var wkk = isoWeekKey();
+      var cur = thisCheckin();
+      if (!cur) { cur = { week: wkk, mood: 0, kept: [], fix: '', ts: Date.now() }; S.checkins.push(cur); }
+      cur.mood = +el.dataset.v; cur.ts = Date.now();
+      if (S.checkins.length > 60) S.checkins = S.checkins.slice(-60);
+      save('mateon.checkins', S.checkins); render();
+    }
+    else if (act === 'ci-kept') {
+      var wkk2 = isoWeekKey();
+      var cur2 = thisCheckin();
+      if (!cur2) { cur2 = { week: wkk2, mood: 0, kept: [], fix: '', ts: Date.now() }; S.checkins.push(cur2); }
+      var ki = +el.dataset.v;
+      var pos = cur2.kept.indexOf(ki);
+      if (pos >= 0) cur2.kept.splice(pos, 1); else cur2.kept.push(ki);
+      save('mateon.checkins', S.checkins); render();
+    }
+    else if (act === 'ci-save') {
+      var wkk3 = isoWeekKey();
+      var cur3 = thisCheckin();
+      var fixEl = document.getElementById('ci-fix');
+      var fixVal = fixEl ? fixEl.value.trim().slice(0, 80) : '';
+      if (!cur3) { showToast('이번 주 기분을 먼저 골라주세요'); return; }
+      if (!cur3.mood) { showToast('이번 주 기분을 먼저 골라주세요'); return; }
+      cur3.fix = fixVal; cur3.ts = Date.now();
+      save('mateon.checkins', S.checkins);
+      showToast('이번 주 체크인을 저장했어요'); render(); scheduleSyncPush();
+    }
+    /* ---- 갈등 가이드 ---- */
+    else if (act === 'cg-domain') { S.cgDomain = el.dataset.v; render(); }
+    else if (act === 'cg-next') { S.cgStep = Math.min(3, S.cgStep + 1); S.cgStart = null; render(); }
+    else if (act === 'cg-timer') { S.cgStart = Date.now(); render(); startCgCountdown(); }
+    else if (act === 'cg-reset-timer') { S.cgStart = Date.now(); render(); startCgCountdown(); }
+    else if (act === 'cg-restart') { S.cgStep = 0; S.cgStart = null; if (cgTimerId) { clearInterval(cgTimerId); cgTimerId = null; } render(); }
+    else if (act === 'cg-save' || act === 'cg-save-rule') {
+      var noteEl = document.getElementById('cg-note');
+      var note = noteEl ? noteEl.value.trim().slice(0, 80) : '';
+      if (!note) { if (noteEl) { noteEl.classList.add('input-error'); noteEl.focus(); } showToast('약속 내용을 적어주세요'); return; }
+      S.conflictLog.push({ ts: Date.now(), note: note, domain: S.cgDomain });
+      if (S.conflictLog.length > 100) S.conflictLog = S.conflictLog.slice(-100);
+      save('mateon.conflictLog', S.conflictLog);
+      if (act === 'cg-save-rule' && note.length <= 60) {
+        if (S.customRules.indexOf(note) < 0) { S.customRules.push(note); save('mateon.customRules', S.customRules); }
+        showToast('합의를 기록하고 생활규칙에도 추가했어요');
+      } else showToast('합의를 기록했어요');
+      S.cgStep = 0; S.cgStart = null;
+      if (cgTimerId) { clearInterval(cgTimerId); cgTimerId = null; }
+      go('space'); scheduleSyncPush();
+    }
+    /* ---- 커스텀 체크리스트 ---- */
+    else if (act === 'cl-add') {
+      var clin = document.getElementById('cl-custom-in');
+      var cltext = clin ? clin.value.trim() : '';
+      if (!cltext) { if (clin) { clin.classList.add('input-error'); clin.focus(); } showToast('항목을 적어주세요'); return; }
+      if (S.customChecklist.length >= 50) { showToast('직접 추가 항목은 최대 50개까지예요'); return; }
+      S.customChecklist.push({ id: uid(), text: cltext.slice(0, 40) });
+      save('mateon.customChecklist', S.customChecklist);
+      render();
+    }
+    else if (act === 'cl-del') {
+      var clid = el.dataset.v;
+      if (S.delArm2 !== 'cl-del:' + clid) { S.delArm2 = 'cl-del:' + clid; render(); return; }
+      S.delArm2 = null;
+      S.customChecklist = S.customChecklist.filter(function (x) { return x.id !== clid; });
+      if (S.checklist['own:' + clid]) { delete S.checklist['own:' + clid]; save('mateon.checklist', S.checklist); }
+      save('mateon.customChecklist', S.customChecklist); render();
+    }
+    /* ---- 알림·화면 ---- */
+    else if (act === 'rem-checkin') {
+      S.reminders.checkin = !S.reminders.checkin;
+      save('mateon.reminders', S.reminders); syncNativeReminders();
+      showToast(S.reminders.checkin ? '주간 체크인 알림을 켰어요' : '주간 체크인 알림을 껐어요'); render();
+    }
+    else if (act === 'rem-agree') {
+      S.reminders.agreement = !S.reminders.agreement;
+      save('mateon.reminders', S.reminders); syncNativeReminders();
+      showToast(S.reminders.agreement ? '합의 점검일 알림을 켰어요' : '합의 점검일 알림을 껐어요'); render();
+    }
+    else if (act === 'font-size') {
+      S.fontSize = el.dataset.v === 'large' ? 'large' : 'normal';
+      save('mateon.fontSize', S.fontSize); applyFontSize(); render();
+    }
+    else if (act === 'tutorial') { S.seen = false; render(); showToast('앱 소개를 다시 보여드릴게요'); }
+    else if (act === 'tutorial-close') {
+      S.seen = true; save('mateon.seen', true); render();
+    }
+    /* ---- 동기화 ---- */
+    else if (act === 'sync-slot') {
+      if (!S.syncCfg) S.syncCfg = { endpoint: '', room: '', slot: 'a', token: '' };
+      S.syncCfg.slot = el.dataset.v; render();
+    }
+    else if (act === 'sync-save') {
+      var endEl = document.getElementById('sync-end'), roomEl = document.getElementById('sync-room'), tokEl = document.getElementById('sync-token');
+      var endV = endEl ? endEl.value.trim() : '';
+      var roomV = roomEl ? roomEl.value.trim() : '';
+      var tokV = tokEl ? tokEl.value.trim() : '';
+      if (!/^https:\/\//.test(endV)) { if (endEl) { endEl.classList.add('input-error'); endEl.focus(); } showToast('https:// 로 시작하는 서버 주소를 입력해 주세요'); return; }
+      if (!/^[A-Za-z0-9\-_]{3,40}$/.test(roomV)) { if (roomEl) { roomEl.classList.add('input-error'); roomEl.focus(); } showToast('방 코드는 영문·숫자·-·_ 3~40자로 정해주세요'); return; }
+      if (!S.syncCfg) S.syncCfg = { endpoint: '', room: '', slot: 'a', token: '' };
+      S.syncCfg.endpoint = endV; S.syncCfg.room = roomV; S.syncCfg.token = tokV;
+      if (!S.syncCfg.slot) S.syncCfg.slot = 'a';
+      /* 네이티브면 토큰은 Keystore/Keychain에만 두고 로컬스토리지에는 남기지 않는다 */
+      if (window.MateNative && window.MateNative.secureSet && tokV) {
+        var cfgNoTok = { endpoint: endV, room: roomV, slot: S.syncCfg.slot };
+        save('mateon.sync', cfgNoTok);
+        window.MateNative.secureSet('sync-token', tokV).catch(function () { });
+      } else {
+        save('mateon.sync', S.syncCfg);
+      }
+      showToast('동기화를 켰어요'); render();
+      syncPush();
+      syncPull().then(function (changed) { if (changed) { showToast('메이트의 최신 데이터를 가져왔어요'); render(); } });
+    }
+    else if (act === 'sync-now') {
+      showToast('동기화 중이에요…');
+      syncPush();
+      syncPull().then(function (changed) {
+        if (changed) { showToast('메이트의 최신 데이터를 가져왔어요'); render(); }
+        else showToast('가져올 새 데이터가 없어요');
+      });
+    }
+    else if (act === 'sync-off') {
+      S.syncCfg = null; remove('mateon.sync');
+      if (window.MateNative && window.MateNative.secureRemove) window.MateNative.secureRemove('sync-token');
+      showToast('동기화를 껐어요'); render();
+    }
+    /* ---- 초대 유효기간 ---- */
+    else if (act === 'invite-days') {
+      S.inviteDays = +el.dataset.v === 1 ? 1 : +el.dataset.v === 30 ? 30 : 7;
+      save('mateon.inviteDays', S.inviteDays); render();
+    }
+    else if (act === 'share-invite') {
+      shareSmart('MATE:ON 메이트 초대', 'MATE:ON에서 동거 성향을 비교해 봐요!', inviteURL(S.me));
+    }
+    else if (act === 'app-tour') { go('home'); setTimeout(startTour, 350); }
+    else if (act === 'app-update') {
+      if (window.MateNative && window.MateNative.checkUpdate) {
+        showToast('업데이트를 확인해요…');
+        window.MateNative.checkUpdate().then(function (msg) { if (msg) showToast(msg); });
+      } else showToast('웹 버전은 새로고침하면 최신 상태예요');
     }
     else if (act === 'reset-all') {
       if (!S.resetArm) {
@@ -1775,10 +3366,17 @@
       S.resetArm = false;
       DATA_ITEMS.forEach(function (it) { remove(it.k); });
       S.me = null; S.partner = null; S.agreement = null; S.history = [];
-      S.checklist = {}; S.customRules = []; S.checkedRules = [];
+      S.checklist = {}; S.customRules = []; S.checkedRules = []; S.rulesReady = false;
       S.signs = { me: false, partner: false }; S.shareName = true;
       S.answers = []; S.q = 0; S.invite = null;
       S.pendingPartner = null; S.connectionInput = '';
+      S.expenses = []; S.settled = []; S.chores = null; S.choreLog = {};
+      S.events = []; S.checkins = []; S.customChecklist = []; S.conflictLog = [];
+      S.shopping = []; S.lovemap = { idx: 0, known: 0, asked: 0 }; tbStore = null;
+      S.reminders = { checkin: true, agreement: true };
+      S.inviteDays = 7; S.fontSize = 'normal'; applyFontSize();
+      S.seen = true; S.syncCfg = null; S.delArm2 = null;
+      S.cgStep = 0; S.cgDomain = 'D';
       showToast('이 기기의 모든 데이터를 삭제했어요');
       go('home');
     }
@@ -1815,6 +3413,19 @@
     }
   });
 
+  app.addEventListener('change', function (e) {
+    if (e.target.id === 'exp-receipt') {
+      var rf = e.target.files && e.target.files[0];
+      e.target.value = '';
+      if (rf) scanReceipt(rf);
+      return;
+    }
+    if (e.target.id !== 'backup-file') return;
+    var file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    readBackupFile(file);
+  });
+
   /* ================= Router ================= */
   function go(route) {
     if (currentRoute() === route) { render(); return; }
@@ -1826,7 +3437,7 @@
     var route = currentRoute();
     if (route === 'home') return false;
     if (route === 'survey' && S.q > 0) { S.q--; S.qDir='prev'; saveDraft(); render(); return true; }
-    var parents = { survey:'onboarding', 'type-detail':'types', checklist:'space', agreement:'report', privacy:'settings', terms:'settings', lifecheck:'result' };
+    var parents = { survey:'onboarding', 'type-detail':'types', checklist:'space', agreement:'report', privacy:'settings', terms:'settings', lifecheck:'result', settle:'space', shopping:'space', lovemap:'space', chores:'space', calendar:'space', checkin:'space', conflict:'space' };
     go(parents[route] || 'home');
     return true;
   }
@@ -1834,7 +3445,27 @@
   function acceptNativeLink(value) {
     try {
       var url = new URL(value);
-      if (url.protocol !== 'mateon:') return false;
+      var scheme = appConfig().customScheme + ':';
+      if (url.protocol === 'https:' || url.protocol === 'http:') {
+        var webUrl = new URL(webBaseURL());
+        var basePath = webUrl.pathname.replace(/\/$/, '');
+        var pathOk = !basePath || url.pathname === basePath || url.pathname === basePath + '/' || url.pathname.indexOf(basePath + '/') === 0;
+        if (url.origin !== webUrl.origin || !pathOk) return false;
+        var webInvite = decodeResult(url.searchParams.get('invite') || '');
+        var webPair = (url.searchParams.get('pair') || '').split('.');
+        if (webInvite) {
+          S.invite = webInvite; S.flow = 'partner'; S.q = 0; S.answers = [];
+          S.profile = { name:'', relation:'', stage:'' };
+          go('onboarding'); return true;
+        }
+        if (webPair.length === 2) {
+          var wa = decodeResult(webPair[0] || ''), wb = decodeResult(webPair[1] || '');
+          if (wa && wb) { S.invite = null; S.viewPair = { me:wa, partner:wb }; go('report'); return true; }
+        }
+        if (!url.search && !url.hash) { go('home'); return true; }
+        return false;
+      }
+      if (url.protocol !== scheme && url.protocol !== 'mateon:') return false;
       if (url.hostname === 'home') { go('home'); return true; }
       var data = url.searchParams.get('data') || '';
       if (url.hostname === 'invite') {
@@ -1872,6 +3503,13 @@
     lifecheck: '실무 성향 체크 — MATE:ON',
     checklist: '입주 체크리스트 — MATE:ON',
     space: '우리 공간 — MATE:ON',
+    settle: '생활비 정산 — MATE:ON',
+    shopping: '같이 살 것 — MATE:ON',
+    lovemap: '러브맵 퀴즈 — MATE:ON',
+    chores: '역할 분담 — MATE:ON',
+    calendar: '우리 일정 — MATE:ON',
+    checkin: '주간 체크인 — MATE:ON',
+    conflict: '갈등 가이드 — MATE:ON',
     settings: '설정 — MATE:ON',
     privacy: '개인정보처리방침 — MATE:ON',
     terms: '서비스 이용약관 — MATE:ON',
@@ -1901,6 +3539,13 @@
       case 'lifecheck': vLifeCheck(); break;
       case 'space': vSpace(); break;
       case 'checklist': vChecklist(); break;
+      case 'settle': vSettle(); break;
+      case 'shopping': vShopping(); break;
+      case 'lovemap': vLovemap(); break;
+      case 'chores': vChores(); break;
+      case 'calendar': vCalendar(); break;
+      case 'checkin': vCheckin(); break;
+      case 'conflict': vConflict(); break;
       case 'settings': vSettings(); break;
       case 'privacy': vPrivacy(); break;
       case 'terms': vTerms(); break;
@@ -1909,7 +3554,29 @@
   }
 
   window.addEventListener('hashchange', render);
+  window.addEventListener('online', render);
+  window.addEventListener('offline', render);
   render();
+  maybeTutorial();
+
+  /* ---- 스와이프 뒤로가기: 왼쪽 가장자리에서 오른쪽으로 밀기 ---- */
+  (function initSwipeBack() {
+    var startX = 0, startY = 0, tracking = false;
+    document.addEventListener('touchstart', function (e) {
+      if (!e.touches || !e.touches.length) return;
+      var t = e.touches[0];
+      tracking = t.clientX <= 28;
+      startX = t.clientX; startY = t.clientY;
+    }, { passive: true });
+    document.addEventListener('touchend', function (e) {
+      if (!tracking) return;
+      tracking = false;
+      var t = e.changedTouches && e.changedTouches[0];
+      if (!t) return;
+      var dx = t.clientX - startX, dy = Math.abs(t.clientY - startY);
+      if (dx > 72 && dy < 60) handleBack();
+    }, { passive: true });
+  })();
 
   /* ================= 스플래시 (총 ~1초: 선명해지기 620ms + 페이드 320ms) ================= */
   (function dismissSplash() {
@@ -1918,6 +3585,14 @@
     setTimeout(function () { sp.classList.add('bye'); }, 680);
     setTimeout(function () { if (sp.parentNode) sp.parentNode.removeChild(sp); }, 1200);
   })();
+
+  syncNativeReminders();
+  /* 네이티브: 보안 저장소의 동기화 토큰을 런타임 설정에 주입 */
+  if (window.MateNative && window.MateNative.secureGet && S.syncCfg && !S.syncCfg.token) {
+    window.MateNative.secureGet('sync-token').then(function (tok) {
+      if (tok && S.syncCfg) S.syncCfg.token = tok;
+    }).catch(function () { });
+  }
 
   /* ================= PWA Service Worker ================= */
   if (!window.MateNative && 'serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
@@ -1935,5 +3610,27 @@
     resultFromCode: resultFromCode,
     pairURL: pairURL,
     codeDist: codeDist,
+    buildBackup: buildBackup,
+    parseBackup: parseBackup,
+    applyBackupData: applyBackupData,
+    importBackupText: importBackupText,
+    encodeInvite: encodeInvite,
+    decodeInvite: decodeInvite,
+    resultFromLink: resultFromLink,
+    qrSVG: qrSVG,
+    isoWeekKey: isoWeekKey,
+    choreOwner: choreOwner,
+    choreState: choreState,
+    thisCheckin: thisCheckin,
+    syncPull: syncPull,
+    settleNet: settleNet,
+    expenseShare: expenseShare,
+    parseReceiptText: parseReceiptText,
+    tbIngest: tbIngest,
+    tbApply: tbApply,
+    mergeRemoteContent: mergeRemoteContent,
+    startTour: startTour,
+    navigate: go,
+    state: S,
   };
 })();

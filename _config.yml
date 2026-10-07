@@ -1,9 +1,13 @@
 ﻿# GitHub Pages publishes the browser app; native sources stay in the repository.
+include:
+  - .well-known
 exclude:
   - android
   - ios
   - native
   - scripts
+  - release
+  - release.config.json
   - artifacts
   - node_modules
   - dist

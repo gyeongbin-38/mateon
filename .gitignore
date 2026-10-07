@@ -7,5 +7,12 @@ android/build/
 ios/App/build/
 *.keystore
 *.jks
+*.p12
+*.mobileprovision
+*.provisionprofile
+.env
+.env.*
 .DS_Store
 artifacts/
+ota/  
+e2e-*.png  

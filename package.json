@@ -1,16 +1,22 @@
 {
   "name": "mateon-app",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "MATE:ON mobile app for living better together",
   "scripts": {
     "dev": "node server.js",
-    "test": "node test-score.js && node test-smoke.js",
+    "test": "node test-score.js && node test-smoke.js && node test-sw.js && node scripts/test-qr.js",
+    "e2e": "node scripts/e2e.mjs",
+    "ota": "node scripts/make-ota.js",
     "build": "node scripts/build-app.js",
+    "export:svg": "node scripts/export-faithful-svg.mjs && node scripts/assemble-svg-deliverables.mjs && node scripts/build-svg-review.mjs",
     "sync": "npm run build && cap sync",
     "android": "npm run build && cap sync android && cap open android",
     "ios": "npm run build && cap sync ios && cap open ios",
-    "android:debug": "npm run build && cap sync android && node scripts/build-android.js"
+    "android:debug": "npm run build && cap sync android && node scripts/build-android.js",
+    "android:release": "npm run build && cap sync android && node scripts/build-android.js bundleRelease && node scripts/verify-aab.js android/app/build/outputs/bundle/release/app-release.aab",
+    "verify:aab": "node scripts/verify-aab.js android/app/build/outputs/bundle/release/app-release.aab",
+    "release:check": "npm test && npm run build && node scripts/release-check.js --strict"
   },
   "engines": {
     "node": ">=22"
@@ -23,11 +29,21 @@
     "@capacitor/filesystem": "^8.1.3",
     "@capacitor/haptics": "^8.0.2",
     "@capacitor/ios": "^8.5.2",
-    "@capacitor/share": "^8.0.2"
+    "@capacitor/local-notifications": "^8.3.1",
+    "@capacitor/share": "^8.0.2",
+    "@capawesome/capacitor-app-shortcuts": "^8.0.2",
+    "@capgo/capacitor-updater": "^8.52.1",
+    "capacitor-secure-storage-plugin": "^0.13.0",
+    "driver.js": "^1.9.0",
+    "modern-screenshot": "^4.7.0",
+    "qrcode-generator": "1.4.4",
+    "tesseract.js": "^7.0.0",
+    "tinybase": "^10.0.1"
   },
   "devDependencies": {
     "@capacitor/cli": "8.4.3",
     "esbuild": "^0.28.2",
+    "playwright": "^1.63.0",
     "sharp": "^0.35.4"
   }
 }

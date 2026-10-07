@@ -1,7 +1,7 @@
-const CACHE = 'mateon-v17';
-const VERSION = '20261004-17';
-const ASSETS = ['.','index.html','brand.html','css/tokens.css','css/styles.css','css/mateon.css','css/home.css','js/data.js','js/card.js','js/mateon.js','assets/icon-192.png','assets/icon-512.png','assets/og-image.png','assets/logo-symbol.svg','assets/logo-lockup.svg','assets/app-icon.svg','assets/together-home.svg','manifest.webmanifest'];
-ASSETS.push('assets/character-sheet.png','assets/character-sheet-cutout-v2.png');
+const CACHE = 'mateon-v23';
+const VERSION = '20261005-06';
+const ASSETS = ['.','index.html','brand.html','css/tokens.css','css/styles.css','css/mateon.css','css/home.css','js/config.js','js/data.js','js/card.js','js/vendor/qrcode.js','js/vendor/driver.js','js/vendor/driver.css','js/vendor/tinybase.js','js/vendor/modern-screenshot.js','js/vendor/tesseract.min.js','js/lifetools.js','js/mateon.js','assets/icon-192.png','assets/icon-512.png','assets/og-image.png','assets/logo-symbol.svg','assets/logo-lockup.svg','assets/app-icon.svg','assets/together-home.svg','manifest.webmanifest'];
+ASSETS.push('assets/character-sheet.png','assets/character-sheet-cutout-v2.png','assets/character-sheet.webp','assets/character-sheet-cutout-v2.webp');
 const SHELL = ASSETS.map(p => /\.(js|css)$/.test(p) ? p + '?v=' + VERSION : p);
 self.addEventListener('install', e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL.map(p => new Request(p, {cache:'reload'})))).then(() => self.skipWaiting())));
 self.addEventListener('activate', e => e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k.startsWith('mateon-') && k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())));

@@ -1,0 +1,17 @@
+{
+  "appId": "io.github.gyeongbin38.mateon",
+  "appName": "MATE:ON",
+  "version": "0.3.0",
+  "androidVersionCode": 2,
+  "iosBuildNumber": "2",
+  "assetVersion": "20261005-06",
+  "webBaseUrl": "https://gyeongbin-38.github.io/mateon/",
+  "privacyPolicyUrl": "https://gyeongbin-38.github.io/mateon/#/privacy",
+  "customScheme": "mateon",
+  "appLinks": {
+    "enabled": false,
+    "host": "gyeongbin-38.github.io",
+    "note": "Verified Android App Links and iOS Universal Links require serving .well-known files from the domain root. GitHub project Pages paths are not sufficient."
+  },
+  "storeMetadata": "release/store-metadata.json"
+}

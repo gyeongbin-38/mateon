@@ -1,4 +1,4 @@
-package app.mateon.mobile;
+package io.github.gyeongbin38.mateon;
 
 import com.getcapacitor.BridgeActivity;
 

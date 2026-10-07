@@ -1,5 +1,5 @@
 {
-  "appId": "app.mateon.mobile",
+  "appId": "io.github.gyeongbin38.mateon",
   "appName": "MATE:ON",
   "webDir": "dist",
   "backgroundColor": "#faf9f7",
@@ -12,6 +12,16 @@
   "plugins": {
     "SystemBars": {
       "insetsHandling": "css"
+    },
+    "CapacitorUpdater": {
+      "autoUpdate": false
+    },
+    "AppShortcuts": {
+      "shortcuts": [
+        { "id": "checkin", "title": "주간 체크인", "description": "이번 주 우리 생활 점검하기" },
+        { "id": "space", "title": "생활 도구", "description": "정산·쇼핑·일정·체크인" },
+        { "id": "settle", "title": "생활비 정산", "description": "함께 쓴 돈 바로 기록" }
+      ]
     }
   }
 }

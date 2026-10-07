@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">MATE:ON</string>
     <string name="title_activity_main">MATE:ON</string>
-    <string name="package_name">app.mateon.mobile</string>
-    <string name="custom_url_scheme">app.mateon.mobile</string>
+    <string name="package_name">io.github.gyeongbin38.mateon</string>
+    <string name="custom_url_scheme">mateon</string>
 </resources>

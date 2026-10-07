@@ -1,0 +1,14 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "TODO_APPLE_TEAM_ID.io.github.gyeongbin38.mateon",
+        "paths": ["/mateon/*"]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": []
+  }
+}

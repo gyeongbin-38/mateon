@@ -988,6 +988,48 @@
   font-weight: var(--font-weight-semibold);
 }
 
+.rev-tag {
+  display: inline-block;
+  vertical-align: 2px;
+  margin-left: var(--space-6);
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  background: var(--bg-brand-subtle);
+  color: var(--text-brand);
+  font-size: var(--font-size-xs);
+}
+.empty-rules {
+  padding: var(--space-16);
+  border: 1px dashed var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  text-align: center;
+}
+.agree-diff {
+  margin-top: var(--space-16);
+  padding: var(--space-16);
+  border: 1px solid var(--status-warning);
+  border-radius: var(--radius-md);
+  background: var(--bg-warning-subtle);
+}
+.diff-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  margin-bottom: var(--space-12);
+  font-size: var(--font-size-sm);
+}
+.diff-head strong { font-weight: var(--font-weight-bold); }
+.diff-group ul {
+  margin: var(--space-8) 0 0;
+  padding-left: var(--space-20);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: var(--leading-relaxed);
+}
+
 /* Invite */
 .invite-link-box {
   display: flex;
@@ -1245,7 +1287,7 @@
 
 /* ---------- Print (합의서 출력) ---------- */
 @media print {
-  .app-header, .app-footer, .cta-col, .toast, .sec-head, .quick-nav, .bottom-nav { display: none !important; }
+  .app-header, .app-footer, .cta-col, .toast, .sec-head, .quick-nav, .bottom-nav, .agree-diff, .note-box { display: none !important; }
   body { background: #fff; }
   .app-main { max-width: 100%; padding: 0; }
   .agree-doc { box-shadow: none; border-color: #999; }
@@ -1593,6 +1635,9 @@
   padding: var(--space-8);
 }
 .btn-danger-text:hover { text-decoration: underline; }
+.backup-actions { display: flex; flex-wrap: wrap; gap: var(--space-8); margin: var(--space-12) 0; }
+.backup-actions .btn { flex: 1 1 150px; }
+.backup-file { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .doc-body h4 { margin: var(--space-20) 0 var(--space-8); font-size: var(--font-size-sm); }
 .doc-body h4:first-child { margin-top: 0; }
 .doc-body p { font-size: var(--font-size-sm); color: var(--text-secondary); line-height: var(--leading-relaxed); }

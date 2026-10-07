@@ -1,0 +1,37 @@
+{
+  "supportEmail": "TODO_RELEASE_CONTACT_EMAIL",
+  "supportUrl": "https://gyeongbin-38.github.io/mateon/#/privacy",
+  "marketingUrl": "https://gyeongbin-38.github.io/mateon/",
+  "privacyPolicyUrl": "https://gyeongbin-38.github.io/mateon/#/privacy",
+  "android": {
+    "title": "MATE:ON",
+    "shortDescription": "함께 살 준비, 서로를 아는 것부터",
+    "fullDescription": "MATE:ON은 동거를 준비하는 두 사람이 생활방식의 차이를 미리 이해하고, 실제 규칙으로 정리할 수 있게 돕는 모바일 진단 도구입니다. 20문항 진단, 16가지 동거 캐릭터, 궁합 리포트, 갈등 예측, 우리집 합의서, 입주 체크리스트, 대화 주제와 기기 데이터 백업을 제공합니다.",
+    "category": "Lifestyle",
+    "contentRating": "Everyone",
+    "dataSafety": {
+      "collectsData": false,
+      "sharesData": false,
+      "storage": "입력한 정보는 기기 localStorage에만 저장됩니다.",
+      "userInitiatedSharing": "사용자가 초대/리포트 링크를 직접 공유할 수 있으며 링크에 결과 스냅샷이 포함됩니다.",
+      "deletion": "앱 설정의 데이터 관리에서 항목별 또는 전체 삭제가 가능합니다."
+    }
+  },
+  "ios": {
+    "name": "MATE:ON",
+    "subtitle": "함께 살 준비, 서로를 아는 것부터",
+    "description": "동거 전에 서로의 생활 성향을 진단하고, 두 사람의 차이를 비교해 실제 생활 규칙으로 정리해 보세요. MATE:ON은 20문항 진단, 16가지 동거 캐릭터, 궁합 리포트, 갈등 예측, 우리집 합의서, 입주 체크리스트, 대화 주제와 기기 데이터 백업을 제공합니다.",
+    "keywords": ["동거", "룸메이트", "생활습관", "궁합", "체크리스트"],
+    "privacyNutrition": {
+      "collectsData": false,
+      "tracksUser": false,
+      "storage": "입력한 정보는 기기 localStorage에만 저장됩니다.",
+      "deletion": "앱 설정에서 삭제할 수 있습니다."
+    }
+  },
+  "reviewNotes": [
+    "회원가입과 서버 로그인이 없으며 모든 진단 데이터는 기기에 저장됩니다.",
+    "초대/리포트 공유 링크에는 문항 응답이 아니라 결과 스냅샷이 포함됩니다.",
+    "링크 수신자는 앱이 없어도 웹 화면에서 진단하거나 리포트를 확인할 수 있습니다."
+  ]
+}
