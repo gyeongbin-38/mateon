@@ -21,15 +21,16 @@ if (Capacitor.isNativePlatform()) {
       return Share.share({files:[file.uri],dialogTitle:filename});
     },
     async syncReminders(reminders) {
-      const enabled = reminders && (reminders.checkin || reminders.agreement);
+      const enabled = reminders && (reminders.checkin || reminders.agreement || reminders.chore);
       const want = enabled ? await LocalNotifications.requestPermissions() : {display:'denied'};
       const pending = await LocalNotifications.getPending();
-      const ours = pending.notifications.filter(n => n.id === 9001 || n.id === 9002);
+      const ours = pending.notifications.filter(n => n.id === 9001 || n.id === 9002 || n.id === 9003);
       if (ours.length) await LocalNotifications.cancel({notifications:ours});
       if (want.display !== 'granted') return false;
       const list = [];
       if (reminders.checkin) list.push({id:9001,title:'MATE:ON 주간 체크인',body:'이번 주 우리 집 분위기, 1분이면 정리돼요',schedule:{on:{weekday:Weekday.Sunday,hour:20,minute:0}}});
       if (reminders.agreement) list.push({id:9002,title:'MATE:ON 합의 점검일',body:'우리집 규칙, 오늘 한 번 점검해 볼까요?',schedule:{every:'month',on:{day:1,hour:19,minute:0}}});
+      if (reminders.chore) list.push({id:9003,title:'MATE:ON 집안일 리마인더',body:'이번 주 내 차례 집안일을 확인해 보세요',schedule:{on:{weekday:Weekday.Saturday,hour:11,minute:0}}});
       if (list.length) await LocalNotifications.schedule({notifications:list});
       return true;
     },

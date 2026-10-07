@@ -203,11 +203,17 @@
     conflictLog: load('mateon.conflictLog') || [],
     shopping: load('mateon.shopping') || [],
     lovemap: load('mateon.lovemap') || { idx: 0, known: 0, asked: 0 },
-    reminders: (function (r) { return { checkin: !r || r.checkin !== false, agreement: !r || r.agreement !== false }; })(load('mateon.reminders')),
+    reminders: (function (r) { return { checkin: !r || r.checkin !== false, agreement: !r || r.agreement !== false, chore: !r || r.chore !== false }; })(load('mateon.reminders')),
     inviteDays: load('mateon.inviteDays') || 7,
     fontSize: load('mateon.fontSize') === 'large' ? 'large' : 'normal',
     seen: load('mateon.seen') === true,
     syncCfg: load('mateon.sync'),
+    budgets: load('mateon.budgets') || {},
+    anniv: load('mateon.anniv') || [],
+    missions: load('mateon.missions') || { week: '', list: [] },
+    syncMeta: load('mateon.syncMeta') || {},
+    syncStat: load('mateon.syncStat') || null,
+    lastBackup: load('mateon.lastBackup') || 0,
     inviteExpired: false,
     pendingUpdate: null,
     cgStep: 0, cgDomain: 'D',
@@ -215,6 +221,8 @@
     expCat: '생활비', expPayer: 'me', evWho: 'both',
     splitMode: 'equal', splitShare: '5:5', shopCat: '식료품',
     settleMonth: null,
+    expFilter: '전체', expQuery: '', expEditId: null, pendingReceipt: null,
+    calMonth: null,
     lastRoute: '',
   };
 
@@ -660,6 +668,14 @@
       var done = step[1], current = i === nextStep;
       return '<span class="mission-step' + (done?' done':current?' current':'') + '"' + (current?' aria-current="step"':'') + '><i aria-hidden="true">' + (done?'✓':(i+1)) + '</i>' + step[0] + '</span>';
     }).join('') + '</div>';
+    /* 홈 배너: 가장 가까운 기념일 D-day / 미정산 잔액 / 백업 리마인더 */
+    var annivNext = S.anniv.map(function (a) { var t = ML.nextAnnivTs(a.date); return t === null ? null : { a: a, ts: t }; }).filter(Boolean)
+      .sort(function (x, y) { return x.ts - y.ts; })[0];
+    var netNow = S.expenses.length ? settleNet() : 0;
+    var backupStale = !S.lastBackup || (Date.now() - S.lastBackup) > 30 * 86400000;
+    var banners = (annivNext ? '<button class="dday-banner" type="button" data-action="calendar"><span class="dday-num">' + esc(ML.ddayLabel(annivNext.ts)) + '</span><span class="dday-text"><strong>' + esc(annivNext.a.title) + '</strong><small>' + esc(dateStr(annivNext.ts).slice(5)) + ' · 매년 기념</small></span>' + mobileIcon('arrow') + '</button>' : '') +
+      (netNow !== 0 ? '<button class="checkin-banner settle-banner" type="button" data-action="settle"><span>' + mobileIcon('plus') + '</span><span><strong>정산할 금액 ' + fmtWon(Math.abs(netNow)) + '</strong><small>' + (netNow > 0 ? esc(payerName('you')) + '님이 ' + esc(payerName('me')) + '님께' : esc(payerName('me')) + '님이 ' + esc(payerName('you')) + '님께') + '</small></span>' + mobileIcon('arrow') + '</button>' : '') +
+      (S.me && S.partner && backupStale ? '<div class="note-box warn" style="margin:14px 0"><span>백업한 지 ' + (S.lastBackup ? Math.floor((Date.now() - S.lastBackup) / 86400000) + '일' : '한 번도 안') + ' 됐어요. 설정에서 JSON으로 저장해 두세요.</span></div>' : '');
     var portraits = '<div class="character-carousel"><div class="character-track" id="home-carousel" role="region" aria-roledescription="캐러셀" aria-label="16가지 동거 캐릭터 · 좌우 방향키로 이동" tabindex="0">' + carouselCharacters.map(function(c,i) {
       var mine = S.me && c.id === S.me.charId;
       var partner = S.partner && c.id === S.partner.charId;
@@ -668,7 +684,7 @@
     var connection = '<section class="connection-strip" aria-label="메이트 연결 상태"><div class="paired-avatars"><span>'+esc(S.me?S.me.name.slice(0,1):'나')+'</span><span>'+ (S.partner ? esc(S.partner.name.slice(0,1)) : mobileIcon('plus')) +'</span></div><div><strong>'+ (S.partner?esc(S.partner.name)+'님과 함께':S.me?'메이트를 초대해 보세요':'서로를 알아가는 첫걸음') +'</strong><p>'+ (S.partner?'두 사람의 생활방식을 함께 맞춰봐요':S.me?'결과 링크로 우리의 성향을 비교해요':'내 성향을 알아본 뒤, 메이트와 연결해요') +'</p></div><button class="icon-button" data-action="'+(S.me?'invite':'start')+'" aria-label="메이트 연결하기" type="button">'+mobileIcon('arrow')+'</button></section>';
     shell('<div class="mobile-home">'+
       '<section class="app-greeting"><p>'+ (S.me ? esc(S.me.name)+'님, 반가워요' : '함께 살 준비, 서로를 아는 것부터.') +'</p><h1>우리의 일상,<br> 조금 더 가까이<span class="coral-dot">.</span></h1></section>'+
-      draftBannerHTML() +
+      draftBannerHTML() + banners +
       '<section class="today-mission"><div class="mission-top"><span class="mission-label">'+(!S.me?'나를 알아가는 시간':S.partner?'함께 맞춰가는 생활':'우리의 다음 단계')+'</span><span class="mission-count">'+(count<3?'0'+(count+1):'03')+' <span>/ 03</span></span></div><h2>'+title+'</h2><p>'+(!S.me?'16가지 캐릭터 속, 나의 생활방식을 발견해요.':(!S.partner?'나와 메이트의 생활방식을 맞춰봐요.':'잘 맞는 부분도, 대화가 필요한 부분도.'))+'</p>'+missionSteps+portraits+'<div class="mission-footer"><span>'+ (draft ? S.answers.length+' / 20 문항 완료 · 자동 저장됨' : S.me?'나를 알고, 서로를 이해하는 시간':'동거 성향 테스트 · 20문항 · 약 3분')+'</span><button class="mobile-primary home-primary" data-action="'+action+'" type="button">'+cta+mobileIcon('arrow')+'</button></div></section>'+
       '<div class="home-support">' + connection +
       '<div class="app-shortcuts"><button type="button" data-action="'+(S.me?'result':'start')+'"><span class="shortcut-icon pink">'+mobileIcon('user')+'</span>나의 성향</button><button type="button" data-action="'+(S.me&&S.partner?'report':'demo')+'"><span class="shortcut-icon blue">'+mobileIcon('heart')+'</span>궁합 리포트</button><button type="button" data-action="checklist"><span class="shortcut-icon mint">'+NAV_ICONS.checklist+'</span>입주 준비</button></div>'+
@@ -1590,6 +1606,62 @@
     { id: 'percent', label: '비율 %' },
     { id: 'exact', label: '정확 금액' },
   ];
+  /* 영수증 원본 사진은 IndexedDB에 (지출 id를 키로). 백업·동기화 대상 아님 */
+  function rcptDB() {
+    return new Promise(function (res, rej) {
+      if (!window.indexedDB) { rej(new Error('no idb')); return; }
+      var rq = indexedDB.open('mateon-receipts', 1);
+      rq.onupgradeneeded = function () { rq.result.createObjectStore('receipts'); };
+      rq.onsuccess = function () { res(rq.result); };
+      rq.onerror = function () { rej(rq.error); };
+    });
+  }
+  function rcptPut(id, blob) {
+    return rcptDB().then(function (db) {
+      return new Promise(function (res, rej) {
+        var tx = db.transaction('receipts', 'readwrite');
+        tx.objectStore('receipts').put(blob, id);
+        tx.oncomplete = function () { res(); };
+        tx.onerror = function () { rej(tx.error); };
+      });
+    });
+  }
+  function rcptGet(id) {
+    return rcptDB().then(function (db) {
+      return new Promise(function (res, rej) {
+        var rq = db.transaction('receipts', 'readonly').objectStore('receipts').get(id);
+        rq.onsuccess = function () { res(rq.result || null); };
+        rq.onerror = function () { rej(rq.error); };
+      });
+    });
+  }
+  function rcptDel(id) {
+    return rcptDB().then(function (db) {
+      return new Promise(function (res) {
+        var tx = db.transaction('receipts', 'readwrite');
+        tx.objectStore('receipts').delete(id);
+        tx.oncomplete = function () { res(); };
+        tx.onerror = function () { res(); };
+      });
+    }).catch(function () { });
+  }
+  var rcptDialog = null;
+  function showReceipt(id) {
+    rcptGet(id).then(function (blob) {
+      if (!blob) { showToast('이 기기에 영수증 사진이 없어요'); return; }
+      var url = URL.createObjectURL(blob);
+      if (!rcptDialog) {
+        rcptDialog = document.createElement('dialog');
+        rcptDialog.className = 'talk-sheet rcpt-sheet';
+        rcptDialog.innerHTML = '<div class="sheet-handle" aria-hidden="true"></div><div class="sheet-heading"><span>영수증</span><button class="icon-button" type="button" aria-label="닫기" data-rcpt-close>' + mobileIcon('close') + '</button></div><img class="rcpt-img" alt="영수증 사진">';
+        rcptDialog.addEventListener('click', function (e) { if (e.target.closest('[data-rcpt-close]')) rcptDialog.close(); });
+        rcptDialog.addEventListener('close', function () { var i = rcptDialog.querySelector('img'); if (i && i.src.indexOf('blob:') === 0) URL.revokeObjectURL(i.src); });
+        document.body.appendChild(rcptDialog);
+      }
+      rcptDialog.querySelector('img').src = url;
+      rcptDialog.showModal();
+    }).catch(function () { showToast('영수증을 열지 못했어요'); });
+  }
   /* 등록된 고정비를 이번 달 지출에 자동 반영. id를 'fx:{고정비id}:{월}'로
      결정적으로 만들어 두 기기가 각각 생성해도 동기화 시 한 건으로 머지된다. */
   function applyFixedExpenses() {
@@ -1630,14 +1702,28 @@
       '<button class="chip" type="button" data-action="exp-month" data-v="1" aria-label="다음 달"' + (viewAll || S.settleMonth >= nowYm ? ' disabled' : '') + '>›</button>' +
       '<button class="chip' + (viewAll ? ' selected' : '') + '" type="button" data-action="exp-month" data-v="all">전체</button></div>';
     var catBars = mst.byCat.length ? '<div class="cat-bars">' + mst.byCat.map(function (c) {
-      return '<div class="cat-bar"><span>' + esc(c.cat) + '</span><i style="width:' + Math.max(4, Math.round(c.sum / mst.byCat[0].sum * 100)) + '%"></i><b>' + fmtWon(c.sum) + '</b></div>';
+      var bud = S.budgets[c.cat];
+      var over = bud && c.sum > bud;
+      return '<div class="cat-bar' + (over ? ' over' : '') + '"><span>' + esc(c.cat) + '</span><i style="width:' + Math.max(4, Math.round(c.sum / mst.byCat[0].sum * 100)) + '%"></i><b>' + fmtWon(c.sum) + (bud ? ' <small>/ ' + fmtWon(bud) + '</small>' : '') + '</b></div>';
     }).join('') + '</div>' : '<p class="field-hint">이 기간의 지출이 아직 없어요.</p>';
     var statsCard = '<div class="card" style="margin-top:16px"><h4 class="card-title">' + monthLabel + ' 지출 요약</h4>' +
       '<div class="month-stats"><div><span>합계</span><strong>' + fmtWon(mst.total) + '</strong></div>' +
       '<div><span>' + esc(payerName('me')) + '</span><strong>' + fmtWon(mst.me) + '</strong></div>' +
       '<div><span>' + esc(payerName('you')) + '</span><strong>' + fmtWon(mst.you) + '</strong></div></div>' + catBars + '</div>';
 
+    /* 카테고리별 월 예산 편집기 */
+    var budgetKeys = Object.keys(S.budgets).filter(function (k) { return S.budgets[k] > 0; });
+    var budgetCard = '<details class="card" style="margin-top:14px"><summary>월 예산 (' + (budgetKeys.length ? '설정됨 ' + budgetKeys.length + '개' : '미설정') + ')</summary>' +
+      '<p class="field-hint" style="margin-bottom:10px">카테고리별 이번 달 목표를 정하면 위 요약에서 사용량을 함께 보여줘요.</p>' +
+      EXPENSE_CATS.map(function (c) {
+        return '<div class="budget-row"><span>' + esc(c) + '</span><input class="input budget-in" type="number" inputmode="numeric" min="0" max="100000000" placeholder="0" data-cat="' + esc(c) + '" value="' + (S.budgets[c] || '') + '" aria-label="' + esc(c) + ' 월 예산"></div>';
+      }).join('') +
+      '<button class="btn btn-secondary btn-md" data-action="budget-set" type="button" style="margin-top:10px">예산 저장</button></details>';
+
     var view = viewAll ? list : list.filter(function (x) { return dateStr(x.ts).slice(0, 7) === S.settleMonth; });
+    if (S.expFilter !== '전체') view = view.filter(function (x) { return (x.cat || '기타') === S.expFilter; });
+    var q = (S.expQuery || '').trim();
+    if (q) view = view.filter(function (x) { return (x.memo || '').indexOf(q) !== -1; });
     var months = {};
     view.forEach(function (x) { var k = dateStr(x.ts).slice(0, 7); (months[k] = months[k] || []).push(x); });
     var listHTML = Object.keys(months).sort().reverse().map(function (mk) {
@@ -1647,9 +1733,11 @@
           var sh = expenseShare(x);
           var shareTag = sh === 0.5 ? '' : ' · ' + Math.round(sh * 100) + ':' + Math.round((1 - sh) * 100);
           var fxTag = x.fx ? ' · 고정비' : '';
+          var rcptTag = x.rcpt ? '<button class="item-del" data-action="exp-rcpt" data-v="' + x.id + '" type="button" aria-label="영수증 보기">🧾</button>' : '';
           return '<div class="settle-row"><span class="settle-cat">' + esc(x.cat || '기타') + '</span>' +
             '<span class="settle-info"><strong>' + esc(x.memo || '지출') + '</strong><small>' + esc(payerName(x.payer)) + ' · ' + fmtDate(x.ts) + shareTag + fxTag + '</small></span>' +
-            '<span class="settle-amt">' + fmtWon(x.amount) + '</span>' + armBtn('exp-del', x.id, '삭제', '확인') + '</div>';
+            '<span class="settle-amt">' + fmtWon(x.amount) + '</span>' + rcptTag +
+            '<button class="item-del" data-action="exp-edit" data-v="' + x.id + '" type="button">수정</button>' + armBtn('exp-del', x.id, '삭제', '확인') + '</div>';
         }).join('');
     }).join('');
 
@@ -1665,10 +1753,17 @@
         return '<div class="settle-row"><span class="settle-info"><strong>' + esc(z.label) + '</strong><small>' + esc(payerName(z.net > 0 ? 'you' : 'me')) + ' → ' + esc(payerName(z.net > 0 ? 'me' : 'you')) + ' ' + fmtWon(Math.abs(z.net)) + '</small></span></div>';
       }).join('') + '</details>' : '';
 
+    var editing = S.expEditId ? S.expenses.find(function (x) { return x.id === S.expEditId; }) : null;
+    if (S.expEditId && !editing) S.expEditId = null;
+    var filterBar = '<div class="exp-filter"><input id="exp-q" class="input exp-q" maxlength="30" placeholder="내용 검색" autocomplete="off" value="' + esc(S.expQuery || '') + '" aria-label="지출 내용 검색">' +
+      '<div class="chip-row">' + ['전체'].concat(EXPENSE_CATS).map(function (c) {
+        return '<button class="chip' + (S.expFilter === c ? ' selected' : '') + '" data-action="exp-filter" data-v="' + esc(c) + '" type="button">' + esc(c) + '</button>';
+      }).join('') + '</div></div>';
+
     shell(listPageHead('LIFE TOOLS', '생활비 정산', '함께 쓴 돈을 기록하고, 누가 얼마를 낼지 계산해요') +
       '<div class="settle-hero"><span>정산하면</span><strong>' + netText + '</strong><p>' + esc(payerName('me')) + ' ' + fmtWon(meP) + ' · ' + esc(payerName('you')) + ' ' + fmtWon(youP) + ' 지출</p></div>' +
-      monthNav + statsCard +
-      '<div class="card" style="margin-top:16px"><h4 class="card-title">지출 추가</h4>' +
+      monthNav + statsCard + budgetCard +
+      '<div class="card" style="margin-top:16px"><h4 class="card-title">' + (editing ? '지출 수정' : '지출 추가') + '</h4>' +
       '<div class="field-group"><label class="field-label" for="exp-memo">내용</label><input id="exp-memo" class="input" maxlength="30" placeholder="예: 쓰레기봉투·세탁세제" autocomplete="off" value="' + esc(S.expMemo || '') + '"></div>' +
       '<div class="field-group"><label class="field-label" for="exp-amt">금액</label><input id="exp-amt" class="input" type="number" inputmode="numeric" min="1" max="100000000" placeholder="0" autocomplete="off" value="' + esc(S.expAmt || '') + '"><span class="field-unit">원</span></div>' +
       '<div class="field-group"><span class="field-label">낸 사람</span><div class="chip-row">' +
@@ -1680,15 +1775,18 @@
       '</div>' +
       '<div class="field-group" style="margin-bottom:0"><span class="field-label">분류</span><div class="chip-row">' +
       EXPENSE_CATS.map(function (c) { return '<button class="chip' + (S.expCat === c ? ' selected' : '') + '" data-action="exp-cat" data-v="' + esc(c) + '" type="button">' + esc(c) + '</button>'; }).join('') + '</div></div>' +
-      '<label class="check-row"><input type="checkbox" id="exp-recur"> <span>매월 반복되는 고정비로 등록</span></label>' +
-      '<div class="cta-row" style="margin-top:14px"><button class="mobile-primary" data-action="exp-add" type="button">지출 기록하기</button>' +
-      '<button class="btn btn-secondary btn-md" data-action="exp-ocr" type="button">영수증 스캔</button></div>' +
+      (editing ? '' : '<label class="check-row"><input type="checkbox" id="exp-recur"> <span>매월 반복되는 고정비로 등록</span></label>' +
+      '<label class="check-row fx-day-row"><span>매월</span><input id="exp-day" class="input fx-day" type="number" inputmode="numeric" min="1" max="28" value="' + new Date().getDate() + '" aria-label="고정비 기록일"><span>일에 기록</span></label>') +
+      (S.pendingReceipt ? '<p class="field-hint" style="margin-top:8px">🧾 방금 스캔한 영수증이 이 지출에 첨부돼요</p>' : '') +
+      '<div class="cta-row" style="margin-top:14px"><button class="mobile-primary" data-action="exp-add" type="button">' + (editing ? '수정 저장' : '지출 기록하기') + '</button>' +
+      (editing ? '<button class="btn btn-tertiary btn-md" data-action="exp-edit-cancel" type="button">취소</button>' : '<button class="btn btn-secondary btn-md" data-action="exp-ocr" type="button">영수증 스캔</button>') + '</div>' +
       '<input id="exp-receipt" type="file" accept="image/*" capture="environment" hidden></div>' +
       fixedHTML +
-      (S.expenses.length ? '<div class="cta-col"><button class="btn btn-secondary btn-md" data-action="exp-copy" type="button">정산 내역 복사</button><button class="btn btn-tertiary btn-md" data-action="exp-settle" type="button">이번 정산 마감하기</button></div>' : '') +
-      (listHTML ? '<div class="sec-head" style="margin-top:22px"><h3>지출 내역</h3><span class="badge badge-brand">' + view.length + '건</span></div>' + listHTML : '<div class="empty-notes" style="margin-top:22px">' + mobileIcon('chat') + '<p>아직 지출 기록이 없어요.<br>첫 공동 지출을 기록해 보세요.</p></div>') +
+      (S.expenses.length ? '<div class="cta-col"><button class="btn btn-secondary btn-md" data-action="exp-copy" type="button">정산 내역 복사</button><button class="btn btn-secondary btn-md" data-action="exp-csv" type="button">CSV보내기</button><button class="btn btn-tertiary btn-md" data-action="exp-settle" type="button">이번 정산 마감하기</button></div>' : '') +
+      (S.expenses.length ? filterBar : '') +
+      (listHTML ? '<div class="sec-head" style="margin-top:22px"><h3>지출 내역</h3><span class="badge badge-brand">' + view.length + '건</span></div>' + listHTML : (q || S.expFilter !== '전체' ? '<p class="field-hint" style="margin-top:16px">조건에 맞는 지출이 없어요.</p>' : '<div class="empty-notes" style="margin-top:22px">' + mobileIcon('chat') + '<p>아직 지출 기록이 없어요.<br>첫 공동 지출을 기록해 보세요.</p></div>')) +
       settledHTML +
-      '<p class="device-note">기록은 이 기기에만 저장돼요. 건별로 나누는 방법(반반·비율·정확 금액)을 정할 수 있고, 고정비는 매월 자동 기록돼요.</p>');
+      '<p class="device-note">기록은 이 기기에만 저장돼요. 건별로 나누는 방법(반반·비율·정확 금액)을 정할 수 있고, 고정비는 매월 자동 기록돼요. 영수증 사진은 백업에 포함되지 않아요.</p>');
   }
 
   /* ================= View: 같이 살 것 (공유 쇼핑리스트) ================= */
@@ -1735,7 +1833,7 @@
 
     var q = doneAll ? null : LOVE_MAP_QUESTIONS[lm.idx % total];
     shell(listPageHead('PLAY', '러브맵 퀴즈', '메이트의 세계를 얼마나 알고 있는지 맞혀보기') +
-      '<div class="settle-hero"><span>' + lm.asked + ' / ' + total + ' 질문</span><strong>' + msg + '</strong>' +
+      '<div class="settle-hero"><span>' + lm.asked + ' / ' + total + ' 질문' + (lm.asked ? ' · 정답률 ' + Math.round(lm.known / lm.asked * 100) + '%' + (lm.best ? ' · 최고 ' + lm.best + '%' : '') + (lm.rounds ? ' · ' + lm.rounds + '회차' : '') : '') + '</span><strong>' + msg + '</strong>' +
       '<div class="lovemap-bar"><i style="width:' + pct + '%"></i></div></div>' +
       (q ? '<div class="lovemap-card"><span class="lovemap-no">Q' + (lm.asked + 1) + '</span><h3>' + esc(q) + '</h3>' +
         '<p class="body-sm text-muted">먼저 마음속으로 답을 떠올린 뒤, 메이트에게 물어보세요.</p></div>' +
@@ -1791,22 +1889,79 @@
   }
 
   /* ================= View: 우리 일정 ================= */
+  /* 반복 일정: date는 최초 시작일로 고정하고, 표시는 그 주기로 굴려 계산한다 */
+  function nextOccurrence(e, from) {
+    if (e.rpt !== 'w' || e.date >= from) return e.date;
+    var d = new Date(e.date + 'T12:00:00');
+    while (dateStr(d.getTime()) < from) d.setDate(d.getDate() + 7);
+    return dateStr(d.getTime());
+  }
+  function monthEvents(ym) {
+    var map = {};
+    var mend = ym + '-32';
+    S.events.forEach(function (e) {
+      if (e.rpt === 'w') {
+        var cur = new Date(e.date + 'T12:00:00');
+        while (dateStr(cur.getTime()) < ym + '-01') cur.setDate(cur.getDate() + 7);
+        while (dateStr(cur.getTime()) < mend && dateStr(cur.getTime()).slice(0, 7) === ym) {
+          map[dateStr(cur.getTime())] = true; cur.setDate(cur.getDate() + 7);
+        }
+      } else if (e.date.slice(0, 7) === ym) map[e.date] = true;
+    });
+    S.anniv.forEach(function (a) { if (a.date.slice(5, 7) === ym.slice(5)) map[ym + a.date.slice(4)] = true; });
+    return map;
+  }
   function vCalendar() {
     var today = dateStr(Date.now());
-    var evs = S.events.slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
-    var upcoming = evs.filter(function (e) { return e.date >= today; });
-    var past = evs.filter(function (e) { return e.date < today; });
+    var nowYm = today.slice(0, 7);
+    if (!S.calMonth) S.calMonth = nowYm;
+    var evs = S.events.slice();
+    var upcoming = evs.filter(function (e) { return e.date >= today || e.rpt === 'w'; })
+      .sort(function (a, b) { return nextOccurrence(a, today) < nextOccurrence(b, today) ? -1 : 1; });
+    var past = evs.filter(function (e) { return e.date < today && e.rpt !== 'w'; })
+      .sort(function (a, b) { return a.date < b.date ? -1 : 1; });
 
     function row(e, isPast) {
-      var d = new Date(e.date + 'T12:00:00');
-      var dd = isPast ? '' : (e.date === today ? '<span class="badge badge-brand">오늘</span>' : '');
+      var showDate = isPast ? e.date : nextOccurrence(e, today);
+      var d = new Date(showDate + 'T12:00:00');
+      var dd = isPast ? '' : (showDate === today ? '<span class="badge badge-brand">오늘</span>' : showDate !== e.date ? '<span class="badge">' + showDate.slice(5).replace('-', '/') + '</span>' : '');
       return '<div class="event-row' + (isPast ? ' past' : '') + '"><span class="event-date"><b>' + d.getDate() + '</b><i>' + (d.getMonth() + 1) + '월</i></span>' +
         '<span class="event-info"><strong>' + esc(e.title) + '</strong>' + (e.memo ? '<small>' + esc(e.memo) + '</small>' : '') +
-        '<small>' + esc(e.who === 'me' ? payerName('me') : e.who === 'you' ? payerName('you') : '함께') + '</small></span>' +
+        '<small>' + esc(e.who === 'me' ? payerName('me') : e.who === 'you' ? payerName('you') : '함께') + (e.rpt === 'w' ? ' · 매주' : '') + '</small></span>' +
         dd + '<button class="item-del" data-action="ev-ics" data-v="' + e.id + '" type="button">ICS</button>' + armBtn('ev-del', e.id, '삭제', '확인') + '</div>';
     }
 
+    /* 월 뷰 그리드 — 일정·기념일이 있는 날에 점 표시 */
+    var my = S.calMonth.split('-').map(Number);
+    var first = new Date(my[0], my[1] - 1, 1);
+    var dim = new Date(my[0], my[1], 0).getDate();
+    var startOffset = (first.getDay() + 6) % 7;
+    var has = monthEvents(S.calMonth);
+    var cells = '';
+    for (var i = 0; i < startOffset; i++) cells += '<span class="cal-cell empty"></span>';
+    for (var day = 1; day <= dim; day++) {
+      var iso = S.calMonth + '-' + p2(day);
+      cells += '<span class="cal-cell' + (iso === today ? ' today' : '') + (has[iso] ? ' has' : '') + '">' + day + (has[iso] ? '<i></i>' : '') + '</span>';
+    }
+    var calGrid = '<div class="cal-grid-wrap card" style="margin-top:16px">' +
+      '<div class="cal-nav"><button class="chip" type="button" data-action="cal-month" data-v="-1" aria-label="이전 달">‹</button><strong>' + my[0] + '년 ' + my[1] + '월</strong><button class="chip" type="button" data-action="cal-month" data-v="1" aria-label="다음 달">›</button></div>' +
+      '<div class="cal-grid"><span class="cal-dow">월</span><span class="cal-dow">화</span><span class="cal-dow">수</span><span class="cal-dow">목</span><span class="cal-dow">금</span><span class="cal-dow sat">토</span><span class="cal-dow sun">일</span>' + cells + '</div></div>';
+
+    /* 기념일 — 매년 같은 날에 D-day로 표시 */
+    var annivRows = S.anniv.map(function (a) {
+      var nxt = ML.nextAnnivTs(a.date);
+      var dd = nxt === null ? '' : ML.ddayLabel(nxt);
+      return '<div class="settle-row"><span class="settle-cat">기념일</span><span class="settle-info"><strong>' + esc(a.title) + '</strong><small>' + esc(a.date.slice(5)) + ' · 매년</small></span>' +
+        '<span class="badge badge-brand">' + esc(dd) + '</span>' + armBtn('anniv-del', a.id, '삭제', '확인') + '</div>';
+    }).join('');
+    var annivHTML = '<div class="card" style="margin-top:16px"><h4 class="card-title">우리 기념일</h4>' +
+      (annivRows || '<p class="field-hint">만난 날, 입주일 같은 기념일을 등록해 두면 홈에 D-day로 떠요.</p>') +
+      '<div class="custom-rule" style="margin-top:10px"><input id="anniv-title" class="input" maxlength="20" placeholder="예: 만난 날" autocomplete="off">' +
+      '<input id="anniv-date" class="input" type="date" value="' + today + '" aria-label="기념일 날짜">' +
+      '<button class="btn btn-secondary btn-md" data-action="anniv-add" type="button">추가</button></div></div>';
+
     shell(listPageHead('LIFE TOOLS', '우리 일정', '이사일, 정산일, 점검일 같은 중요한 날을 함께 기록해요') +
+      calGrid +
       '<div class="card" style="margin-top:20px"><h4 class="card-title">일정 추가</h4>' +
       '<div class="field-group"><label class="field-label" for="ev-date">날짜</label><input id="ev-date" class="input" type="date" value="' + today + '"></div>' +
       '<div class="field-group"><label class="field-label" for="ev-title">제목</label><input id="ev-title" class="input" maxlength="30" placeholder="예: 전세 만기일" autocomplete="off"></div>' +
@@ -1815,10 +1970,12 @@
       [['both', '함께'], ['me', payerName('me')], ['you', payerName('you')]].map(function (w) {
         return '<button class="chip' + (S.evWho === w[0] ? ' selected' : '') + '" data-action="ev-who" data-v="' + w[0] + '" type="button">' + esc(w[1]) + '</button>';
       }).join('') + '</div></div>' +
-      '<button class="mobile-primary" data-action="ev-add" type="button" style="margin-top:14px">일정 추가하기</button></div>' +
+      '<label class="check-row" style="margin-bottom:0"><input type="checkbox" id="ev-rpt"> <span>매주 같은 요일에 반복</span></label>' +
+      '<button class="mobile-primary" data-action="ev-add" type="button" style="margin-top:14px">일정 추가하기</button></div>' +      annivHTML +
+
       (upcoming.length ? '<div class="sec-head" style="margin-top:22px"><h3>다가오는 일정</h3><span class="badge badge-brand">' + upcoming.length + '</span></div>' + upcoming.map(function (e) { return row(e); }).join('') : '<div class="empty-notes" style="margin-top:22px">' + mobileIcon('chat') + '<p>예정된 일정이 없어요.<br>중요한 날을 추가해 보세요.</p></div>') +
       (past.length ? '<details class="card" style="margin-top:16px"><summary>지난 일정 (' + past.length + ')</summary>' + past.map(function (e) { return row(e, true); }).join('') + '</details>' : '') +
-      '<p class="device-note">일정은 이 기기에만 저장돼요. ICS로 내보내면 캘린더 앱에 추가할 수 있어요.</p>');
+            '<p class="device-note">일정·기념일은 이 기기에 저장되고 동기화 시 메이트와 공유돼요. ICS로내면 캘린더 앱에 추가할 수 있어요.</p>');
   }
 
   /* ================= View: 주간 체크인 ================= */
@@ -1842,6 +1999,23 @@
           return '<div class="checkin-hist"><span class="ch-emoji">' + (m ? m.emoji : '·') + '</span><span><strong>' + esc(c.week) + '</strong><small>' + (m ? esc(m.label) : '') + (c.fix ? ' · ' + esc(c.fix) : '') + '</small></span></div>';
         }).join('');
     }
+    /* 기분 추이 차트 — 최근 8주 */
+    var trend = S.checkins.filter(function (c) { return c.mood; }).slice(-8);
+    var chartHTML = trend.length >= 2 ? '<div class="card" style="margin-top:14px"><h4 class="card-title">우리 생활 기분 추이</h4><div class="mood-chart" role="img" aria-label="최근 ' + trend.length + '주 기분 추이">' +
+      trend.map(function (c) {
+        return '<div class="mood-col"><i style="height:' + Math.round(c.mood / 5 * 100) + '%" title="' + esc(c.week) + '"></i><small>' + esc(c.week.slice(4)) + '</small></div>';
+      }).join('') + '</div>' +
+      '<p class="caption text-muted">평균 ' + (Math.round(trend.reduce(function (a, c) { return a + c.mood; }, 0) / trend.length * 10) / 10) + ' / 5</p></div>' : '';
+    /* 이번 주 우리 미션 — 주가 바뀌면 프리셋에서 결정적으로 새로 고른다 */
+    var msn = S.missions;
+    if (msn.week !== wk) {
+      msn = { week: wk, list: ML.missionPick(wk, MISSION_PRESETS, 2).map(function (t, i) { return { id: 'm-' + wk + '-' + i, text: t, done: false }; }) };
+      S.missions = msn; save('mateon.missions', msn);
+    }
+    var missionHTML = '<div class="card" style="margin-top:14px"><h4 class="card-title">이번 주 우리 미션</h4>' +
+      msn.list.map(function (m) {
+        return '<button class="rule-item' + (m.done ? ' checked' : '') + '" data-action="mission-done" data-v="' + m.id + '" type="button" aria-pressed="' + m.done + '"><span class="rule-check"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span>' + esc(m.text) + '</span></button>';
+      }).join('') + '</div>';
 
     shell(listPageHead('LIFE TOOLS', '이번 주 체크인', '일주일에 한 번, 우리 생활이 어땠는지 가볍게 돌아봐요') +
       '<div class="card" style="margin-top:20px"><h4 class="card-title">' + weekRangeLabel(Date.now()) + ' · 이번 주 우리 생활은?</h4>' +
@@ -1857,8 +2031,8 @@
       '<div class="card" style="margin-top:14px"><h4 class="card-title">다음 주에 나누고 싶은 것 (선택)</h4>' +
       '<div class="field-group" style="margin-bottom:0"><input id="ci-fix" class="input" maxlength="80" placeholder="예: 주말엔 같이 청소하기" value="' + esc(cur ? cur.fix || '' : '') + '" autocomplete="off"></div></div>' +
       '<div class="cta-col"><button class="btn btn-primary btn-lg" data-action="ci-save" type="button">' + (cur ? '체크인 수정하기' : '체크인 저장하기') + '</button></div>' +
-      historyHTML +
-      '<p class="device-note">체크인은 이 기기에만 저장돼요.</p>');
+      missionHTML + chartHTML + historyHTML +
+      '<p class="device-note">체크인과 미션은 이 기기에 저장되고, 동기화 시 메이트와 공유돼요.</p>');
   }
 
   /* ================= View: 갈등 가이드 ================= */
@@ -1944,6 +2118,12 @@
     { k: 'mateon.fontSize', t: '글자 크기 설정' },
     { k: 'mateon.seen', t: '앱 소개 확인 여부' },
     { k: 'mateon.sync', t: '동기화 설정' },
+    { k: 'mateon.budgets', t: '카테고리별 월 예산' },
+    { k: 'mateon.anniv', t: '우리 기념일' },
+    { k: 'mateon.missions', t: '이번 주 우리 미션' },
+    { k: 'mateon.syncMeta', t: '마지막 동기화 시각' },
+    { k: 'mateon.syncStat', t: '마지막 동기화 결과' },
+    { k: 'mateon.lastBackup', t: '마지막 백업 시각' },
   ];
   var BACKUP_KEYS = DATA_ITEMS.map(function (it) { return it.k; });
   var CHECKLIST_KEYS = {};
@@ -2010,7 +2190,9 @@
       return x && typeof x.id === 'string' && x.id.length <= 40 && typeof x.ts === 'number' &&
         (x.payer === 'me' || x.payer === 'you') && typeof x.amount === 'number' && x.amount > 0 && x.amount <= 100000000 &&
         typeof x.memo === 'string' && x.memo.length <= 40 && typeof x.cat === 'string' && x.cat.length <= 12 &&
-        (x.share === undefined || (typeof x.share === 'number' && x.share >= 0 && x.share <= 1));
+        (x.share === undefined || (typeof x.share === 'number' && x.share >= 0 && x.share <= 1)) &&
+        (x.fx === undefined || (typeof x.fx === 'string' && x.fx.length <= 40)) &&
+        (x.rcpt === undefined || x.rcpt === 1);
     });
     if (key === 'mateon.fixedExpenses') return Array.isArray(value) && value.length <= 50 && value.every(function (f) {
       return f && typeof f.id === 'string' && f.id.length <= 24 && typeof f.memo === 'string' && f.memo.length > 0 && f.memo.length <= 40 &&
@@ -2027,14 +2209,15 @@
     if (key === 'mateon.choreLog') return !!(value && typeof value === 'object' && !Array.isArray(value) &&
       Object.keys(value).every(function (k) {
         var log = value[k];
-        return /^\d{4}-\d{2}-\d{2}$/.test(k) && log && typeof log === 'object' && !Array.isArray(log) &&
+        return /^\d{4}-W\d{2}$/.test(k) && log && typeof log === 'object' && !Array.isArray(log) &&
           Object.keys(log).every(function (id) { return typeof log[id] === 'boolean'; });
       }));
     if (key === 'mateon.events') return Array.isArray(value) && value.length <= 300 && value.every(function (e) {
       return e && typeof e.id === 'string' && e.id.length <= 24 && /^\d{4}-\d{2}-\d{2}$/.test(e.date) &&
         typeof e.title === 'string' && e.title.length > 0 && e.title.length <= 30 &&
         (!e.memo || (typeof e.memo === 'string' && e.memo.length <= 60)) &&
-        (e.who === 'me' || e.who === 'you' || e.who === 'both');
+        (e.who === 'me' || e.who === 'you' || e.who === 'both') &&
+        (e.rpt === undefined || e.rpt === 'w');
     });
     if (key === 'mateon.checkins') return Array.isArray(value) && value.length <= 60 && value.every(function (c) {
       return c && /^\d{4}-W\d{2}$/.test(c.week) && c.mood >= 1 && c.mood <= 5 &&
@@ -2054,9 +2237,27 @@
     if (key === 'mateon.lovemap') return !!(value && typeof value === 'object' &&
       Number.isInteger(value.idx) && value.idx >= 0 && value.idx <= LOVE_MAP_QUESTIONS.length &&
       Number.isInteger(value.known) && value.known >= 0 && Number.isInteger(value.asked) && value.asked >= 0 &&
-      (!value.askedIdx || (Array.isArray(value.askedIdx) && value.askedIdx.length <= LOVE_MAP_QUESTIONS.length && value.askedIdx.every(function (i) { return Number.isInteger(i); }))));
+      (!value.askedIdx || (Array.isArray(value.askedIdx) && value.askedIdx.length <= LOVE_MAP_QUESTIONS.length && value.askedIdx.every(function (i) { return Number.isInteger(i); }))) &&
+      (value.rounds === undefined || Number.isInteger(value.rounds)) && (value.best === undefined || (Number.isInteger(value.best) && value.best >= 0 && value.best <= 100)));
     if (key === 'mateon.tb') return Array.isArray(value);
-    if (key === 'mateon.reminders') return !!(value && typeof value === 'object' && typeof value.checkin === 'boolean' && typeof value.agreement === 'boolean');
+    if (key === 'mateon.reminders') return !!(value && typeof value === 'object' && typeof value.checkin === 'boolean' && typeof value.agreement === 'boolean' &&
+      (value.chore === undefined || typeof value.chore === 'boolean'));
+    if (key === 'mateon.budgets') return !!(value && typeof value === 'object' && !Array.isArray(value) &&
+      Object.keys(value).every(function (k) { return EXPENSE_CATS.indexOf(k) !== -1 && typeof value[k] === 'number' && value[k] > 0 && value[k] <= 100000000; }));
+    if (key === 'mateon.anniv') return Array.isArray(value) && value.length <= 20 && value.every(function (a) {
+      return a && typeof a.id === 'string' && a.id.length <= 24 && typeof a.title === 'string' && a.title.length > 0 && a.title.length <= 20 &&
+        /^\d{4}-\d{2}-\d{2}$/.test(a.date);
+    });
+    if (key === 'mateon.missions') return !!(value && typeof value === 'object' && !Array.isArray(value) &&
+      (value.week === '' || /^\d{4}-W\d{2}$/.test(value.week || ''))) &&
+      Array.isArray(value.list) && value.list.length <= 5 && value.list.every(function (m) {
+        return m && typeof m.id === 'string' && m.id.length <= 24 && typeof m.text === 'string' && m.text.length <= 40 && typeof m.done === 'boolean';
+      });
+    if (key === 'mateon.syncMeta') return !!(value && typeof value === 'object' && !Array.isArray(value) &&
+      ['push', 'pull', 'err'].every(function (k) { return value[k] === undefined || typeof value[k] === 'number'; }));
+    if (key === 'mateon.lastBackup') return typeof value === 'number' && value >= 0;
+    if (key === 'mateon.syncStat') return value === null || !!(value && typeof value === 'object' &&
+      typeof value.ts === 'number' && typeof value.ok === 'boolean');
     if (key === 'mateon.inviteDays') return value === 1 || value === 7 || value === 30;
     if (key === 'mateon.fontSize') return value === 'normal' || value === 'large';
     if (key === 'mateon.seen') return value === true;
@@ -2114,12 +2315,19 @@
     S.customChecklist = load('mateon.customChecklist') || [];
     S.conflictLog = load('mateon.conflictLog') || [];
     var rm = load('mateon.reminders');
-    S.reminders = { checkin: !rm || rm.checkin !== false, agreement: !rm || rm.agreement !== false };
+    S.reminders = { checkin: !rm || rm.checkin !== false, agreement: !rm || rm.agreement !== false, chore: !rm || rm.chore !== false };
     S.inviteDays = load('mateon.inviteDays') || 7;
     S.fontSize = load('mateon.fontSize') === 'large' ? 'large' : 'normal';
     applyFontSize();
     S.seen = load('mateon.seen') === true;
     S.syncCfg = load('mateon.sync');
+    S.budgets = load('mateon.budgets') || {};
+    S.anniv = load('mateon.anniv') || [];
+    S.missions = load('mateon.missions') || { week: '', list: [] };
+    S.syncMeta = load('mateon.syncMeta') || {};
+    S.syncStat = load('mateon.syncStat') || null;
+    S.lastBackup = load('mateon.lastBackup') || 0;
+    S.expEditId = null; S.pendingReceipt = null;
     S.invite = null; S.pendingPartner = null; S.connectionInput = '';
     S.flow = 'me'; S.q = 0; S.answers = [];
     S.profile = { name: '', relation: '', stage: '' };
@@ -2150,6 +2358,8 @@
   }
 
   function exportBackup() {
+    S.lastBackup = Date.now();
+    save('mateon.lastBackup', S.lastBackup);
     var text = JSON.stringify(buildBackup(), null, 2);
     if (window.MateNative) {
       window.MateNative.shareFile(backupFilename(), text, true).catch(function () { showToast('백업 파일 공유가 완료되지 않았어요'); });
@@ -2230,6 +2440,8 @@
       '<span class="share-opt-dot"></span>주간 체크인 알림 ' + (S.reminders.checkin ? '켜짐' : '꺼짐') + '</button>' +
       '<button class="share-opt' + (S.reminders.agreement ? ' on' : '') + '" data-action="rem-agree" type="button" aria-pressed="' + S.reminders.agreement + '">' +
       '<span class="share-opt-dot"></span>합의 점검일 알림 ' + (S.reminders.agreement ? '켜짐' : '꺼짐') + '</button>' +
+      '<button class="share-opt' + (S.reminders.chore ? ' on' : '') + '" data-action="rem-chore" type="button" aria-pressed="' + S.reminders.chore + '">' +
+      '<span class="share-opt-dot"></span>주말 집안일 알림 ' + (S.reminders.chore ? '켜짐' : '꺼짐') + '</button>' +
       '<p class="caption text-muted" style="margin-top:10px">앱에 설치된 경우에만 알림이 와요. 웹에서는 홈 배너로 안내해요.</p>' +
       '</div>' +
       '<div class="sec-head" style="margin-top:20px"><h3>글자 크기</h3></div>' +
@@ -2509,7 +2721,18 @@
       var memoEl = document.getElementById('exp-memo'), amtEl = document.getElementById('exp-amt');
       if (found.amount && amtEl) { amtEl.value = found.amount; amtEl.classList.remove('input-error'); }
       if (found.store && memoEl && !memoEl.value.trim()) memoEl.value = found.store;
+      /* 스캔한 영수증을 다음 지출 기록에 첨부 — IndexedDB 저장 */
+      S.pendingReceipt = file;
+      var attach = S.pendingReceipt && currentRoute() === 'settle';
       showToast(found.amount ? '금액 ' + fmtWon(found.amount) + '을 읽었어요. 확인 후 기록해 주세요' : '금액을 못 찾았어요. 직접 입력해 주세요');
+      if (attach && !document.querySelector('.rcpt-hint')) {
+        var hint = document.createElement('p');
+        hint.className = 'field-hint rcpt-hint';
+        hint.style.marginTop = '8px';
+        hint.textContent = '🧾 방금 스캔한 영수증이 이 지출에 첨부돼요';
+        var card = amtEl && amtEl.closest('.card');
+        if (card) card.appendChild(hint);
+      }
     }).catch(function () {
       showToast('영수증을 읽지 못했어요. 직접 입력해 주세요');
     }).then(function () { ocrBusy = false; });
@@ -2546,7 +2769,7 @@
   var SYNC_WHOLE_KEYS = [
     'mateon.chores', 'mateon.choreLog', 'mateon.agreement', 'mateon.checklist',
     'mateon.customChecklist', 'mateon.talks', 'mateon.customRules', 'mateon.lovemap',
-    'mateon.fixedExpenses',
+    'mateon.fixedExpenses', 'mateon.budgets', 'mateon.anniv', 'mateon.missions',
   ];
   var tbStore = null;
   function tb() {
@@ -2631,7 +2854,8 @@
       me: S.me, partner: null, agreement: S.agreement,
       expenses: S.expenses, settled: S.settled, chores: S.chores,
       events: S.events, checkins: S.checkins, shopping: S.shopping,
-      lovemap: S.lovemap, fixedExpenses: S.fixedExpenses, ts: Date.now(),
+      lovemap: S.lovemap, fixedExpenses: S.fixedExpenses,
+      budgets: S.budgets, anniv: S.anniv, missions: S.missions, ts: Date.now(),
     };
   }
   var syncTimer = null;
@@ -2640,21 +2864,28 @@
     if (syncTimer) clearTimeout(syncTimer);
     syncTimer = setTimeout(syncPush, 2500);
   }
+  function syncMark(ok) {
+    S.syncStat = { ts: Date.now(), ok: !!ok };
+    save('mateon.syncStat', S.syncStat);
+    if (S.route === 'settings') render();
+  }
   function syncPush() {
     if (!syncOn() || !S.me) return;
     var body;
     if (tbIngest()) body = JSON.stringify({ v: 2, tb: tb().getMergeableContent() });
     else body = JSON.stringify(syncPayload());
     fetch(syncURL(S.syncCfg.slot), { method: 'PUT', headers: syncHeaders(), body: body })
-      .catch(function () { /* 오프라인이면 무시 */ });
+      .then(function (res) { syncMark(res && res.ok); })
+      .catch(function () { syncMark(false); });
   }
   function syncPull() {
     if (!syncOn()) return Promise.resolve(false);
     var other = S.syncCfg.slot === 'a' ? 'b' : 'a';
     return fetch(syncURL(other), { headers: syncHeaders() })
-      .then(function (res) { return res.ok ? res.json() : null; })
+      .then(function (res) { if (!res.ok) syncMark(false); return res.ok ? res.json() : null; })
       .then(function (data) {
         if (!data || typeof data !== 'object') return false;
+        syncMark(true);
         if (data.tb && window.TinyBase) return mergeRemoteContent(data.tb);
         var changed = false;
         if (data.me && validStoredResult(data.me)) {
@@ -2663,7 +2894,7 @@
             changed = true;
           }
         }
-        ['expenses', 'settled', 'chores', 'events', 'checkins', 'agreement', 'shopping', 'lovemap', 'fixedExpenses'].forEach(function (k) {
+        ['expenses', 'settled', 'chores', 'events', 'checkins', 'agreement', 'shopping', 'lovemap', 'fixedExpenses', 'budgets', 'anniv', 'missions'].forEach(function (k) {
           var key = 'mateon.' + k;
           if (data[k] != null && validBackupValue(key, data[k])) {
             var cur = S[k];
@@ -2672,7 +2903,14 @@
         });
         return changed;
       })
-      .catch(function () { return false; });
+      .catch(function () { syncMark(false); return false; });
+  }
+  function syncStatLine() {
+    var st = S.syncStat;
+    if (!st || !st.ts) return '아직 동기화한 기록이 없어요.';
+    var mins = Math.max(0, Math.round((Date.now() - st.ts) / 60000));
+    var ago = mins < 1 ? '방금' : mins < 60 ? mins + '분 전' : mins < 1440 ? Math.floor(mins / 60) + '시간 전' : Math.floor(mins / 1440) + '일 전';
+    return '마지막 동기화 ' + ago + ' · ' + (st.ok ? '성공' : '실패 — 다시 시도해 보세요');
   }
   function syncCardHTML() {
     var cfg = S.syncCfg || {};
@@ -2694,6 +2932,8 @@
       (on ? '<button class="btn btn-tertiary btn-md" data-action="sync-now" type="button">지금 주고받기</button>' +
             '<button class="btn btn-tertiary btn-md" data-action="sync-off" type="button">동기화 끄기</button>' : '') +
       '</div>' +
+      (on ? '<p class="caption sync-stat ' + (S.syncStat && S.syncStat.ok === false ? 'sync-bad' : 'text-muted') + '" style="margin-top:8px">' +
+        esc(syncStatLine()) + '</p>' : '') +
       (on ? '<p class="caption text-muted" style="margin-top:8px">방 코드를 아는 사람만 접근할 수 있어요. 민감한 데이터는 공유하지 마세요.</p>' : '');
   }
 
@@ -3114,7 +3354,7 @@
       if (dk === 'mateon.checkins') { S.checkins = []; }
       if (dk === 'mateon.customChecklist') { S.customChecklist = []; }
       if (dk === 'mateon.conflictLog') { S.conflictLog = []; }
-      if (dk === 'mateon.reminders') { S.reminders = { checkin: true, agreement: true }; }
+      if (dk === 'mateon.reminders') { S.reminders = { checkin: true, agreement: true, chore: true }; syncNativeReminders(); }
       if (dk === 'mateon.inviteDays') { S.inviteDays = 7; }
       if (dk === 'mateon.fontSize') { S.fontSize = 'normal'; applyFontSize(); }
       if (dk === 'mateon.seen') { S.seen = false; }
@@ -3161,13 +3401,26 @@
           share = sv / amt;
         }
       }
+      var editRec = S.expEditId ? S.expenses.find(function (x) { return x.id === S.expEditId; }) : null;
+      if (editRec) {
+        editRec.memo = memo; editRec.amount = amt; editRec.payer = S.expPayer; editRec.cat = S.expCat;
+        if (share !== 0.5) editRec.share = Math.round(share * 1000) / 1000; else delete editRec.share;
+        S.expEditId = null;
+        S.expMemo = ''; S.expAmt = ''; S.expShare = '';
+        save('mateon.expenses', S.expenses);
+        showToast('지출을 수정했어요'); render(); scheduleSyncPush();
+        return;
+      }
       var rec2 = { id: uid(), ts: Date.now(), memo: memo, amount: amt, payer: S.expPayer, cat: S.expCat };
       if (share !== 0.5) rec2.share = Math.round(share * 1000) / 1000;
       var recurEl = document.getElementById('exp-recur');
       if (recurEl && recurEl.checked) {
         /* 이번 달 기록은 고정비 자동생성분과 같은 fx 태그를 달아 중복 방지 */
+        var dayEl = document.getElementById('exp-day');
+        var fxDay = Math.round(dayEl ? +dayEl.value : 0);
+        if (!Number.isInteger(fxDay) || fxDay < 1 || fxDay > 28) fxDay = Math.min(new Date().getDate(), 28);
         var ym0 = dateStr(Date.now()).slice(0, 7);
-        var fx0 = { id: uid(), memo: memo, amount: amt, payer: S.expPayer, cat: S.expCat, share: rec2.share, day: new Date().getDate() };
+        var fx0 = { id: uid(), memo: memo, amount: amt, payer: S.expPayer, cat: S.expCat, share: rec2.share, day: fxDay };
         S.fixedExpenses.push(fx0);
         if (S.fixedExpenses.length > 50) S.fixedExpenses = S.fixedExpenses.slice(-50);
         rec2.id = ML.fixedExpId(fx0.id, ym0);
@@ -3176,9 +3429,59 @@
       }
       S.expenses.push(rec2);
       if (S.expenses.length > 500) S.expenses = S.expenses.slice(-500);
+      if (S.pendingReceipt) {
+        var rcptBlob = S.pendingReceipt;
+        S.pendingReceipt = null;
+        rec2.rcpt = 1;
+        rcptPut(rec2.id, rcptBlob).catch(function () { });
+      }
       S.expMemo = ''; S.expAmt = ''; S.expShare = '';
       save('mateon.expenses', S.expenses);
       showToast(rec2.fx ? '지출을 기록하고 고정비로 등록했어요' : '지출을 기록했어요'); render(); scheduleSyncPush();
+    }
+    else if (act === 'exp-edit') {
+      var er = S.expenses.find(function (x) { return x.id === el.dataset.v; });
+      if (!er) return;
+      S.expEditId = er.id;
+      S.expMemo = er.memo || ''; S.expAmt = String(er.amount);
+      S.expPayer = er.payer; S.expCat = er.cat || '기타';
+      var sh = expenseShare(er);
+      if (sh === 0.5) { S.splitMode = 'equal'; S.expShare = ''; }
+      else { S.splitMode = 'percent'; S.expShare = String(Math.round(sh * 100)); }
+      render();
+      var memoIn = document.getElementById('exp-memo');
+      if (memoIn) { memoIn.focus(); }
+    }
+    else if (act === 'exp-edit-cancel') {
+      S.expEditId = null; S.expMemo = ''; S.expAmt = ''; S.expShare = ''; render();
+    }
+    else if (act === 'exp-filter') { S.expFilter = el.dataset.v; render(); }
+    else if (act === 'exp-rcpt') { showReceipt(el.dataset.v); }
+    else if (act === 'exp-csv') {
+      var viewAllCsv = S.settleMonth === 'all';
+      var csvList = viewAllCsv ? S.expenses : S.expenses.filter(function (x) { return dateStr(x.ts).slice(0, 7) === S.settleMonth; });
+      if (!csvList.length) { showToast('보낼 지출이 없어요'); return; }
+      var csvText = ML.expensesToCSV(csvList, payerName);
+      var csvName = 'mateon-expenses-' + (viewAllCsv ? 'all' : S.settleMonth) + '.csv';
+      if (window.MateNative) {
+        window.MateNative.shareFile(csvName, csvText, true).catch(function () { showToast('CSV 공유가 완료되지 않았어요'); });
+        return;
+      }
+      var csvBlob = new Blob([csvText], { type: 'text/csv;charset=utf-8' });
+      var csvA = document.createElement('a');
+      csvA.href = URL.createObjectURL(csvBlob); csvA.download = csvName; csvA.click();
+      setTimeout(function () { URL.revokeObjectURL(csvA.href); }, 1000);
+      showToast('지출 CSV를 내려받았어요');
+    }
+    else if (act === 'budget-set') {
+      var nb = {};
+      document.querySelectorAll('.budget-in').forEach(function (inp) {
+        var v = Math.round(+String(inp.value).replace(/[^\d.]/g, '') || 0);
+        if (v > 0 && v <= 100000000) nb[inp.dataset.cat] = v;
+      });
+      S.budgets = nb; save('mateon.budgets', nb);
+      showToast(Object.keys(nb).length ? '월 예산을 저장했어요' : '예산을 모두 지웠어요');
+      render(); scheduleSyncPush();
     }
     else if (act === 'fx-del') {
       var fid = el.dataset.v;
@@ -3192,6 +3495,7 @@
       if (S.delArm2 !== 'exp-del:' + eid) { S.delArm2 = 'exp-del:' + eid; render(); return; }
       S.delArm2 = null;
       S.expenses = S.expenses.filter(function (x) { return x.id !== eid; });
+      rcptDel(eid);
       save('mateon.expenses', S.expenses); render(); scheduleSyncPush();
     }
     else if (act === 'exp-copy') {
@@ -3256,7 +3560,12 @@
       if (act === 'lm-know') lm.known++;
       lm.askedIdx = lm.askedIdx || [];
       lm.askedIdx.push(lm.idx);
-      if (lm.asked >= LOVE_MAP_QUESTIONS.length) { lm.idx = 0; }
+      if (lm.asked >= LOVE_MAP_QUESTIONS.length) {
+        lm.idx = 0;
+        lm.rounds = (lm.rounds || 0) + 1;
+        var acc = Math.round(lm.known / lm.asked * 100);
+        lm.best = Math.max(lm.best || 0, acc);
+      }
       else { do { lm.idx = (lm.idx + 1) % LOVE_MAP_QUESTIONS.length; } while (lm.askedIdx.indexOf(lm.idx) !== -1); }
       lovemapSave();
       if (act === 'lm-know') showToast('서로를 잘 알고 있네요!');
@@ -3265,6 +3574,11 @@
     else if (act === 'lm-reset') {
       S.lovemap = { idx: 0, known: 0, asked: 0, askedIdx: [] };
       lovemapSave(); render(); showToast('러브맵을 처음부터 다시 시작해요');
+    }
+    else if (act === 'mission-done') {
+      var mid = el.dataset.v;
+      S.missions.list.forEach(function (m) { if (m.id === mid) m.done = !m.done; });
+      save('mateon.missions', S.missions); render(); scheduleSyncPush();
     }
     /* ---- 역할 분담 ---- */
     else if (act === 'chore-add') {
@@ -3305,16 +3619,44 @@
     /* ---- 우리 일정 ---- */
     else if (act === 'ev-who') { S.evWho = el.dataset.v; render(); }
     else if (act === 'ev-add') {
-      var edEl = document.getElementById('ev-date'), etEl = document.getElementById('ev-title'), emEl = document.getElementById('ev-memo');
+      var edEl = document.getElementById('ev-date'), etEl = document.getElementById('ev-title'), emEl = document.getElementById('ev-memo'), erEl = document.getElementById('ev-rpt');
       var edate = edEl ? edEl.value : '';
       var etitle = etEl ? etEl.value.trim() : '';
       var ememo = emEl ? emEl.value.trim() : '';
+      var erpt = erEl && erEl.checked ? 'w' : null;
       if (!/^\d{4}-\d{2}-\d{2}$/.test(edate)) { if (edEl) { edEl.classList.add('input-error'); edEl.focus(); } showToast('날짜를 선택해 주세요'); return; }
       if (!etitle) { if (etEl) { etEl.classList.add('input-error'); etEl.focus(); } showToast('일정 제목을 적어주세요'); return; }
       if (S.events.length >= 300) { showToast('일정은 최대 300개까지 등록할 수 있어요'); return; }
-      S.events.push({ id: uid(), date: edate, title: etitle.slice(0, 30), memo: ememo.slice(0, 60), who: S.evWho });
+      var newEv = { id: uid(), date: edate, title: etitle.slice(0, 30), memo: ememo.slice(0, 60), who: S.evWho };
+      if (erpt) newEv.rpt = 'w';
+      S.events.push(newEv);
       save('mateon.events', S.events);
-      showToast('일정을 추가했어요'); render(); scheduleSyncPush();
+      showToast(erpt ? '매주 반복 일정을 추가했어요' : '일정을 추가했어요'); render(); scheduleSyncPush();
+    }
+    else if (act === 'cal-month') {
+      var off = parseInt(el.dataset.v, 10) || 0;
+      var cm = (S.calMonth || dateStr(Date.now()).slice(0, 7)).split('-').map(Number);
+      var nd = new Date(cm[0], cm[1] - 1 + off, 1);
+      S.calMonth = nd.getFullYear() + '-' + p2(nd.getMonth() + 1);
+      render();
+    }
+    else if (act === 'anniv-add') {
+      var atEl = document.getElementById('anniv-title'), adEl = document.getElementById('anniv-date');
+      var atitle = atEl ? atEl.value.trim() : '';
+      var adate = adEl ? adEl.value : '';
+      if (!atitle) { if (atEl) { atEl.classList.add('input-error'); atEl.focus(); } showToast('기념일 이름을 적어주세요'); return; }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(adate)) { showToast('기념일 날짜를 선택해 주세요'); return; }
+      if (S.anniv.length >= 30) { showToast('기념일은 최대 30개까지 등록할 수 있어요'); return; }
+      S.anniv.push({ id: uid(), title: atitle.slice(0, 20), date: adate });
+      save('mateon.anniv', S.anniv);
+      showToast('기념일을 등록했어요'); render(); scheduleSyncPush();
+    }
+    else if (act === 'anniv-del') {
+      var aid = el.dataset.v;
+      if (S.delArm2 !== 'anniv-del:' + aid) { S.delArm2 = 'anniv-del:' + aid; render(); return; }
+      S.delArm2 = null;
+      S.anniv = S.anniv.filter(function (a2) { return a2.id !== aid; });
+      save('mateon.anniv', S.anniv); render(); scheduleSyncPush();
     }
     else if (act === 'ev-del') {
       var evid = el.dataset.v;
@@ -3417,6 +3759,11 @@
       save('mateon.reminders', S.reminders); syncNativeReminders();
       showToast(S.reminders.agreement ? '합의 점검일 알림을 켰어요' : '합의 점검일 알림을 껐어요'); render();
     }
+    else if (act === 'rem-chore') {
+      S.reminders.chore = !S.reminders.chore;
+      save('mateon.reminders', S.reminders); syncNativeReminders();
+      showToast(S.reminders.chore ? '주말 집안일 알림을 켰어요' : '주말 집안일 알림을 껐어요'); render();
+    }
     else if (act === 'font-size') {
       S.fontSize = el.dataset.v === 'large' ? 'large' : 'normal';
       save('mateon.fontSize', S.fontSize); applyFontSize(); render();
@@ -3496,7 +3843,8 @@
       S.expenses = []; S.settled = []; S.fixedExpenses = []; S.chores = null; S.choreLog = {};
       S.events = []; S.checkins = []; S.customChecklist = []; S.conflictLog = [];
       S.shopping = []; S.lovemap = { idx: 0, known: 0, asked: 0 }; tbStore = null;
-      S.reminders = { checkin: true, agreement: true };
+      S.budgets = {}; S.anniv = []; S.missions = { week: '', list: [] }; S.lastBackup = 0; S.syncStat = null;
+      S.reminders = { checkin: true, agreement: true, chore: true };
       S.inviteDays = 7; S.fontSize = 'normal'; applyFontSize();
       S.seen = true; S.syncCfg = null; S.delArm2 = null;
       S.cgStep = 0; S.cgDomain = 'D';
@@ -3528,6 +3876,14 @@
   // 이름 입력 동기화
   app.addEventListener('input', function (e) {
     if (e.target.id === 'pf-name') S.profile.name = e.target.value;
+    if (e.target.id === 'exp-q') {
+      /* 지출 검색: 키 입력마다 목록만 다시 그리고 포커스·커서를 복원한다 */
+      S.expQuery = e.target.value;
+      var caret = e.target.selectionStart;
+      render();
+      var again = document.getElementById('exp-q');
+      if (again) { again.focus(); try { again.setSelectionRange(caret, caret); } catch (err) { } }
+    }
     if (e.target.id === 'partner-link') {
       S.connectionInput = e.target.value;
       S.pendingPartner = null;

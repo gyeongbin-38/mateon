@@ -375,3 +375,46 @@ body {max-width:480px;box-shadow:0 0 0 1px #3039430a;}
 @media (prefers-reduced-motion: reduce) {
   .tutorial-overlay {backdrop-filter:none;-webkit-backdrop-filter:none;}
 }
+
+
+/* ---- Round 3: 달력 월 뷰 / 기념일 D-day / 예산 / 미션·기분 차트 / 동기화 상태 ---- */
+.cal-grid-wrap {padding:16px;}
+.cal-nav {display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.cal-nav strong {font-size:14px;font-weight:750;color:var(--app-ink);}
+.cal-nav .chip {min-width:36px;min-height:32px;padding:4px 10px;font-size:15px;}
+.cal-grid {display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center;}
+.cal-dow {font-size:10px;font-weight:700;color:var(--app-muted);padding:5px 0;}
+.cal-dow.sun {color:#e0717f;}
+.cal-dow.sat {color:#5e8fbf;}
+.cal-cell {position:relative;aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--app-ink);border-radius:9px;}
+.cal-cell.empty {background:none;}
+.cal-cell.today {background:var(--app-soft);color:var(--app-pink-ink);font-weight:800;box-shadow:inset 0 0 0 1.5px var(--app-coral);}
+.cal-cell.has i {position:absolute;bottom:3px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--app-coral);}
+
+.dday-banner {display:flex;align-items:center;gap:14px;width:100%;text-align:left;border:none;cursor:pointer;
+  background:linear-gradient(135deg,#fff3f5,var(--app-surface));border:1px solid #f3cdd3;border-radius:18px;padding:14px 16px;margin-bottom:12px;}
+.dday-banner:active {transform:scale(.985);}
+.dday-num {font-size:20px;font-weight:800;color:var(--app-pink-ink);min-width:52px;text-align:center;font-variant-numeric:tabular-nums;}
+.dday-text {flex:1;display:flex;flex-direction:column;gap:2px;min-width:0;}
+.dday-text strong {font-size:13px;font-weight:700;color:var(--app-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.dday-text small {font-size:11px;color:var(--app-muted);}
+.dday-banner svg {color:var(--app-pink-ink);flex-shrink:0;}
+
+.budget-row {display:flex;align-items:center;gap:10px;padding:6px 0;}
+.budget-row>span {width:56px;font-size:12px;font-weight:650;color:var(--app-ink);flex-shrink:0;}
+.budget-in {flex:1;min-height:38px;font-size:13px;text-align:right;}
+.budget-bar {height:7px;border-radius:99px;background:var(--app-line);overflow:hidden;margin-top:6px;}
+.budget-bar i {display:block;height:100%;border-radius:99px;background:var(--app-mint);transition:width .3s;}
+.budget-bar.over i {background:#e0717f;}
+.budget-meta {display:flex;justify-content:space-between;font-size:10px;color:var(--app-muted);margin-top:4px;}
+.budget-meta .over {color:#d94b62;font-weight:700;}
+
+.mood-chart {display:flex;align-items:flex-end;gap:6px;height:56px;margin:12px 0 4px;padding:0 2px;}
+.mood-col {flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;min-width:0;height:100%;}
+.mood-col i {display:block;width:100%;max-width:22px;border-radius:5px 5px 2px 2px;background:var(--app-coral);opacity:.85;min-height:4px;transition:height .3s;}
+.mood-col small {font-size:9px;color:var(--app-muted);white-space:nowrap;}
+
+.sync-stat {display:flex;align-items:center;gap:6px;}
+.sync-stat::before {content:'';width:7px;height:7px;border-radius:50%;background:var(--app-mint);flex-shrink:0;}
+.sync-stat.sync-bad::before {background:#e0717f;}
+.sync-bad {color:#c2455a !important;}

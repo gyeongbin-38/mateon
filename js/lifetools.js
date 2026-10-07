@@ -51,6 +51,57 @@
   /* 고정비 자동생성용 결정적 id — 두 기기가 각각 만들어도 같은 id로 머지됨 */
   function fixedExpId(fxId, ym) { return 'fx:' + fxId + ':' + ym; }
 
+  /* ---- 기념일 D-day: MM-DD가 매년 반복 → 다음 발생 시각과 남은 일수 ---- */
+  function nextAnnivTs(iso, fromTs) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(iso || '')) return null;
+    var from = fromTs === undefined ? Date.now() : fromTs;
+    var f = new Date(from); f.setHours(0, 0, 0, 0);
+    var mm = +iso.slice(5, 7), dd = +iso.slice(8, 10);
+    var y = f.getFullYear();
+    for (var i = 0; i < 3; i++) {
+      var d = new Date(y + i, mm - 1, dd, 12);
+      if (d.getMonth() === mm - 1 && d.getDate() === dd && d.getTime() >= f.getTime()) return d.getTime();
+    }
+    return null;
+  }
+  function ddayLabel(targetTs, fromTs) {
+    var from = fromTs === undefined ? Date.now() : fromTs;
+    var f = new Date(from); f.setHours(0, 0, 0, 0);
+    var t = new Date(targetTs); t.setHours(0, 0, 0, 0);
+    var diff = Math.round((t - f) / 86400000);
+    if (diff === 0) return 'D-day';
+    return diff > 0 ? 'D-' + diff : 'D+' + (-diff);
+  }
+
+  /* ---- 지출 CSV (엑셀 호환 BOM + 이스케이프) ---- */
+  function csvCell(v) {
+    var s = String(v === undefined || v === null ? '' : v);
+    return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+  function expensesToCSV(list, nameOf) {
+    var rows = [['날짜', '내용', '분류', '낸 사람', '금액', '나의 부담', '고정비']];
+    (list || []).slice().sort(function (a, b) { return a.ts - b.ts; }).forEach(function (x) {
+      var sh = expenseShare(x);
+      var mine = Math.round(x.payer === 'me' ? x.amount * sh : x.amount * (1 - sh));
+      rows.push([dateStr(x.ts), x.memo || '', x.cat || '기타', nameOf(x.payer), x.amount, mine, x.fx ? 'Y' : '']);
+    });
+    return '﻿' + rows.map(function (r) { return r.map(csvCell).join(','); }).join('\r\n');
+  }
+
+  /* ---- 주간 미션: ISO 주 문자열을 시드로 미션 N개를 결정적으로 고른다 ---- */
+  function missionPick(weekKey, presets, count) {
+    var h = 0;
+    for (var i = 0; i < weekKey.length; i++) h = (Math.imul(h, 31) + weekKey.charCodeAt(i)) >>> 0;
+    var idxs = [];
+    var n = Math.min(count || 2, presets.length);
+    while (idxs.length < n) {
+      var k = h % presets.length;
+      if (idxs.indexOf(k) < 0) idxs.push(k);
+      h = (Math.imul(h, 1103515245) + 12345) >>> 0;
+    }
+    return idxs.map(function (i) { return presets[i]; });
+  }
+
   /* ================= 영수증 텍스트 파서 (규칙 기반) =================
      OCR 결과 텍스트에서 총액·가게이름 후보를 뽑는다. */
   var TOTAL_HINT = /(합\s?계|총\s?액|총\s?금액|결제\s?금액|받을\s?금액|받은\s?금액|판매\s?금액|승인\s?금액|이용\s?금액|청구\s?금액|신용\s?카드|카드\s?매출|total|amount\s?due|grand\s?total)/i;
@@ -132,6 +183,8 @@
     p2: p2, dateStr: dateStr, fmtWon: fmtWon,
     mondayOf: mondayOf, isoWeekKey: isoWeekKey, weekRangeLabel: weekRangeLabel,
     expenseShare: expenseShare, settleNetOf: settleNetOf, monthStats: monthStats, fixedExpId: fixedExpId,
+    nextAnnivTs: nextAnnivTs, ddayLabel: ddayLabel,
+    expensesToCSV: expensesToCSV, missionPick: missionPick,
     parseReceiptText: parseReceiptText,
     preprocessReceiptImage: preprocessReceiptImage,
   };

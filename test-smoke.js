@@ -763,6 +763,76 @@ async function answerAll() {
   const mst2 = window.MateLife.monthStats(liveS().expenses, null);
   check('monthStats 합계', mst2.total === liveS().expenses.reduce((a, x) => a + x.amount, 0));
 
+  /* --- 31. 기념일 D-day · 캘린더 월 뷰 · 주간 반복 · 미션 · 알림 확장 --- */
+  console.log('== 31. 기념일 · 월 뷰 · 반복 · 미션 · 알림 ==');
+  nav('#/calendar');
+  check('캘린더 월 그리드', lastHTML.includes('cal-grid') && lastHTML.includes('cal-dow'));
+  check('기념일 카드 표시', lastHTML.includes('우리 기념일') && lastHTML.includes('data-action="anniv-add"'));
+  /* 기념일 등록 → 홈 D-day 배너 */
+  fakeInput('anniv-title', '만난 날'); fakeInput('anniv-date', '2025-01-01');
+  click('anniv-add');
+  check('기념일 저장됨', JSON.parse(store['mateon.anniv']).some(a => a.title === '만난 날' && a.date === '2025-01-01'));
+  check('기념일 D-day 표시', lastHTML.includes('D-') || lastHTML.includes('D+'));
+  nav('#/home');
+  check('홈 D-day 배너', lastHTML.includes('dday-banner') && lastHTML.includes('만난 날'));
+  /* 기념일 삭제 (2단계 확인) */
+  nav('#/calendar');
+  const aid = JSON.parse(store['mateon.anniv'])[0].id;
+  click('anniv-del', { v: aid }); click('anniv-del', { v: aid });
+  check('기념일 삭제됨', !JSON.parse(store['mateon.anniv']).length);
+  /* 월 이동 */
+  const cm0 = liveS().calMonth;
+  click('cal-month', { v: '-1' });
+  check('이전 달 이동', liveS().calMonth !== cm0 && /^\d{4}-\d{2}$/.test(liveS().calMonth));
+  click('cal-month', { v: '1' });
+  /* 주간 반복 일정 */
+  fakeInput('ev-date', '2026-01-05'); fakeInput('ev-title', '청소의 날'); fakeInput('ev-memo', '');
+  fakeInputs['ev-rpt'] = { checked: true };
+  click('ev-add');
+  check('반복 일정 저장', JSON.parse(store['mateon.events']).some(e => e.rpt === 'w' && e.title === '청소의 날'));
+  check('반복 표시', lastHTML.includes('매주'));
+  /* 반복 일정이 달력에 점으로 표시 (2026-01 월에 월요일들) */
+  liveS().calMonth = '2026-01';
+  nav('#/home'); nav('#/calendar');
+  check('월 뷰에 반복 점 표시', (lastHTML.match(/cal-cell has/g) || []).length >= 4);
+  /* 주간 미션 — 같은 주에는 같은 목록, 완료 토글 저장 */
+  nav('#/checkin');
+  check('주간 미션 카드', lastHTML.includes('이번 주 우리 미션') && lastHTML.includes('data-action="mission-done"'));
+  const msn = JSON.parse(store['mateon.missions']);
+  check('미션 2개 생성', msn.list.length === 2 && msn.week === isoWeekKey());
+  click('mission-done', { v: msn.list[0].id });
+  check('미션 완료 저장', JSON.parse(store['mateon.missions']).list[0].done === true);
+  click('mission-done', { v: msn.list[0].id });
+  check('미션 완료 취소', JSON.parse(store['mateon.missions']).list[0].done === false);
+  /* 기분 추이 차트 — 체크인 2주 이상이면 표시 */
+  liveS().checkins.push({ week: '2099-W01', mood: 4, kept: [], ts: Date.now() });
+  liveS().checkins.push({ week: '2099-W02', mood: 2, kept: [], ts: Date.now() });
+  nav('#/home'); nav('#/checkin');
+  check('기분 추이 차트', lastHTML.includes('mood-chart') && lastHTML.includes('기분 추이'));
+  /* 집안일 알림 토글 */
+  nav('#/settings');
+  check('집안일 알림 토글 표시', lastHTML.includes('data-action="rem-chore"'));
+  click('rem-chore');
+  check('집안일 알림 꺼짐 저장', JSON.parse(store['mateon.reminders']).chore === false);
+  click('rem-chore');
+  check('집안일 알림 복구', JSON.parse(store['mateon.reminders']).chore === true);
+  /* 백업 신규 키 왕복 — 값이 저장된 키만 백업에 들어간다 */
+  nav('#/settle');
+  click('budget-set');
+  check('예산 저장됨', !!store['mateon.budgets']);
+  nav('#/settings');
+  click('backup-export');
+  check('백업 시각 기록', liveS().lastBackup > 0 && !!store['mateon.lastBackup']);
+  const bk = window.__mateon.buildBackup();
+  check('백업에 기념일·미션·예산 포함', 'mateon.anniv' in bk.data && 'mateon.missions' in bk.data && 'mateon.budgets' in bk.data);
+  check('백업에 백업시각 포함', typeof bk.data['mateon.lastBackup'] === 'number');
+  const bkOk = window.__mateon.parseBackup(JSON.stringify(bk));
+  if (!bkOk) Object.keys(bk.data).forEach(k => { const d2 = JSON.parse(JSON.stringify(bk)); delete d2.data[k]; if (window.__mateon.parseBackup(JSON.stringify(d2))) console.log('  [dbg] bad key:', k, JSON.stringify(bk.data[k]).slice(0, 150)); });
+  check('반복 일정 백업 통과', !!bkOk);
+  /* CSV 생성 순수 함수 — 쉼표·따옴표 이스케이프 */
+  const csv = window.MateLife.expensesToCSV([{ ts: Date.now(), memo: '카페, "좋은곳"', amount: 1000, payer: 'me', cat: '카페', share: 0.5 }], () => '나');
+  check('CSV 이스케이프', csv.includes('"카페, ""좋은곳"""'));
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })();

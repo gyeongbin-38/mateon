@@ -174,6 +174,70 @@ try {
   await page2.goto(`${BASE}/#/space`, { waitUntil: 'networkidle' });
   check('최근 활동 피드', await page2.locator('.activity-feed .feed-row').count() > 0);
 
+  console.log('== 지출 수정·검색·예산 ==');
+  await page2.goto(`${BASE}/#/settle`, { waitUntil: 'networkidle' });
+  const editBtn = page2.locator('.settle-row:has-text("장보기") [data-action="exp-edit"]').first();
+  if (await editBtn.count()) {
+    await editBtn.click();
+    await page2.locator('#exp-amt').fill('12000');
+    await page2.locator('[data-action="exp-add"]').click();
+    check('지출 수정 저장', await page2.evaluate(() =>
+      (JSON.parse(localStorage.getItem('mateon.expenses') || '[]')).some(x => x.memo === '장보기' && x.amount === 12000)));
+  }
+  await page2.locator('#exp-q').fill('넷플릭스');
+  await page2.waitForTimeout(200);
+  check('지출 검색 필터', await page2.evaluate(() => {
+    const rows = document.querySelectorAll('.settle-row:has([data-action="exp-edit"])');
+    return rows.length === 1 && rows[0].textContent.includes('넷플릭스');
+  }));
+  await page2.locator('#exp-q').fill('');
+  /* 예산 입력은 details 안 — summary를 먼저 연다 */
+  const budSummary = page2.locator('summary:has-text("월 예산")');
+  if (await budSummary.count()) {
+    await budSummary.click();
+    const budIn = page2.locator('.budget-in').first();
+    await budIn.fill('500000');
+    await page2.locator('[data-action="budget-set"]').click();
+    check('예산 저장', await page2.evaluate(() => Object.values(JSON.parse(localStorage.getItem('mateon.budgets') || '{}')).some(v => v === 500000)));
+  }
+
+  console.log('== 기념일·월 뷰·주간 반복 ==');
+  await page2.goto(`${BASE}/#/calendar`, { waitUntil: 'networkidle' });
+  check('달력 그리드', await page2.locator('.cal-grid').isVisible());
+  await page2.locator('#anniv-title').fill('만난 날');
+  await page2.locator('#anniv-date').fill('2025-12-25');
+  await page2.locator('[data-action="anniv-add"]').click();
+  check('기념일 저장', await page2.evaluate(() =>
+    (JSON.parse(localStorage.getItem('mateon.anniv') || '[]')).some(a => a.title === '만난 날')));
+  await page2.locator('#ev-title').fill('청소의 날');
+  await page2.locator('#ev-rpt').check();
+  await page2.locator('[data-action="ev-add"]').click();
+  check('주간 반복 저장', await page2.evaluate(() =>
+    (JSON.parse(localStorage.getItem('mateon.events') || '[]')).some(e => e.rpt === 'w' && e.title === '청소의 날')));
+  const cmBefore = await page2.evaluate(() => window.__mateon.state.calMonth);
+  await page2.locator('[data-action="cal-month"][data-v="-1"]').click();
+  check('달력 이전 달', (await page2.evaluate(() => window.__mateon.state.calMonth)) !== cmBefore);
+  await page2.goto(`${BASE}/#/home`, { waitUntil: 'networkidle' });
+  check('홈 D-day 배너', await page2.locator('.dday-banner').isVisible());
+
+  console.log('== 주간 미션·체크인 차트·알림 ==');
+  await page2.goto(`${BASE}/#/checkin`, { waitUntil: 'networkidle' });
+  const msnBtn = page2.locator('[data-action="mission-done"]').first();
+  check('주간 미션 표시', await msnBtn.count() >= 1);
+  if (await msnBtn.count()) {
+    await msnBtn.click();
+    check('미션 완료 저장', await page2.evaluate(() =>
+      (JSON.parse(localStorage.getItem('mateon.missions') || '{}').list || []).some(m => m.done)));
+  }
+  await page2.goto(`${BASE}/#/settings`, { waitUntil: 'networkidle' });
+  const remChore = page2.locator('[data-action="rem-chore"]');
+  check('집안일 알림 토글', await remChore.count() === 1);
+  if (await remChore.count()) {
+    await remChore.click();
+    check('집안일 알림 꺼짐', await page2.evaluate(() => JSON.parse(localStorage.getItem('mateon.reminders')).chore === false));
+    await remChore.click();
+  }
+
   console.log('== 만료 초대 링크 ==');
   const meResult = await page.evaluate(() => window.__mateon.state.me);
   const expiredToken = await page.evaluate(r => window.__mateon.encodeInvite(r, -1), meResult);
