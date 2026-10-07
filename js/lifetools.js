@@ -33,6 +33,24 @@
     return Math.round(net);
   }
 
+  /* 월별 요약: ym = 'YYYY-MM'. {total, me, you, byCat:[{cat,sum}] desc} */
+  function monthStats(expenses, ym) {
+    var st = { total: 0, me: 0, you: 0, byCat: [] };
+    var cats = {};
+    (expenses || []).forEach(function (x) {
+      if (ym && dateStr(x.ts).slice(0, 7) !== ym) return;
+      st.total += x.amount;
+      if (x.payer === 'me') st.me += x.amount; else st.you += x.amount;
+      var c = x.cat || '기타';
+      cats[c] = (cats[c] || 0) + x.amount;
+    });
+    st.byCat = Object.keys(cats).map(function (c) { return { cat: c, sum: cats[c] }; })
+      .sort(function (a, b) { return b.sum - a.sum; });
+    return st;
+  }
+  /* 고정비 자동생성용 결정적 id — 두 기기가 각각 만들어도 같은 id로 머지됨 */
+  function fixedExpId(fxId, ym) { return 'fx:' + fxId + ':' + ym; }
+
   /* ================= 영수증 텍스트 파서 (규칙 기반) =================
      OCR 결과 텍스트에서 총액·가게이름 후보를 뽑는다. */
   var TOTAL_HINT = /(합\s?계|총\s?액|총\s?금액|결제\s?금액|받을\s?금액|받은\s?금액|판매\s?금액|승인\s?금액|이용\s?금액|청구\s?금액|신용\s?카드|카드\s?매출|total|amount\s?due|grand\s?total)/i;
@@ -113,7 +131,7 @@
   window.MateLife = {
     p2: p2, dateStr: dateStr, fmtWon: fmtWon,
     mondayOf: mondayOf, isoWeekKey: isoWeekKey, weekRangeLabel: weekRangeLabel,
-    expenseShare: expenseShare, settleNetOf: settleNetOf,
+    expenseShare: expenseShare, settleNetOf: settleNetOf, monthStats: monthStats, fixedExpId: fixedExpId,
     parseReceiptText: parseReceiptText,
     preprocessReceiptImage: preprocessReceiptImage,
   };

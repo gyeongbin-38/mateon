@@ -145,6 +145,64 @@ try {
     check('쇼핑 추가 저장', await page2.evaluate(() => (JSON.parse(localStorage.getItem('mateon.shopping') || '[]')).some(x => x.name === '수세미')));
   }
 
+  console.log('== 정산 분할·고정비·월 이동 ==');
+  await page2.goto(`${BASE}/#/settle`, { waitUntil: 'networkidle' });
+  check('월 이동 네비', (await page2.locator('.settle-monthnav').count()) > 0);
+  check('월별 요약 카드', (await page2.locator('.month-stats').count()) > 0);
+  await page2.locator('#exp-memo').fill('장보기');
+  await page2.locator('#exp-amt').fill('10000');
+  await page2.locator('[data-action="exp-split"][data-v="percent"]').click();
+  await page2.locator('#exp-share').fill('70');
+  await page2.locator('[data-action="exp-add"]').click();
+  check('비율 분할 저장', await page2.evaluate(() =>
+    (JSON.parse(localStorage.getItem('mateon.expenses') || '[]')).some(x => x.memo === '장보기' && Math.abs(x.share - 0.7) < 0.001)));
+  /* 고정비: 매월 반복 체크 → 등록 + 이번 달 자동 기록 */
+  await page2.locator('#exp-memo').fill('넷플릭스');
+  await page2.locator('#exp-amt').fill('5500');
+  await page2.locator('#exp-recur').check();
+  await page2.locator('[data-action="exp-add"]').click();
+  check('고정비 등록', await page2.evaluate(() =>
+    (JSON.parse(localStorage.getItem('mateon.fixedExpenses') || '[]')).some(f => f.memo === '넷플릭스')));
+  check('고정비 fx 지출', await page2.evaluate(() =>
+    (JSON.parse(localStorage.getItem('mateon.expenses') || '[]')).some(x => x.fx && x.memo === '넷플릭스')));
+  const ymNow = await page2.evaluate(() => window.__mateon.state.settleMonth);
+  await page2.locator('[data-action="exp-month"][data-v="-1"]').click();
+  check('이전 달 이동', (await page2.evaluate(() => window.__mateon.state.settleMonth)) !== ymNow);
+  await page2.locator('[data-action="exp-month"][data-v="1"]').click();
+
+  console.log('== 활동 피드 ==');
+  await page2.goto(`${BASE}/#/space`, { waitUntil: 'networkidle' });
+  check('최근 활동 피드', await page2.locator('.activity-feed .feed-row').count() > 0);
+
+  console.log('== 만료 초대 링크 ==');
+  const meResult = await page.evaluate(() => window.__mateon.state.me);
+  const expiredToken = await page.evaluate(r => window.__mateon.encodeInvite(r, -1), meResult);
+  const page3 = await newPage();
+  await page3.goto(`${BASE}/?invite=${encodeURIComponent(expiredToken)}`, { waitUntil: 'networkidle' });
+  const p3text = await page3.locator('body').innerText();
+  check('만료 안내 표시', /만료|유효/.test(p3text));
+  await page3.close();
+
+  console.log('== 백업보내기·불러오기 ==');
+  await page2.goto(`${BASE}/#/settings`, { waitUntil: 'networkidle' });
+  const expBtn = page2.locator('[data-action="backup-export"]');
+  if (await expBtn.count()) {
+    const [dl] = await Promise.all([
+      page2.waitForEvent('download', { timeout: 10000 }),
+      expBtn.click(),
+    ]);
+    const dlPath = await dl.path();
+    check('백업 파일 다운로드', !!dlPath);
+    /* 데이터를 지우고 가져오면 복원돼야 한다 */
+    const before = await page2.evaluate(() => (JSON.parse(localStorage.getItem('mateon.expenses') || '[]')).length);
+    await page2.evaluate(() => { localStorage.setItem('mateon.expenses', '[]'); });
+    await page2.locator('#backup-file').setInputFiles(dlPath);
+    await page2.waitForTimeout(800);
+    const after = await page2.evaluate(() => (JSON.parse(localStorage.getItem('mateon.expenses') || '[]')).length);
+    if (after !== before) console.log(`   [dbg] backup restore: before=${before} after=${after} toast=${await page2.locator('#toast').innerText()}`);
+    check('백업 복원', after === before);
+  }
+
   console.log('== 투어·테마 ==');
   await page2.goto(`${BASE}/#/settings`, { waitUntil: 'networkidle' });
   const tour = page2.locator('[data-action="app-tour"]');

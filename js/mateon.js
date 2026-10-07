@@ -194,6 +194,7 @@
     /* 생활 도구 데이터 */
     expenses: load('mateon.expenses') || [],
     settled: load('mateon.settled') || [],
+    fixedExpenses: load('mateon.fixedExpenses') || [],
     chores: load('mateon.chores'),
     choreLog: load('mateon.choreLog') || {},
     events: load('mateon.events') || [],
@@ -213,6 +214,7 @@
     delArm2: null,
     expCat: '생활비', expPayer: 'me', evWho: 'both',
     splitMode: 'equal', splitShare: '5:5', shopCat: '식료품',
+    settleMonth: null,
     lastRoute: '',
   };
 
@@ -678,6 +680,30 @@
       '</div></div>');
     bindHomeCarousel(startId);
   }
+  /* 생활 도구 최근 활동 피드 — 지출·쇼핑·체크인·정산·합의서를 시간순으로 모은다 */
+  function activityFeed() {
+    var feed = [];
+    S.expenses.forEach(function (x) {
+      feed.push({ ts: x.ts, icon: 'plus', text: esc(payerName(x.payer)) + ' 지출 · ' + esc(x.memo || '지출') + ' ' + fmtWon(x.amount) });
+    });
+    S.shopping.forEach(function (x) {
+      feed.push({ ts: x.ts, icon: 'checklist', text: (x.done ? '같이 살 것 완료 · ' : '같이 살 것 추가 · ') + esc(x.name) });
+    });
+    S.checkins.forEach(function (c) {
+      feed.push({ ts: c.ts, icon: 'heart', text: '주간 체크인 · ' + (c.week === isoWeekKey() ? '이번 주' : c.week) });
+    });
+    S.settled.forEach(function (z) {
+      feed.push({ ts: z.ts, icon: 'checklist', text: '정산 마감 · ' + esc(z.label) });
+    });
+    if (S.agreement && S.agreement.ts) {
+      feed.push({ ts: S.agreement.ts, icon: 'heart', text: '생활규칙 합의서 v' + (S.agreement.rev || 1) + ' 저장' });
+    }
+    S.conflictLog.forEach(function (c) {
+      feed.push({ ts: c.ts, icon: 'chat', text: '갈등 대화 합의 · ' + esc(c.note || '').slice(0, 30) });
+    });
+    return feed.sort(function (a, b) { return b.ts - a.ts; }).slice(0, 8);
+  }
+
   function vSpace() {
     var stats=checklistStats(); var notes=load('mateon.talks') || {};
     var savedAg=savedAgreementForPair();
@@ -692,7 +718,12 @@
       '<button type="button" data-action="checkin">'+mobileIcon('heart')+'<span><strong>주간 체크인</strong><small>'+(checkinDone?'이번 주 점검 완료':'일주일 한 번, 우리 생활 돌아보기')+'</small></span>'+mobileIcon('arrow')+'</button>' +
       '<button type="button" data-action="lovemap">'+mobileIcon('heart')+'<span><strong>러브맵 퀴즈</strong><small>서로의 세계를 얼마나 아는지</small></span>'+mobileIcon('arrow')+'</button>' +
       '<button type="button" data-action="conflict">'+mobileIcon('chat')+'<span><strong>갈등 가이드</strong><small>서운한 일이 생겼을 때 차근차근</small></span>'+mobileIcon('arrow')+'</button></div>';
-    shell('<section class="space-page"><p class="app-overline">OUR SPACE</p><h1 class="mobile-title">우리 공간</h1><p class="mobile-subtitle">함께 정하고, 하나씩 쌓아가는 일상</p><div class="space-summary"><span>'+NAV_ICONS.home+'</span><h2>우리의 시작을 준비해요</h2><p>입주 준비 '+stats.done+' / '+stats.total+' 완료</p><div class="space-progress"><i style="width:'+(stats.done/stats.total*100)+'%"></i></div></div><div class="app-list"><button type="button" data-action="checklist">'+NAV_ICONS.checklist+'<span><strong>입주 체크리스트</strong><small>계약부터 생활용품까지</small></span>'+mobileIcon('arrow')+'</button><button type="button" data-action="'+rulesAction+'">'+mobileIcon('heart')+'<span><strong>우리집 생활규칙</strong><small>'+rulesLabel+'</small></span>'+mobileIcon('arrow')+'</button><button type="button" data-action="'+(S.me?'invite':'start')+'">'+mobileIcon('user')+'<span><strong>메이트 연결</strong><small>'+(S.partner?esc(S.partner.name)+'님과 연결됨':'함께할 메이트 초대하기')+'</small></span>'+mobileIcon('arrow')+'</button></div>'+lifeTools+'<div class="mobile-section-head"><h2>나의 대화 기록</h2><span>'+Object.keys(notes).filter(function(k){return HOME_TALKS[k];}).length+'개</span></div>'+ (Object.keys(notes).filter(function(k){return HOME_TALKS[k];}).length ? Object.keys(notes).filter(function(k){return HOME_TALKS[k];}).map(function(k){return '<button class="saved-talk" data-action="talk-open" data-talk="'+k+'" type="button"><span>'+HOME_TALKS[k][0]+'</span><strong>'+esc(HOME_TALKS[k][1])+'</strong><p>'+esc(notes[k].text)+'</p></button>';}).join('') : '<div class="empty-notes">'+mobileIcon('chat')+'<p>아직 남긴 이야기가 없어요.</p><button type="button" data-action="talk-open">첫 생각 남기기</button></div>')+'<p class="device-note">대화 기록은 이 기기에만 저장돼요.</p></section>');
+    var feed = activityFeed();
+    var feedHTML = feed.length ? '<div class="mobile-section-head"><h2>최근 활동</h2><span>함께 쌓인 기록</span></div><div class="activity-feed">' +
+      feed.map(function (f) {
+        return '<div class="feed-row"><span class="feed-icon">'+(f.icon === 'checklist' ? NAV_ICONS.checklist : mobileIcon(f.icon))+'</span><span class="feed-text">'+f.text+'</span><time>'+fmtDate(f.ts)+'</time></div>';
+      }).join('') + '</div>' : '';
+    shell('<section class="space-page"><p class="app-overline">OUR SPACE</p><h1 class="mobile-title">우리 공간</h1><p class="mobile-subtitle">함께 정하고, 하나씩 쌓아가는 일상</p><div class="space-summary"><span>'+NAV_ICONS.home+'</span><h2>우리의 시작을 준비해요</h2><p>입주 준비 '+stats.done+' / '+stats.total+' 완료</p><div class="space-progress"><i style="width:'+(stats.done/stats.total*100)+'%"></i></div></div><div class="app-list"><button type="button" data-action="checklist">'+NAV_ICONS.checklist+'<span><strong>입주 체크리스트</strong><small>계약부터 생활용품까지</small></span>'+mobileIcon('arrow')+'</button><button type="button" data-action="'+rulesAction+'">'+mobileIcon('heart')+'<span><strong>우리집 생활규칙</strong><small>'+rulesLabel+'</small></span>'+mobileIcon('arrow')+'</button><button type="button" data-action="'+(S.me?'invite':'start')+'">'+mobileIcon('user')+'<span><strong>메이트 연결</strong><small>'+(S.partner?esc(S.partner.name)+'님과 연결됨':'함께할 메이트 초대하기')+'</small></span>'+mobileIcon('arrow')+'</button></div>'+lifeTools+feedHTML+'<div class="mobile-section-head"><h2>나의 대화 기록</h2><span>'+Object.keys(notes).filter(function(k){return HOME_TALKS[k];}).length+'개</span></div>'+ (Object.keys(notes).filter(function(k){return HOME_TALKS[k];}).length ? Object.keys(notes).filter(function(k){return HOME_TALKS[k];}).map(function(k){return '<button class="saved-talk" data-action="talk-open" data-talk="'+k+'" type="button"><span>'+HOME_TALKS[k][0]+'</span><strong>'+esc(HOME_TALKS[k][1])+'</strong><p>'+esc(notes[k].text)+'</p></button>';}).join('') : '<div class="empty-notes">'+mobileIcon('chat')+'<p>아직 남긴 이야기가 없어요.</p><button type="button" data-action="talk-open">첫 생각 남기기</button></div>')+'<p class="device-note">대화 기록은 이 기기에만 저장돼요.</p></section>');
   }
   var talkDialog = null;
   var talkOpener = null;
@@ -1559,7 +1590,29 @@
     { id: 'percent', label: '비율 %' },
     { id: 'exact', label: '정확 금액' },
   ];
+  /* 등록된 고정비를 이번 달 지출에 자동 반영. id를 'fx:{고정비id}:{월}'로
+     결정적으로 만들어 두 기기가 각각 생성해도 동기화 시 한 건으로 머지된다. */
+  function applyFixedExpenses() {
+    if (!S.fixedExpenses.length) return;
+    var ym = dateStr(Date.now()).slice(0, 7);
+    var have = {};
+    S.expenses.forEach(function (x) { if (x.fx) have[x.fx] = true; });
+    var added = false;
+    S.fixedExpenses.forEach(function (f) {
+      var tag = f.id + ':' + ym;
+      if (have[tag]) return;
+      var day = Math.min(Math.max(1, f.day || 1), 28);
+      var d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(day);
+      S.expenses.push({ id: ML.fixedExpId(f.id, ym), fx: tag, ts: d.getTime(), memo: f.memo, amount: f.amount, payer: f.payer, cat: f.cat, share: f.share });
+      added = true;
+    });
+    if (added) { save('mateon.expenses', S.expenses); scheduleSyncPush(); }
+  }
+
   function vSettle() {
+    applyFixedExpenses();
+    var nowYm = dateStr(Date.now()).slice(0, 7);
+    if (!S.settleMonth) S.settleMonth = nowYm;
     var list = S.expenses.slice().sort(function (a, b) { return b.ts - a.ts; });
     var meP = 0, youP = 0;
     S.expenses.forEach(function (x) { if (x.payer === 'me') meP += x.amount; else youP += x.amount; });
@@ -1568,19 +1621,44 @@
       net === 0 ? '딱 맞게 나눴어요' :
       net > 0 ? esc(payerName('you')) + '님이 ' + esc(payerName('me')) + '님께 ' + fmtWon(net) : esc(payerName('me')) + '님이 ' + esc(payerName('you')) + '님께 ' + fmtWon(-net);
 
+    /* 월 이동: 다음 달(미래)은 현재 달까지만 */
+    var viewAll = S.settleMonth === 'all';
+    var mst = ML.monthStats(S.expenses, viewAll ? null : S.settleMonth);
+    var monthLabel = viewAll ? '전체' : (+S.settleMonth.slice(0, 4)) + '년 ' + (+S.settleMonth.slice(5)) + '월';
+    var monthNav = '<div class="settle-monthnav"><button class="chip" type="button" data-action="exp-month" data-v="-1" aria-label="이전 달"' + (viewAll ? ' disabled' : '') + '>‹</button>' +
+      '<strong>' + monthLabel + '</strong>' +
+      '<button class="chip" type="button" data-action="exp-month" data-v="1" aria-label="다음 달"' + (viewAll || S.settleMonth >= nowYm ? ' disabled' : '') + '>›</button>' +
+      '<button class="chip' + (viewAll ? ' selected' : '') + '" type="button" data-action="exp-month" data-v="all">전체</button></div>';
+    var catBars = mst.byCat.length ? '<div class="cat-bars">' + mst.byCat.map(function (c) {
+      return '<div class="cat-bar"><span>' + esc(c.cat) + '</span><i style="width:' + Math.max(4, Math.round(c.sum / mst.byCat[0].sum * 100)) + '%"></i><b>' + fmtWon(c.sum) + '</b></div>';
+    }).join('') + '</div>' : '<p class="field-hint">이 기간의 지출이 아직 없어요.</p>';
+    var statsCard = '<div class="card" style="margin-top:16px"><h4 class="card-title">' + monthLabel + ' 지출 요약</h4>' +
+      '<div class="month-stats"><div><span>합계</span><strong>' + fmtWon(mst.total) + '</strong></div>' +
+      '<div><span>' + esc(payerName('me')) + '</span><strong>' + fmtWon(mst.me) + '</strong></div>' +
+      '<div><span>' + esc(payerName('you')) + '</span><strong>' + fmtWon(mst.you) + '</strong></div></div>' + catBars + '</div>';
+
+    var view = viewAll ? list : list.filter(function (x) { return dateStr(x.ts).slice(0, 7) === S.settleMonth; });
     var months = {};
-    list.forEach(function (x) { var k = dateStr(x.ts).slice(0, 7); (months[k] = months[k] || []).push(x); });
+    view.forEach(function (x) { var k = dateStr(x.ts).slice(0, 7); (months[k] = months[k] || []).push(x); });
     var listHTML = Object.keys(months).sort().reverse().map(function (mk) {
       var sub = months[mk].reduce(function (a, x) { return a + x.amount; }, 0);
       return '<div class="settle-month"><span>' + (+mk.slice(5)) + '월</span><span>' + fmtWon(sub) + '</span></div>' +
         months[mk].map(function (x) {
           var sh = expenseShare(x);
           var shareTag = sh === 0.5 ? '' : ' · ' + Math.round(sh * 100) + ':' + Math.round((1 - sh) * 100);
+          var fxTag = x.fx ? ' · 고정비' : '';
           return '<div class="settle-row"><span class="settle-cat">' + esc(x.cat || '기타') + '</span>' +
-            '<span class="settle-info"><strong>' + esc(x.memo || '지출') + '</strong><small>' + esc(payerName(x.payer)) + ' · ' + fmtDate(x.ts) + shareTag + '</small></span>' +
+            '<span class="settle-info"><strong>' + esc(x.memo || '지출') + '</strong><small>' + esc(payerName(x.payer)) + ' · ' + fmtDate(x.ts) + shareTag + fxTag + '</small></span>' +
             '<span class="settle-amt">' + fmtWon(x.amount) + '</span>' + armBtn('exp-del', x.id, '삭제', '확인') + '</div>';
         }).join('');
     }).join('');
+
+    var fixedHTML = '<details class="card" style="margin-top:16px"><summary>고정비 (' + S.fixedExpenses.length + ') — 매월 자동 기록</summary>' +
+      (S.fixedExpenses.length ? S.fixedExpenses.map(function (f) {
+        return '<div class="settle-row"><span class="settle-cat">' + esc(f.cat || '기타') + '</span>' +
+          '<span class="settle-info"><strong>' + esc(f.memo) + '</strong><small>매월 ' + f.day + '일 · ' + esc(payerName(f.payer)) + '</small></span>' +
+          '<span class="settle-amt">' + fmtWon(f.amount) + '</span>' + armBtn('fx-del', f.id, '삭제', '확인') + '</div>';
+      }).join('') : '<p class="field-hint">지출 추가 시 "매월 반복"을 켜면 고정비로 등록돼요.</p>') + '</details>';
 
     var settledHTML = S.settled.length ? '<details class="card" style="margin-top:16px"><summary>지난 정산 기록 (' + S.settled.length + ')</summary>' +
       S.settled.slice().reverse().map(function (z) {
@@ -1589,25 +1667,28 @@
 
     shell(listPageHead('LIFE TOOLS', '생활비 정산', '함께 쓴 돈을 기록하고, 누가 얼마를 낼지 계산해요') +
       '<div class="settle-hero"><span>정산하면</span><strong>' + netText + '</strong><p>' + esc(payerName('me')) + ' ' + fmtWon(meP) + ' · ' + esc(payerName('you')) + ' ' + fmtWon(youP) + ' 지출</p></div>' +
+      monthNav + statsCard +
       '<div class="card" style="margin-top:16px"><h4 class="card-title">지출 추가</h4>' +
-      '<div class="field-group"><label class="field-label" for="exp-memo">내용</label><input id="exp-memo" class="input" maxlength="30" placeholder="예: 쓰레기봉투·세탁세제" autocomplete="off"></div>' +
-      '<div class="field-group"><label class="field-label" for="exp-amt">금액</label><input id="exp-amt" class="input" type="number" inputmode="numeric" min="1" max="100000000" placeholder="0" autocomplete="off"><span class="field-unit">원</span></div>' +
+      '<div class="field-group"><label class="field-label" for="exp-memo">내용</label><input id="exp-memo" class="input" maxlength="30" placeholder="예: 쓰레기봉투·세탁세제" autocomplete="off" value="' + esc(S.expMemo || '') + '"></div>' +
+      '<div class="field-group"><label class="field-label" for="exp-amt">금액</label><input id="exp-amt" class="input" type="number" inputmode="numeric" min="1" max="100000000" placeholder="0" autocomplete="off" value="' + esc(S.expAmt || '') + '"><span class="field-unit">원</span></div>' +
       '<div class="field-group"><span class="field-label">낸 사람</span><div class="chip-row">' +
       ['me', 'you'].map(function (w) { return '<button class="chip' + (S.expPayer === w ? ' selected' : '') + '" data-action="exp-payer" data-v="' + w + '" type="button">' + esc(payerName(w)) + '</button>'; }).join('') + '</div></div>' +
       '<div class="field-group"><span class="field-label">나누는 방법</span><div class="chip-row">' +
       SPLIT_MODES.map(function (m) { return '<button class="chip' + (S.splitMode === m.id ? ' selected' : '') + '" data-action="exp-split" data-v="' + m.id + '" type="button">' + m.label + '</button>'; }).join('') + '</div>' +
-      (S.splitMode === 'percent' ? '<div class="split-input"><input id="exp-share" class="input" type="number" inputmode="numeric" min="0" max="100" value="50" aria-label="내가 부담하는 비율"><span class="field-unit">%를 ' + esc(payerName('me')) + '이 부담</span></div>' : '') +
-      (S.splitMode === 'exact' ? '<div class="split-input"><input id="exp-share" class="input" type="number" inputmode="numeric" min="0" placeholder="0" aria-label="내가 부담하는 금액"><span class="field-unit">원을 ' + esc(payerName('me')) + '이 부담</span></div>' : '') +
+      (S.splitMode === 'percent' ? '<div class="split-input"><input id="exp-share" class="input" type="number" inputmode="numeric" min="0" max="100" value="' + esc(S.expShare || '50') + '" aria-label="내가 부담하는 비율"><span class="field-unit">%를 ' + esc(payerName('me')) + '이 부담</span></div>' : '') +
+      (S.splitMode === 'exact' ? '<div class="split-input"><input id="exp-share" class="input" type="number" inputmode="numeric" min="0" placeholder="0" value="' + esc(S.expShare || '') + '" aria-label="내가 부담하는 금액"><span class="field-unit">원을 ' + esc(payerName('me')) + '이 부담</span></div>' : '') +
       '</div>' +
       '<div class="field-group" style="margin-bottom:0"><span class="field-label">분류</span><div class="chip-row">' +
       EXPENSE_CATS.map(function (c) { return '<button class="chip' + (S.expCat === c ? ' selected' : '') + '" data-action="exp-cat" data-v="' + esc(c) + '" type="button">' + esc(c) + '</button>'; }).join('') + '</div></div>' +
+      '<label class="check-row"><input type="checkbox" id="exp-recur"> <span>매월 반복되는 고정비로 등록</span></label>' +
       '<div class="cta-row" style="margin-top:14px"><button class="mobile-primary" data-action="exp-add" type="button">지출 기록하기</button>' +
       '<button class="btn btn-secondary btn-md" data-action="exp-ocr" type="button">영수증 스캔</button></div>' +
       '<input id="exp-receipt" type="file" accept="image/*" capture="environment" hidden></div>' +
+      fixedHTML +
       (S.expenses.length ? '<div class="cta-col"><button class="btn btn-secondary btn-md" data-action="exp-copy" type="button">정산 내역 복사</button><button class="btn btn-tertiary btn-md" data-action="exp-settle" type="button">이번 정산 마감하기</button></div>' : '') +
-      (listHTML ? '<div class="sec-head" style="margin-top:22px"><h3>지출 내역</h3><span class="badge badge-brand">' + S.expenses.length + '건</span></div>' + listHTML : '<div class="empty-notes" style="margin-top:22px">' + mobileIcon('chat') + '<p>아직 지출 기록이 없어요.<br>첫 공동 지출을 기록해 보세요.</p></div>') +
+      (listHTML ? '<div class="sec-head" style="margin-top:22px"><h3>지출 내역</h3><span class="badge badge-brand">' + view.length + '건</span></div>' + listHTML : '<div class="empty-notes" style="margin-top:22px">' + mobileIcon('chat') + '<p>아직 지출 기록이 없어요.<br>첫 공동 지출을 기록해 보세요.</p></div>') +
       settledHTML +
-      '<p class="device-note">기록은 이 기기에만 저장돼요. 건별로 나누는 방법(반반·비율·정확 금액)을 정할 수 있어요.</p>');
+      '<p class="device-note">기록은 이 기기에만 저장돼요. 건별로 나누는 방법(반반·비율·정확 금액)을 정할 수 있고, 고정비는 매월 자동 기록돼요.</p>');
   }
 
   /* ================= View: 같이 살 것 (공유 쇼핑리스트) ================= */
@@ -1848,6 +1929,7 @@
     { k: 'ds-theme', t: '테마 설정' },
     { k: 'mateon.expenses', t: '생활비 지출 기록' },
     { k: 'mateon.settled', t: '지난 정산 기록' },
+    { k: 'mateon.fixedExpenses', t: '고정비 목록' },
     { k: 'mateon.chores', t: '역할 분담 목록' },
     { k: 'mateon.choreLog', t: '집안일 완료 기록' },
     { k: 'mateon.events', t: '우리 일정' },
@@ -1925,10 +2007,16 @@
     if (key === 'mateon.activeDraft') return value === 'me' || value === 'partner';
     if (key === 'ds-theme') return value === 'light' || value === 'dark';
     if (key === 'mateon.expenses') return Array.isArray(value) && value.length <= 500 && value.every(function (x) {
-      return x && typeof x.id === 'string' && x.id.length <= 24 && typeof x.ts === 'number' &&
+      return x && typeof x.id === 'string' && x.id.length <= 40 && typeof x.ts === 'number' &&
         (x.payer === 'me' || x.payer === 'you') && typeof x.amount === 'number' && x.amount > 0 && x.amount <= 100000000 &&
         typeof x.memo === 'string' && x.memo.length <= 40 && typeof x.cat === 'string' && x.cat.length <= 12 &&
         (x.share === undefined || (typeof x.share === 'number' && x.share >= 0 && x.share <= 1));
+    });
+    if (key === 'mateon.fixedExpenses') return Array.isArray(value) && value.length <= 50 && value.every(function (f) {
+      return f && typeof f.id === 'string' && f.id.length <= 24 && typeof f.memo === 'string' && f.memo.length > 0 && f.memo.length <= 40 &&
+        (f.payer === 'me' || f.payer === 'you') && typeof f.amount === 'number' && f.amount > 0 && f.amount <= 100000000 &&
+        typeof f.cat === 'string' && f.cat.length <= 12 && Number.isInteger(f.day) && f.day >= 1 && f.day <= 28 &&
+        (f.share === undefined || (typeof f.share === 'number' && f.share >= 0 && f.share <= 1));
     });
     if (key === 'mateon.settled') return Array.isArray(value) && value.length <= 200 && value.every(function (z) {
       return z && typeof z.ts === 'number' && typeof z.label === 'string' && z.label.length <= 40 && typeof z.net === 'number' && Number.isFinite(z.net);
@@ -2018,6 +2106,7 @@
     S.shareName = load('mateon.shareName') !== false;
     S.expenses = load('mateon.expenses') || [];
     S.settled = load('mateon.settled') || [];
+    S.fixedExpenses = load('mateon.fixedExpenses') || [];
     S.chores = load('mateon.chores');
     S.choreLog = load('mateon.choreLog') || {};
     S.events = load('mateon.events') || [];
@@ -2457,6 +2546,7 @@
   var SYNC_WHOLE_KEYS = [
     'mateon.chores', 'mateon.choreLog', 'mateon.agreement', 'mateon.checklist',
     'mateon.customChecklist', 'mateon.talks', 'mateon.customRules', 'mateon.lovemap',
+    'mateon.fixedExpenses',
   ];
   var tbStore = null;
   function tb() {
@@ -2541,7 +2631,7 @@
       me: S.me, partner: null, agreement: S.agreement,
       expenses: S.expenses, settled: S.settled, chores: S.chores,
       events: S.events, checkins: S.checkins, shopping: S.shopping,
-      lovemap: S.lovemap, ts: Date.now(),
+      lovemap: S.lovemap, fixedExpenses: S.fixedExpenses, ts: Date.now(),
     };
   }
   var syncTimer = null;
@@ -2573,7 +2663,7 @@
             changed = true;
           }
         }
-        ['expenses', 'settled', 'chores', 'events', 'checkins', 'agreement', 'shopping', 'lovemap'].forEach(function (k) {
+        ['expenses', 'settled', 'chores', 'events', 'checkins', 'agreement', 'shopping', 'lovemap', 'fixedExpenses'].forEach(function (k) {
           var key = 'mateon.' + k;
           if (data[k] != null && validBackupValue(key, data[k])) {
             var cur = S[k];
@@ -3017,6 +3107,7 @@
       if (dk === 'mateon.shareName') { S.shareName = true; }
       if (dk === 'mateon.expenses') { S.expenses = []; }
       if (dk === 'mateon.settled') { S.settled = []; }
+      if (dk === 'mateon.fixedExpenses') { S.fixedExpenses = []; }
       if (dk === 'mateon.chores') { S.chores = null; }
       if (dk === 'mateon.choreLog') { S.choreLog = {}; }
       if (dk === 'mateon.events') { S.events = []; }
@@ -3032,9 +3123,22 @@
       render();
     }
     /* ---- 생활비 정산 ---- */
-    else if (act === 'exp-payer') { S.expPayer = el.dataset.v; render(); }
-    else if (act === 'exp-cat') { S.expCat = el.dataset.v; render(); }
-    else if (act === 'exp-split') { S.splitMode = el.dataset.v; render(); }
+    else if (act === 'exp-payer' || act === 'exp-cat' || act === 'exp-split') {
+      /* 칩 리렌더가 입력 중인 내용을 지우지 않도록 폼 값을 보존한다 */
+      var m0 = document.getElementById('exp-memo'), a0 = document.getElementById('exp-amt'), s0 = document.getElementById('exp-share');
+      if (m0) S.expMemo = m0.value; if (a0) S.expAmt = a0.value; if (s0) S.expShare = s0.value;
+      if (act === 'exp-payer') S.expPayer = el.dataset.v;
+      else if (act === 'exp-cat') S.expCat = el.dataset.v;
+      else S.splitMode = el.dataset.v;
+      render();
+    }
+    else if (act === 'exp-month') {
+      if (el.dataset.v === 'all') { S.settleMonth = 'all'; render(); return; }
+      var base = (S.settleMonth && S.settleMonth !== 'all' ? S.settleMonth : dateStr(Date.now()).slice(0, 7)).split('-').map(Number);
+      var d0 = new Date(base[0], base[1] - 1 + (+el.dataset.v), 1);
+      S.settleMonth = d0.getFullYear() + '-' + p2(d0.getMonth() + 1);
+      render();
+    }
     else if (act === 'exp-ocr') {
       var rec = document.getElementById('exp-receipt');
       if (rec) rec.click();
@@ -3059,10 +3163,29 @@
       }
       var rec2 = { id: uid(), ts: Date.now(), memo: memo, amount: amt, payer: S.expPayer, cat: S.expCat };
       if (share !== 0.5) rec2.share = Math.round(share * 1000) / 1000;
+      var recurEl = document.getElementById('exp-recur');
+      if (recurEl && recurEl.checked) {
+        /* 이번 달 기록은 고정비 자동생성분과 같은 fx 태그를 달아 중복 방지 */
+        var ym0 = dateStr(Date.now()).slice(0, 7);
+        var fx0 = { id: uid(), memo: memo, amount: amt, payer: S.expPayer, cat: S.expCat, share: rec2.share, day: new Date().getDate() };
+        S.fixedExpenses.push(fx0);
+        if (S.fixedExpenses.length > 50) S.fixedExpenses = S.fixedExpenses.slice(-50);
+        rec2.id = ML.fixedExpId(fx0.id, ym0);
+        rec2.fx = fx0.id + ':' + ym0;
+        save('mateon.fixedExpenses', S.fixedExpenses);
+      }
       S.expenses.push(rec2);
       if (S.expenses.length > 500) S.expenses = S.expenses.slice(-500);
+      S.expMemo = ''; S.expAmt = ''; S.expShare = '';
       save('mateon.expenses', S.expenses);
-      showToast('지출을 기록했어요'); render(); scheduleSyncPush();
+      showToast(rec2.fx ? '지출을 기록하고 고정비로 등록했어요' : '지출을 기록했어요'); render(); scheduleSyncPush();
+    }
+    else if (act === 'fx-del') {
+      var fid = el.dataset.v;
+      if (S.delArm2 !== 'fx-del:' + fid) { S.delArm2 = 'fx-del:' + fid; render(); return; }
+      S.delArm2 = null;
+      S.fixedExpenses = S.fixedExpenses.filter(function (f) { return f.id !== fid; });
+      save('mateon.fixedExpenses', S.fixedExpenses); render(); scheduleSyncPush();
     }
     else if (act === 'exp-del') {
       var eid = el.dataset.v;
@@ -3370,7 +3493,7 @@
       S.signs = { me: false, partner: false }; S.shareName = true;
       S.answers = []; S.q = 0; S.invite = null;
       S.pendingPartner = null; S.connectionInput = '';
-      S.expenses = []; S.settled = []; S.chores = null; S.choreLog = {};
+      S.expenses = []; S.settled = []; S.fixedExpenses = []; S.chores = null; S.choreLog = {};
       S.events = []; S.checkins = []; S.customChecklist = []; S.conflictLog = [];
       S.shopping = []; S.lovemap = { idx: 0, known: 0, asked: 0 }; tbStore = null;
       S.reminders = { checkin: true, agreement: true };

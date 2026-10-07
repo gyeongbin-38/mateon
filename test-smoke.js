@@ -724,6 +724,45 @@ async function answerAll() {
   window.__mateon.mergeRemoteContent(remoteOld.getMergeableContent());
   check('삭제 항목 부활 방지', !JSON.parse(store['mateon.expenses']).some(x => x.id === 'remote1'));
 
+  /* --- 30. 월별 요약 · 고정비 · 활동 피드 --- */
+  /* reloadApp 이후엔 window.__mateon.state가 새 S를 가리키므로 매번 새로 읽는다 */
+  console.log('== 30. 월별 요약 · 고정비 · 활동 피드 ==');
+  const liveS = () => window.__mateon.state;
+  liveS().settleMonth = null;
+  nav('#/settle');
+  check('월 네비게이션 표시', lastHTML.includes('settle-monthnav') && lastHTML.includes('data-action="exp-month"'));
+  check('월별 요약 카드', lastHTML.includes('지출 요약') && lastHTML.includes('month-stats'));
+  check('카테고리 바', lastHTML.includes('cat-bars') && lastHTML.includes('cat-bar'));
+  /* 이전 달 이동 → 표시 월이 바뀌고 내역이 필터링된다 */
+  const curYm = liveS().settleMonth;
+  click('exp-month', { v: '-1' });
+  const prevYm = liveS().settleMonth;
+  check('이전 달 이동', prevYm !== curYm && /^\d{4}-\d{2}$/.test(prevYm));
+  /* 고정비 등록: 매월 반복 체크 후 지출 추가 */
+  click('exp-month', { v: '1' });
+  fakeInput('exp-memo', '월세'); fakeInput('exp-amt', '500000');
+  fakeInput('exp-recur'); fakeInputs['exp-recur'].checked = true;
+  click('exp-add');
+  check('고정비 목록 등록', JSON.parse(store['mateon.fixedExpenses']).some(f => f.memo === '월세' && f.amount === 500000));
+  check('고정비 카드 표시', lastHTML.includes('고정비 (1)'));
+  check('fx 태그 지출 생성', liveS().expenses.some(x => x.fx && x.fx.startsWith(JSON.parse(store['mateon.fixedExpenses'])[0].id)));
+  /* 재렌더해도 같은 달 고정비가 중복 생성되지 않는다 */
+  const fxCount = liveS().expenses.filter(x => x.fx).length;
+  nav('#/home'); nav('#/settle');
+  check('고정비 중복 방지', liveS().expenses.filter(x => x.fx).length === fxCount);
+  check('월별 합계에 고정비 반영', window.MateLife.monthStats(liveS().expenses, curYm).total >= 500000);
+  /* 고정비 삭제 */
+  const fxId = JSON.parse(store['mateon.fixedExpenses'])[0].id;
+  click('fx-del', { v: fxId }); click('fx-del', { v: fxId });
+  check('고정비 삭제', !JSON.parse(store['mateon.fixedExpenses']).length);
+  /* 활동 피드: 지출·쇼핑 기록이 우리 공간에 표시된다 */
+  nav('#/space');
+  check('최근 활동 섹션', lastHTML.includes('최근 활동') && lastHTML.includes('activity-feed'));
+  check('피드에 지출 포함', lastHTML.includes('feed-row') && lastHTML.includes('월세'));
+  /* monthStats 순수 함수 */
+  const mst2 = window.MateLife.monthStats(liveS().expenses, null);
+  check('monthStats 합계', mst2.total === liveS().expenses.reduce((a, x) => a + x.amount, 0));
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })();

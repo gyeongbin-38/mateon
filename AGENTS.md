@@ -7,8 +7,8 @@
 | 작업 | 명령 |
 |------|------|
 | 개발 서버 | `npm run dev` (server.js) |
-| 테스트 | `npm test` = test-score + test-smoke (262개 DOM 스텁) + test-sw + test-qr |
-| E2E | `npm run e2e` — Playwright 실브라우저 22개 (브라우저 캐시 `C:\tools\ms-playwright`) |
+| 테스트 | `npm test` = test-score + test-smoke (275개 DOM 스텁) + test-sw + test-qr |
+| E2E | `npm run e2e` — Playwright 실브라우저 32개 (브라우저 캐시 `C:\tools\ms-playwright`) |
 | 빌드 | `npm run build` → `dist/` (esbuild가 `native/bridge.js` → `dist/js/native.js` 번들) |
 | SW 검증 | `node test-sw.js` |
 | 출시 검증 | `npm run release:check` (strict; 외부 계정 의존 항목은 실패 예정) |
@@ -18,12 +18,12 @@
 
 ## 배포 버전 동기화 규칙
 
-`release.config.json`의 `assetVersion` · `sw.js`의 `VERSION` · `index.html`의 `?v=` 쿼리가 모두 같아야 release-check 통과. 변경 시 셋을 함께 올릴 것.
+`release.config.json`의 `assetVersion` · `sw.js`의 `VERSION` · `index.html`의 `?v=` 쿼리가 모두 같아야 release-check 통과. `node scripts/bump-version.js YYYYMMDD-NN`이 4개 파일을 일괄 갱신함.
 
 ## 구조
 
 - `js/mateon.js` — 앱 로직 전체 (라우터, 뷰, 상태 `S`, 인코딩, 동기화 어댑터)
-- `js/lifetools.js` — `mateon.js`에서 추출한 순수 함수 (분할 정산·정산 계산·ISO 주·영수증 파서). `mateon.js`보다 먼저 로드해야 함
+- `js/lifetools.js` — `mateon.js`에서 추출한 순수 함수 (분할 정산·정산 계산·ISO 주·영수증 파서·월별 통계 `monthStats`·고정비 id `fixedExpId`). `mateon.js`보다 먼저 로드해야 함
 - `js/data.js` — 문항/캐릭터/규칙/갈등 시나리오 상수
 - `js/config.js` — 런타임 배포 값 (appId `io.github.gyeongbin38.mateon`, webBaseUrl)
 - `native/bridge.js` — Capacitor 브리지 (`window.MateNative`: copy/share/shareFile/syncReminders/checkUpdate/setupShortcuts/secureGet·Set·Remove)

@@ -347,6 +347,31 @@ body {max-width:480px;box-shadow:0 0 0 1px #3039430a;}
 [data-font="large"] .view-title {font-size:30px;}
 [data-font="large"] .conversation-card h3 {font-size:20px;}
 
+/* ---------- 정산 월 이동 · 월별 요약 · 고정비 ---------- */
+.settle-monthnav {display:flex;align-items:center;justify-content:center;gap:10px;margin:16px 0 0;}
+.settle-monthnav strong {font-size:15px;font-weight:800;min-width:96px;text-align:center;font-variant-numeric:tabular-nums;}
+.settle-monthnav .chip[disabled] {opacity:.35;}
+.month-stats {display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px;}
+.month-stats div {background:var(--app-soft);border-radius:12px;padding:10px;text-align:center;}
+.month-stats span {display:block;font-size:11px;color:var(--app-muted);}
+.month-stats strong {display:block;font-size:14px;margin-top:2px;font-variant-numeric:tabular-nums;}
+.cat-bars {margin-top:10px;display:flex;flex-direction:column;gap:6px;}
+.cat-bar {display:grid;grid-template-columns:56px 1fr auto;align-items:center;gap:8px;font-size:12px;}
+.cat-bar span {color:var(--app-muted);}
+.cat-bar i {display:block;height:8px;border-radius:99px;background:var(--app-coral);}
+.cat-bar b {font-variant-numeric:tabular-nums;font-weight:700;}
+.check-row {display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;color:var(--app-muted);cursor:pointer;}
+.check-row input {width:16px;height:16px;accent-color:var(--app-coral);}
+
+/* ---------- 최근 활동 피드 ---------- */
+.activity-feed {border-radius:20px;padding:4px 14px;margin-bottom:8px;background:var(--app-soft);}
+.feed-row {display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--app-line);}
+.feed-row:last-child {border-bottom:none;}
+.feed-icon {width:28px;height:28px;border-radius:50%;background:var(--app-mint);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--app-ink);}
+.feed-icon svg {width:14px;height:14px;}
+.feed-text {flex:1;font-size:13px;line-height:1.4;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--app-ink);}
+.feed-row time {font-size:11px;color:var(--app-muted);flex-shrink:0;font-variant-numeric:tabular-nums;}
+
 @media (prefers-reduced-motion: reduce) {
   .tutorial-overlay {backdrop-filter:none;-webkit-backdrop-filter:none;}
 }
