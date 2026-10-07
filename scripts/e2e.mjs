@@ -75,9 +75,8 @@ try {
   check('MateLife 로드', await page.evaluate(() => typeof window.MateLife?.parseReceiptText === 'function'));
   check('Tesseract 지연 로딩', await page.evaluate(() => window.Tesseract === undefined));
   check('TinyBase 로드', await page.evaluate(() => typeof window.TinyBase?.createMergeableStore === 'function'));
-  /* 첫 방문 소개 오버레이는 실제 플로우의 일부 — 닫고 진행 */
-  const tutClose = page.locator('[data-action="tutorial-close"]');
-  if (await tutClose.count()) { await tutClose.click(); }
+  /* 첫 방문 소개 오버레이는 실제 플로우의 일부 — 닫고 진행 (여러 단계일 수 있어 반복) */
+  await dismissTutorial(page);
 
   console.log('== 설문 20문항 ==');
   await page.locator('[data-action="start"]').first().click();
@@ -262,6 +261,15 @@ try {
     await page2.evaluate(() => { localStorage.setItem('mateon.expenses', '[]'); });
     await page2.locator('#backup-file').setInputFiles(dlPath);
     await page2.waitForTimeout(800);
+    /* 백업 미리보기가 뜨면 항목 선택 복원을 검증한다 */
+    const preview = page2.locator('dialog[open] [data-bk-apply]');
+    if (await preview.count()) {
+      check('백업 미리보기 표시', (await page2.locator('[data-bk-key]').count()) > 0);
+      /* 지출만 골라 부분 복원 */
+      await page2.evaluate(() => { document.querySelectorAll('[data-bk-key]').forEach(c => { c.checked = c.getAttribute('data-bk-key') === 'mateon.expenses'; }); });
+      await preview.click();
+      await page2.waitForTimeout(400);
+    }
     const after = await page2.evaluate(() => (JSON.parse(localStorage.getItem('mateon.expenses') || '[]')).length);
     if (after !== before) console.log(`   [dbg] backup restore: before=${before} after=${after} toast=${await page2.locator('#toast').innerText()}`);
     check('백업 복원', after === before);
@@ -274,7 +282,26 @@ try {
     await tour.click();
     await page2.waitForTimeout(400);
     check('driver.js 투어 팝오버', await page2.locator('.driver-popover, [class*="driver"]').first().isVisible().catch(() => false));
+    /* 투어 오버레이가 이후 클릭을 가로막으므로 종료한다 */
+    const drvDone = page2.locator('.driver-popover-next-btn, .driver-popover-close-btn').first();
+    if (await drvDone.count()) { await drvDone.click().catch(() => { }); }
+    await page2.waitForTimeout(300);
   }
+  /* 다크모드 토글 */
+  const themeBtn = page2.locator('[data-action="theme"]').first();
+  if (await themeBtn.count()) {
+    await themeBtn.click();
+    await page2.waitForTimeout(200);
+    check('다크 테마 적용', await page2.evaluate(() => document.documentElement.dataset.theme === 'dark' || localStorage.getItem('ds-theme') === '"dark"' || localStorage.getItem('ds-theme') === 'dark'));
+  }
+
+  console.log('== 오프라인 동작 ==');
+  await page2.context().setOffline(true);
+  await page2.goto(`${BASE}/#/space`, { waitUntil: 'domcontentloaded' }).catch(() => { });
+  await page2.waitForTimeout(600);
+  const offText = await page2.locator('body').innerText().catch(() => '');
+  check('오프라인 배너/콘텐츠', /오프라인|우리 공간|생활 도구/.test(offText));
+  await page2.context().setOffline(false);
 
   console.log('== 콘솔/페이지 에러 ==');
   const fatal = errors.filter(e => !/favicon|manifest|service.?worker|sw\.js|pretendard|cdn\.jsdelivr|net::|Failed to load resource/i.test(e));

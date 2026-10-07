@@ -11,5 +11,34 @@
   "icons": [
     { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
-  ]
+  ],
+  "shortcuts": [
+    {
+      "name": "주간 체크인",
+      "short_name": "체크인",
+      "url": "./#/checkin",
+      "icons": [{ "src": "assets/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "생활비 정산",
+      "short_name": "정산",
+      "url": "./#/settle",
+      "icons": [{ "src": "assets/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "우리 공간",
+      "short_name": "우리 공간",
+      "url": "./#/space",
+      "icons": [{ "src": "assets/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+  "share_target": {
+    "action": "./",
+    "method": "GET",
+    "params": {
+      "title": "shared_title",
+      "text": "shared_text",
+      "url": "shared_url"
+    }
+  }
 }

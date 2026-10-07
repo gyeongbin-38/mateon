@@ -1528,6 +1528,12 @@
   transition: opacity 0.32s ease, visibility 0.32s ease;
 }
 #splash.bye { opacity: 0; visibility: hidden; }
+/* OS 다크모드에서 부팅 스플래시 — 테마가 아직 적용되기 전에도 어둡게 */
+@media (prefers-color-scheme: dark) {
+  #splash { background: #181b20; }
+  .splash-word { color: #f1f0ee; }
+  .splash-tag { color: #adb3bd; }
+}
 .splash-inner {
   text-align: center;
   animation: splash-in 0.62s cubic-bezier(0.22, 1, 0.36, 1) both;

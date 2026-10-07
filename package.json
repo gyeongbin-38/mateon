@@ -5,7 +5,8 @@
   "description": "MATE:ON mobile app for living better together",
   "scripts": {
     "dev": "node server.js",
-    "test": "node test-score.js && node test-smoke.js && node test-sw.js && node scripts/test-qr.js",
+    "test": "node test-score.js && node test-smoke.js && node test-lifetools.js && node test-sw.js && node scripts/test-qr.js",
+    "size": "node scripts/bundle-size.js",
     "e2e": "node scripts/e2e.mjs",
     "ota": "node scripts/make-ota.js",
     "build": "node scripts/build-app.js",
@@ -16,7 +17,7 @@
     "android:debug": "npm run build && cap sync android && node scripts/build-android.js",
     "android:release": "npm run build && cap sync android && node scripts/build-android.js bundleRelease && node scripts/verify-aab.js android/app/build/outputs/bundle/release/app-release.aab",
     "verify:aab": "node scripts/verify-aab.js android/app/build/outputs/bundle/release/app-release.aab",
-    "release:check": "npm test && npm run build && node scripts/release-check.js --strict"
+    "release:check": "npm test && npm run size && npm run build && node scripts/release-check.js --strict"
   },
   "engines": {
     "node": ">=22"

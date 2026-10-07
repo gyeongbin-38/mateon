@@ -179,6 +179,127 @@
     });
   }
 
+  /* ================= 추가 유틸 (202610xx 라운드) ================= */
+
+  /* 상대 시간: '방금 전', '3분 전', '2시간 전', '4일 전', 그 이상은 날짜 */
+  function relTime(ts, nowTs) {
+    var now = nowTs === undefined ? Date.now() : nowTs;
+    var d = Math.floor((now - ts) / 1000);
+    if (d < 0) return '방금 전';
+    if (d < 60) return '방금 전';
+    if (d < 3600) return Math.floor(d / 60) + '분 전';
+    if (d < 86400) return Math.floor(d / 3600) + '시간 전';
+    if (d < 86400 * 7) return Math.floor(d / 86400) + '일 전';
+    return dateStr(ts);
+  }
+
+  /* 큰 금액 약식: 12000 -> '1.2만원', 3000 -> '3,000원' */
+  function fmtWonShort(n) {
+    var v = Math.abs(Math.round(n));
+    if (v >= 100000000) return (v / 100000000).toFixed(1).replace(/\.0$/, '') + '억원';
+    if (v >= 10000) return (v / 10000).toFixed(1).replace(/\.0$/, '') + '만원';
+    return v.toLocaleString('ko-KR') + '원';
+  }
+
+  var WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+  function weekdayOf(ts) { return WEEKDAYS[new Date(ts).getDay()]; }
+  /* 'M/D(월)' 형태 날짜 라벨 */
+  function dateLabel(ts) { var d = new Date(ts); return (d.getMonth() + 1) + '/' + d.getDate() + '(' + weekdayOf(ts) + ')'; }
+
+  /* 연속 주차 스트릭: weekKey 문자열(YYYY-WNN) 집합에서 이번 주 또는 지난 주부터 거슬러 센다 */
+  function streakWeeks(hasSet, nowTs) {
+    var now = nowTs === undefined ? Date.now() : nowTs;
+    var cur = mondayOf(now);
+    if (!hasSet[isoWeekKey(cur)]) cur -= 7 * 86400000; /* 이번 주 없으면 지난 주부터 */
+    var n = 0;
+    while (hasSet[isoWeekKey(cur)]) { n++; cur -= 7 * 86400000; }
+    return n;
+  }
+
+  /* 고정비 다음 자동 기록일: day(1~31) 기준으로 오늘 이후 가장 가까운 날 */
+  function nextFixedTs(day, fromTs) {
+    var from = fromTs === undefined ? Date.now() : fromTs;
+    var f = new Date(from); f.setHours(0, 0, 0, 0);
+    for (var i = 0; i < 14; i++) {
+      var d = new Date(f.getFullYear(), f.getMonth() + i, 1);
+      var last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      var t = new Date(d.getFullYear(), d.getMonth(), Math.min(day, last), 12);
+      if (t.getTime() >= f.getTime()) return t.getTime();
+    }
+    return null;
+  }
+
+  /* 최근 n개월 지출 추이: [{ym,total}] 오래된 순 */
+  function monthTrend(expenses, n) {
+    var out = [];
+    var d = new Date(); d.setDate(1);
+    for (var i = n - 1; i >= 0; i--) {
+      var m = new Date(d.getFullYear(), d.getMonth() - i, 1);
+      var ym = m.getFullYear() + '-' + p2(m.getMonth() + 1);
+      out.push({ ym: ym, total: monthStats(expenses, ym).total });
+    }
+    return out;
+  }
+
+  /* 예산 수준: 0 정상 / 1 주의(80%↑) / 2 초과 */
+  function budgetLevel(used, limit) {
+    if (!limit || limit <= 0) return 0;
+    if (used > limit) return 2;
+    return used >= limit * 0.8 ? 1 : 0;
+  }
+
+  /* 기념일 마일스톤 라벨: 경과 일수 → '100일', '1주년' 등 (해당 없으면 '') */
+  function ddayMilestone(daysSince) {
+    if (daysSince < 0) return '';
+    if (daysSince === 0) return '오늘 시작';
+    if (daysSince % 365 === 0) return (daysSince / 365) + '주년';
+    if (daysSince % 100 === 0) return daysSince + '일';
+    if (daysSince === 30 || daysSince === 200) return daysSince + '일';
+    return '';
+  }
+
+  /* 특정 날짜의 일정 목록 (반복·기념일 포함): [ {kind:'event'|'anniv', title, who} ] */
+  function eventsOnDay(events, annivs, iso) {
+    var out = [];
+    (events || []).forEach(function (e) {
+      if (e.rpt === 'w') {
+        var cur = new Date(e.date + 'T12:00:00');
+        var guard = 0;
+        while (dateStr(cur.getTime()) < iso && guard++ < 600) cur.setDate(cur.getDate() + 7);
+        if (dateStr(cur.getTime()) === iso) out.push({ kind: 'event', id: e.id, title: e.title, who: e.who, memo: e.memo, time: e.time });
+      } else if (e.date === iso) out.push({ kind: 'event', id: e.id, title: e.title, who: e.who, memo: e.memo, time: e.time });
+    });
+    (annivs || []).forEach(function (a) {
+      if (a.date.slice(5) === iso.slice(5)) out.push({ kind: 'anniv', id: a.id, title: a.title || a.name, who: 'both' });
+    });
+    return out;
+  }
+
+  /* ICS 이스케이프 + 단일 이벤트 텍스트 (RRULE 지원) */
+  function icsEsc(s) { return String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n'); }
+  function buildICS(ev, opts) {
+    var o = opts || {};
+    var dt = String(ev.date || '').replace(/-/g, '');
+    var hasTime = ev.time && /^\d{2}:\d{2}$/.test(ev.time);
+    var lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//MATE:ON//KO', 'BEGIN:VEVENT',
+      'UID:' + (ev.id || ('mateon-' + dt)) + '@mateon',
+      'DTSTAMP:' + dt + 'T000000Z',
+      hasTime ? 'DTSTART:' + dt + 'T' + ev.time.replace(':', '') + '00' : 'DTSTART;VALUE=DATE:' + dt,
+      'SUMMARY:' + icsEsc(ev.title || 'MATE:ON 일정')];
+    if (ev.memo) lines.push('DESCRIPTION:' + icsEsc(ev.memo));
+    if (ev.rpt === 'w') lines.push('RRULE:FREQ=WEEKLY' + (ev.until ? ';UNTIL=' + String(ev.until).replace(/-/g, '') + 'T235959Z' : ''));
+    if (o.yearly) lines.push('RRULE:FREQ=YEARLY');
+    lines.push('END:VEVENT', 'END:VCALENDAR');
+    return lines.join('\r\n');
+  }
+
+  /* 활동 로그 타임스탬프 수집 — 주간 리포트/스트릭 공용 */
+  function recentCount(list, sinceTs) {
+    var n = 0;
+    (list || []).forEach(function (x) { if (x && x.ts >= sinceTs) n++; });
+    return n;
+  }
+
   window.MateLife = {
     p2: p2, dateStr: dateStr, fmtWon: fmtWon,
     mondayOf: mondayOf, isoWeekKey: isoWeekKey, weekRangeLabel: weekRangeLabel,
@@ -187,5 +308,9 @@
     expensesToCSV: expensesToCSV, missionPick: missionPick,
     parseReceiptText: parseReceiptText,
     preprocessReceiptImage: preprocessReceiptImage,
+    relTime: relTime, fmtWonShort: fmtWonShort, weekdayOf: weekdayOf, dateLabel: dateLabel,
+    streakWeeks: streakWeeks, nextFixedTs: nextFixedTs, monthTrend: monthTrend,
+    budgetLevel: budgetLevel, ddayMilestone: ddayMilestone, eventsOnDay: eventsOnDay,
+    icsEsc: icsEsc, buildICS: buildICS, recentCount: recentCount,
   };
 })();

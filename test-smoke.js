@@ -498,7 +498,7 @@ async function answerAll() {
   check('담당 교차 배정', choresNow.items.map(function(it,i){return window.__mateon.choreOwner(i, Date.now());}).join(',') !== choresNow.items.map(function(it,i){return window.__mateon.choreOwner(i, Date.now() + 7*86400000);}).join(','));
   const cid0 = choresNow.items[0].id;
   click('chore-done', { v: cid0 });
-  check('완료 체크', (JSON.parse(store['mateon.choreLog'])[isoWeekKey()] || {})[cid0] === true);
+  check('완료 체크', !!(JSON.parse(store['mateon.choreLog'])[isoWeekKey()] || {})[cid0]);
   check('완료 카운트 표시', lastHTML.includes('1 / 2 완료'));
   click('chore-done', { v: cid0 });
   check('완료 취소', !((JSON.parse(store['mateon.choreLog'])[isoWeekKey()] || {})[cid0]));

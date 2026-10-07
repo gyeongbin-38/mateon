@@ -17,12 +17,42 @@
     expenseShare = ML.expenseShare, parseReceiptText = ML.parseReceiptText;
 
   /* ================= Utils ================= */
-  function showToast(msg) {
+  function showToast(msg, opts) {
     if (!toastEl) return;
-    toastEl.textContent = msg;
+    var o = opts || {};
+    if (toastEl.appendChild && typeof document !== 'undefined' && document.createElement) {
+      toastEl.innerHTML = '';
+      var span = document.createElement('span');
+      span.textContent = msg;
+      toastEl.appendChild(span);
+      if (o.action && typeof o.action.fn === 'function') {
+        var btn = document.createElement('button');
+        btn.type = 'button'; btn.className = 'toast-action'; btn.textContent = o.action.label || '실행';
+        btn.addEventListener('click', function () { toastEl.classList.remove('show'); o.action.fn(); });
+        toastEl.appendChild(btn);
+      }
+      if (toastEl.classList.toggle) {
+        toastEl.classList.toggle('toast-warn', o.type === 'warn');
+        toastEl.classList.toggle('toast-good', o.type === 'good');
+      }
+    } else toastEl.textContent = msg;
     toastEl.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, 2200);
+    toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, o.duration || 2200);
+  }
+  /* 입력 오류 표시 + aria-invalid */
+  function markBad(el) {
+    if (!el) return;
+    markBad(el);
+    el.setAttribute('aria-invalid', 'true');
+    el.focus();
+  }
+  /* 웹 진동 (네이티브 햅틱 폴백) */
+  function buzz(pattern) {
+    try {
+      if (window.MateNative && window.MateNative.haptics) { window.MateNative.haptics(); return; }
+      if (navigator.vibrate) navigator.vibrate(pattern || 15);
+    } catch (e) { /* ignore */ }
   }
 
   function esc(s) {
@@ -203,7 +233,8 @@
     conflictLog: load('mateon.conflictLog') || [],
     shopping: load('mateon.shopping') || [],
     lovemap: load('mateon.lovemap') || { idx: 0, known: 0, asked: 0 },
-    reminders: (function (r) { return { checkin: !r || r.checkin !== false, agreement: !r || r.agreement !== false, chore: !r || r.chore !== false }; })(load('mateon.reminders')),
+    reminders: (function (r) { return { checkin: !r || r.checkin !== false, agreement: !r || r.agreement !== false, chore: !r || r.chore !== false, day: r && Number.isInteger(r.day) ? r.day : 0 }; })(load('mateon.reminders')),
+    homeName: load('mateon.homeName') || '',
     inviteDays: load('mateon.inviteDays') || 7,
     fontSize: load('mateon.fontSize') === 'large' ? 'large' : 'normal',
     seen: load('mateon.seen') === true,
@@ -211,6 +242,7 @@
     budgets: load('mateon.budgets') || {},
     anniv: load('mateon.anniv') || [],
     missions: load('mateon.missions') || { week: '', list: [] },
+    talkFavs: load('mateon.talkFavs') || [],
     syncMeta: load('mateon.syncMeta') || {},
     syncStat: load('mateon.syncStat') || null,
     lastBackup: load('mateon.lastBackup') || 0,
@@ -218,12 +250,16 @@
     pendingUpdate: null,
     cgStep: 0, cgDomain: 'D',
     delArm2: null,
-    expCat: '생활비', expPayer: 'me', evWho: 'both',
-    splitMode: 'equal', splitShare: '5:5', shopCat: '식료품',
+    expCat: load('mateon.lastExpCat') || '생활비', expPayer: 'me', evWho: 'both',
+    splitMode: (function (ls) { return ls && ['equal', 'percent', 'exact'].indexOf(ls.mode) >= 0 ? ls.mode : 'equal'; })(load('mateon.lastSplit')),
+    splitShare: '5:5', shopCat: '식료품',
     settleMonth: null,
     expFilter: '전체', expQuery: '', expEditId: null, pendingReceipt: null,
-    calMonth: null,
+    expPayerFilter: 'all', expShowN: 15, expEditFx: null, expUndo: null,
+    calMonth: null, calDay: null, evEditId: null,
+    lmReview: false,
     lastRoute: '',
+    scrollY: {},
   };
 
   /* ---- 설문 진행 자동 저장 (새로고침 복구) ---- */
@@ -468,14 +504,50 @@
       }).join('') + '</nav>';
   }
 
+  var lastShellRoute = null;
+  var lastShellScroll = 0;
+  var lastShellContent = '';
   function shell(content) {
     if (homeCarouselObserver) { homeCarouselObserver.disconnect(); homeCarouselObserver = null; }
     var offline = (typeof navigator !== 'undefined' && navigator.onLine === false);
-    app.innerHTML = '<div class="app-shell' + (currentRoute() === 'home' ? ' is-home' : '') + '">' + headerHTML() +
+    var r = currentRoute();
+    var sameRoute = (r === lastShellRoute);
+    /* 렌더 스킵 — 같은 라우트에 같은 내용·부가 상태면 DOM을 건드리지 않는다.
+       부가 상태(오프라인·FAB·튜토리얼)가 시그니처에 빠지면 그 변경이 반영되지 않으므로 전부 포함한다. */
+    var sig = content + '|' + (offline ? 1 : 0) + '|' + (S.fabOpen ? 1 : 0) + '|' + tutorialHTML();
+    if (sameRoute && sig === lastShellContent) return;
+    app.innerHTML = '<div class="app-shell' + (r === 'home' ? ' is-home' : '') + '">' + headerHTML() +
       (offline ? '<div class="offline-bar" role="status">오프라인이에요. 기록은 이 기기에 안전하게 저장돼요.</div>' : '') +
-      '<main class="app-main" id="main">' + content + '</main>' + bottomNavHTML() +
+      '<main class="app-main" id="main">' + content + '</main>' + fabHTML(r) + bottomNavHTML() +
       tutorialHTML() + '</div>';
-    window.scrollTo(0, 0);
+    if (sameRoute) window.scrollTo(0, lastShellScroll); else window.scrollTo(0, 0);
+    lastShellContent = sig;
+    /* 라우트가 바뀌면 제목으로 포커스 이동 — 스크린리더가 새 화면을 알린다 */
+    if (!sameRoute) {
+      var h = typeof app.querySelector === 'function' ? app.querySelector('h1') : null;
+      if (h) { try { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); } catch (e) { } }
+    }
+    lastShellRoute = r;
+    lastShellScroll = window.scrollY || 0;
+  }
+  /* 스크롤 위치를 기록 — 같은 라우트 리렌더 시 위치 복원에 사용 */
+  if (typeof window !== 'undefined' && window.addEventListener) {
+    window.addEventListener('scroll', function () {
+      if (window.scrollY || window.scrollY === 0) lastShellScroll = window.scrollY;
+    }, { passive: true });
+  }
+
+  /* 홈·우리공간의 빠른 추가 버튼 */
+  function fabHTML(route) {
+    if (route !== 'home' && route !== 'space') return '';
+    var open = !!S.fabOpen;
+    return '<div class="fab-wrap' + (open ? ' open' : '') + '">' +
+      (open ? '<div class="fab-menu" role="menu">' +
+        '<button type="button" role="menuitem" data-action="settle">💸 지출 기록</button>' +
+        '<button type="button" role="menuitem" data-action="checkin">💗 주간 체크인</button>' +
+        '<button type="button" role="menuitem" data-action="calendar">📅 일정 추가</button>' +
+        '<button type="button" role="menuitem" data-action="shopping">🛒 살 것 추가</button></div>' : '') +
+      '<button class="fab" data-action="fab-menu" type="button" aria-label="빠른 추가" aria-expanded="' + open + '"><span aria-hidden="true">' + (open ? '✕' : '+') + '</span></button></div>';
   }
 
   /* ================= 공용 UI 조각 ================= */
@@ -653,6 +725,7 @@
   function vHome() {
     var draft = S.answers.length > 0 && S.answers.length < QUESTIONS.length;
     var action = !S.me ? (draft ? 'resume-survey' : 'start') : (!S.partner ? 'invite' : 'report');
+    var installBanner = S.installPrompt ? '<button class="checkin-banner install-banner" type="button" data-action="app-install"><span>' + mobileIcon('plus') + '</span><span><strong>홈 화면에 MATE:ON 설치</strong><small>앱처럼 바로 열 수 있어요</small></span>' + mobileIcon('arrow') + '</button>' : '';
     var title = !S.me ? (draft ? '나를 알아가는 중이에요' : '나는 어떤 메이트일까?') : (!S.partner ? '이제, 서로를 알아볼 차례' : '우리의 다름을 알아봐요');
     var cta = !S.me ? (draft ? '이어서 진단하기' : '나의 동거 성향 알아보기') : (!S.partner ? '메이트 초대하기' : '우리 둘 리포트 보기');
     var savedAg = savedAgreementForPair();
@@ -682,9 +755,21 @@
       return '<article class="character-slide" role="group" aria-roledescription="슬라이드" aria-label="' + (i+1) + ' / 16 · ' + esc(c.name) + '" aria-hidden="' + (i!==0) + '"' + (i===0?' aria-current="true"':'') + '><span class="carousel-label">' + c.code + ' · ' + (mine?'나의 캐릭터':partner?'메이트의 캐릭터':'캐릭터 미리보기') + '</span>' + characterArt(c,c.id!==startId,true) + '<h3>' + esc(c.name) + '</h3><p>' + esc(c.quote) + '</p><button class="carousel-detail" data-action="type" data-id="' + c.id + '" type="button" tabindex="' + (i===0?'0':'-1') + '">이 캐릭터 알아보기 ' + mobileIcon('arrow') + '</button></article>';
     }).join('') + '</div><div class="carousel-dots" aria-hidden="true">' + carouselCharacters.map(function(c,i) { return '<span class="carousel-dot' + (i===0?' on':'') + '"></span>'; }).join('') + '</div><div class="carousel-controls"><button id="character-previous" class="icon-button" type="button" aria-label="이전 캐릭터">' + mobileIcon('arrow') + '</button><span id="character-position" role="status" aria-live="polite"></span><button id="character-next" class="icon-button" type="button" aria-label="다음 캐릭터">' + mobileIcon('arrow') + '</button></div><p class="carousel-hint">옆으로 넘겨 다른 메이트도 만나보세요</p></div>';
     var connection = '<section class="connection-strip" aria-label="메이트 연결 상태"><div class="paired-avatars"><span>'+esc(S.me?S.me.name.slice(0,1):'나')+'</span><span>'+ (S.partner ? esc(S.partner.name.slice(0,1)) : mobileIcon('plus')) +'</span></div><div><strong>'+ (S.partner?esc(S.partner.name)+'님과 함께':S.me?'메이트를 초대해 보세요':'서로를 알아가는 첫걸음') +'</strong><p>'+ (S.partner?'두 사람의 생활방식을 함께 맞춰봐요':S.me?'결과 링크로 우리의 성향을 비교해요':'내 성향을 알아본 뒤, 메이트와 연결해요') +'</p></div><button class="icon-button" data-action="'+(S.me?'invite':'start')+'" aria-label="메이트 연결하기" type="button">'+mobileIcon('arrow')+'</button></section>';
+    /* 오늘 할 일 — 오늘 일정·내 집안일·남은 쇼핑을 한눈에 */
+    var todayStr = dateStr(Date.now());
+    var todayEvs = ML.eventsOnDay(S.events, S.anniv, todayStr);
+    var wkNow = isoWeekKey();
+    var wkLog = (S.chores && S.choreLog[wkNow]) || {};
+    var myChores = (S.chores ? S.chores.items : []).filter(function (it, i) { return choreOwner(i, Date.now()) === 'me' && !wkLog[it.id]; });
+    var shopOpen = S.shopping.filter(function (x) { return !x.done; }).length;
+    var todayTasks = (S.me && S.partner && (todayEvs.length || myChores.length || shopOpen)) ?
+      '<section class="today-tasks" aria-label="오늘 할 일"><h2>오늘 할 일 <span>' + ML.dateLabel(Date.now()) + '</span></h2>' +
+      todayEvs.map(function (e) { return '<button type="button" data-action="calendar" class="tt-row"><span class="tt-dot ev"></span>' + esc(e.title) + (e.time ? ' <small>' + esc(e.time) + '</small>' : '') + '</button>'; }).join('') +
+      myChores.slice(0, 3).map(function (it) { return '<button type="button" data-action="chores" class="tt-row"><span class="tt-dot ch"></span>' + esc(it.name) + ' <small>내 차례</small></button>'; }).join('') +
+      (shopOpen ? '<button type="button" data-action="shopping" class="tt-row"><span class="tt-dot sh"></span>살 것 ' + shopOpen + '개 남음</button>' : '') + '</section>' : '';
     shell('<div class="mobile-home">'+
       '<section class="app-greeting"><p>'+ (S.me ? esc(S.me.name)+'님, 반가워요' : '함께 살 준비, 서로를 아는 것부터.') +'</p><h1>우리의 일상,<br> 조금 더 가까이<span class="coral-dot">.</span></h1></section>'+
-      draftBannerHTML() + banners +
+      draftBannerHTML() + banners + installBanner + todayTasks +
       '<section class="today-mission"><div class="mission-top"><span class="mission-label">'+(!S.me?'나를 알아가는 시간':S.partner?'함께 맞춰가는 생활':'우리의 다음 단계')+'</span><span class="mission-count">'+(count<3?'0'+(count+1):'03')+' <span>/ 03</span></span></div><h2>'+title+'</h2><p>'+(!S.me?'16가지 캐릭터 속, 나의 생활방식을 발견해요.':(!S.partner?'나와 메이트의 생활방식을 맞춰봐요.':'잘 맞는 부분도, 대화가 필요한 부분도.'))+'</p>'+missionSteps+portraits+'<div class="mission-footer"><span>'+ (draft ? S.answers.length+' / 20 문항 완료 · 자동 저장됨' : S.me?'나를 알고, 서로를 이해하는 시간':'동거 성향 테스트 · 20문항 · 약 3분')+'</span><button class="mobile-primary home-primary" data-action="'+action+'" type="button">'+cta+mobileIcon('arrow')+'</button></div></section>'+
       '<div class="home-support">' + connection +
       '<div class="app-shortcuts"><button type="button" data-action="'+(S.me?'result':'start')+'"><span class="shortcut-icon pink">'+mobileIcon('user')+'</span>나의 성향</button><button type="button" data-action="'+(S.me&&S.partner?'report':'demo')+'"><span class="shortcut-icon blue">'+mobileIcon('heart')+'</span>궁합 리포트</button><button type="button" data-action="checklist"><span class="shortcut-icon mint">'+NAV_ICONS.checklist+'</span>입주 준비</button></div>'+
@@ -739,7 +824,34 @@
       feed.map(function (f) {
         return '<div class="feed-row"><span class="feed-icon">'+(f.icon === 'checklist' ? NAV_ICONS.checklist : mobileIcon(f.icon))+'</span><span class="feed-text">'+f.text+'</span><time>'+fmtDate(f.ts)+'</time></div>';
       }).join('') + '</div>' : '';
-    shell('<section class="space-page"><p class="app-overline">OUR SPACE</p><h1 class="mobile-title">우리 공간</h1><p class="mobile-subtitle">함께 정하고, 하나씩 쌓아가는 일상</p><div class="space-summary"><span>'+NAV_ICONS.home+'</span><h2>우리의 시작을 준비해요</h2><p>입주 준비 '+stats.done+' / '+stats.total+' 완료</p><div class="space-progress"><i style="width:'+(stats.done/stats.total*100)+'%"></i></div></div><div class="app-list"><button type="button" data-action="checklist">'+NAV_ICONS.checklist+'<span><strong>입주 체크리스트</strong><small>계약부터 생활용품까지</small></span>'+mobileIcon('arrow')+'</button><button type="button" data-action="'+rulesAction+'">'+mobileIcon('heart')+'<span><strong>우리집 생활규칙</strong><small>'+rulesLabel+'</small></span>'+mobileIcon('arrow')+'</button><button type="button" data-action="'+(S.me?'invite':'start')+'">'+mobileIcon('user')+'<span><strong>메이트 연결</strong><small>'+(S.partner?esc(S.partner.name)+'님과 연결됨':'함께할 메이트 초대하기')+'</small></span>'+mobileIcon('arrow')+'</button></div>'+lifeTools+feedHTML+'<div class="mobile-section-head"><h2>나의 대화 기록</h2><span>'+Object.keys(notes).filter(function(k){return HOME_TALKS[k];}).length+'개</span></div>'+ (Object.keys(notes).filter(function(k){return HOME_TALKS[k];}).length ? Object.keys(notes).filter(function(k){return HOME_TALKS[k];}).map(function(k){return '<button class="saved-talk" data-action="talk-open" data-talk="'+k+'" type="button"><span>'+HOME_TALKS[k][0]+'</span><strong>'+esc(HOME_TALKS[k][1])+'</strong><p>'+esc(notes[k].text)+'</p></button>';}).join('') : '<div class="empty-notes">'+mobileIcon('chat')+'<p>아직 남긴 이야기가 없어요.</p><button type="button" data-action="talk-open">첫 생각 남기기</button></div>')+'<p class="device-note">대화 기록은 이 기기에만 저장돼요.</p></section>');
+    /* 관계 온도 — 최근 체크인 기분 + 미션 달성률 + 스트릭으로 산출 */
+    var tempCard = '';
+    var moods = S.checkins.filter(function (c) { return c.mood; }).slice(-4);
+    if (moods.length) {
+      var wkSet = {}; S.checkins.forEach(function (c) { wkSet[c.week] = true; });
+      var stk = ML.streakWeeks(wkSet);
+      var moodAvg = moods.reduce(function (a, c) { return a + c.mood; }, 0) / moods.length;
+      var mRate = S.missions.list.length ? S.missions.list.filter(function (m) { return m.done; }).length / S.missions.list.length : 0;
+      var temp = Math.round(moodAvg / 5 * 60 + mRate * 25 + Math.min(stk, 5) * 3);
+      var tFace = temp >= 75 ? '🥰' : temp >= 50 ? '🙂' : temp >= 30 ? '😐' : '😶';
+      var tMsg = temp >= 75 ? '따뜻한 한 주를 보내고 있어요' : temp >= 50 ? '차분하게 지내고 있어요' : temp >= 30 ? '조금 서먹한 요즘이에요' : '서로에게 조금 더 관심을 줘볼까요?';
+      tempCard = '<div class="mobile-section-head"><h2>우리 온도</h2><span>'+stk+'주 연속 기록</span></div>' +
+        '<div class="temp-card" role="img" aria-label="관계 온도 '+temp+'도"><span class="temp-face">'+tFace+'</span><div class="temp-info"><strong>'+temp+'°C</strong><div class="temp-bar"><i style="width:'+temp+'%"></i></div><p>'+tMsg+'</p></div></div>';
+    }
+    /* 이번 주 리포트 — 지출·집안일·체크인 요약 */
+    var wkKey = isoWeekKey();
+    var wkMon = mondayOf(Date.now());
+    var wkExp = S.expenses.filter(function (e) { return (e.ts || 0) >= wkMon; });
+    var wkChores = Object.keys(S.choreLog[wkKey] || {}).length;
+    var wkReport = '<div class="mobile-section-head"><h2>이번 주 리포트</h2><span>'+weekRangeLabel(Date.now())+'</span></div>' +
+      '<div class="week-report"><div class="wr-item"><strong>'+wkExp.length+'</strong><small>지출 '+fmtWon(wkExp.reduce(function(a,e){return a+e.amount;},0))+'</small></div>' +
+      '<div class="wr-item"><strong>'+wkChores+'</strong><small>집안일 완료</small></div>' +
+      '<div class="wr-item"><strong>'+S.missions.list.filter(function(m){return m.done;}).length+'/'+S.missions.list.length+'</strong><small>우리 미션</small></div>' +
+      '<div class="wr-item"><strong>'+(checkinDone?'완료':'전')+'</strong><small>주간 체크인</small></div></div>';
+    /* 즐겨찾는 대화 주제 */
+    var favHTML = S.talkFavs.length ? '<div class="mobile-section-head"><h2>즐겨찾는 대화</h2><span>'+S.talkFavs.length+'개</span></div><div class="chip-row">' +
+      S.talkFavs.map(function (i) { return HOME_TALKS[i] ? '<button class="chip" data-action="talk-open" data-talk="'+i+'" type="button">★ '+esc(HOME_TALKS[i][0])+'</button>' : ''; }).join('') + '</div>' : '';
+    shell('<section class="space-page"><p class="app-overline">OUR SPACE</p><h1 class="mobile-title">'+esc(S.homeName || '우리 공간')+'</h1><p class="mobile-subtitle">함께 정하고, 하나씩 쌓아가는 일상</p><div class="space-summary"><span>'+NAV_ICONS.home+'</span><h2>우리의 시작을 준비해요</h2><p>입주 준비 '+stats.done+' / '+stats.total+' 완료</p><div class="space-progress"><i style="width:'+(stats.done/stats.total*100)+'%"></i></div></div><div class="app-list"><button type="button" data-action="checklist">'+NAV_ICONS.checklist+'<span><strong>입주 체크리스트</strong><small>계약부터 생활용품까지</small></span>'+mobileIcon('arrow')+'</button><button type="button" data-action="'+rulesAction+'">'+mobileIcon('heart')+'<span><strong>우리집 생활규칙</strong><small>'+rulesLabel+'</small></span>'+mobileIcon('arrow')+'</button><button type="button" data-action="'+(S.me?'invite':'start')+'">'+mobileIcon('user')+'<span><strong>메이트 연결</strong><small>'+(S.partner?esc(S.partner.name)+'님과 연결됨':'함께할 메이트 초대하기')+'</small></span>'+mobileIcon('arrow')+'</button></div>'+lifeTools+tempCard+wkReport+feedHTML+favHTML+'<div class="mobile-section-head"><h2>나의 대화 기록</h2><span>'+Object.keys(notes).filter(function(k){return HOME_TALKS[k];}).length+'개</span></div>'+ (Object.keys(notes).filter(function(k){return HOME_TALKS[k];}).length ? Object.keys(notes).filter(function(k){return HOME_TALKS[k];}).map(function(k){return '<button class="saved-talk" data-action="talk-open" data-talk="'+k+'" type="button"><span>'+HOME_TALKS[k][0]+(notes[k].ts?' · '+ML.dateLabel(notes[k].ts):'')+'</span><strong>'+esc(HOME_TALKS[k][1])+'</strong><p>'+esc(notes[k].text)+'</p></button>';}).join('') : '<div class="empty-notes">'+mobileIcon('chat')+'<p>아직 남긴 이야기가 없어요.</p><button type="button" data-action="talk-open">첫 생각 남기기</button></div>')+'<p class="device-note">대화 기록은 이 기기에만 저장돼요.</p></section>');
   }
   var talkDialog = null;
   var talkOpener = null;
@@ -751,13 +863,21 @@
     talkDialog.className='talk-sheet';
     talkDialog.setAttribute('aria-labelledby','talk-title');
     var follow = HOME_TALKS[talkIndex][2];
-    talkDialog.innerHTML='<div class="sheet-handle" aria-hidden="true"></div><div class="sheet-heading"><span>오늘의 대화 · '+HOME_TALKS[talkIndex][0]+'</span><button class="icon-button" type="button" aria-label="닫기" data-sheet-close>'+mobileIcon('close')+'</button></div><h2 id="talk-title">'+HOME_TALKS[talkIndex][1]+'</h2>'+(follow?'<p class="talk-follow"><span>이어서 물어보기</span>'+esc(follow)+'</p>':'')+'<label for="talk-note">나의 생각</label><textarea id="talk-note" maxlength="500" rows="4" placeholder="정답은 없어요. 편하게 적어보세요.">'+esc(notes[talkIndex]?notes[talkIndex].text:'')+'</textarea><p class="sheet-hint">이 기기에만 저장되며, 메이트에게 자동 전송되지 않아요.</p><button class="mobile-primary" type="button" data-sheet-save>내 생각 저장하기</button>';
+    var isFav = S.talkFavs.indexOf(talkIndex) >= 0;
+    talkDialog.innerHTML='<div class="sheet-handle" aria-hidden="true"></div><div class="sheet-heading"><span>오늘의 대화 · '+HOME_TALKS[talkIndex][0]+'</span><span><button class="icon-button" type="button" aria-label="즐겨찾기" aria-pressed="'+isFav+'" data-sheet-fav>'+(isFav?'★':'☆')+'</button><button class="icon-button" type="button" aria-label="닫기" data-sheet-close>'+mobileIcon('close')+'</button></span></div><h2 id="talk-title">'+HOME_TALKS[talkIndex][1]+'</h2>'+(follow?'<p class="talk-follow"><span>이어서 물어보기</span>'+esc(follow)+'</p>':'')+'<label for="talk-note">나의 생각</label><textarea id="talk-note" maxlength="500" rows="4" placeholder="정답은 없어요. 편하게 적어보세요.">'+esc(notes[talkIndex]?notes[talkIndex].text:(S.sharedText||''))+'</textarea>'+(notes[talkIndex]&&notes[talkIndex].ts?'<p class="sheet-hint">마지막 기록 '+ML.dateLabel(notes[talkIndex].ts)+'</p>':'')+'<p class="sheet-hint">이 기기에만 저장되며, 메이트에게 자동 전송되지 않아요.</p><button class="mobile-primary" type="button" data-sheet-save>내 생각 저장하기</button>';
     if(notes[talkIndex]) talkDialog.innerHTML += '<button class="connection-cancel" type="button" data-sheet-delete>이 기록 삭제하기</button>';
     var deleteArmed=false;
     document.body.appendChild(talkDialog);
     talkDialog.addEventListener('close',function(){talkDialog.remove();talkDialog=null;document.body.classList.remove('sheet-open');if(talkOpener&&talkOpener.isConnected)talkOpener.focus();});
     talkDialog.addEventListener('click',function(e){
       if(e.target.closest('[data-sheet-close]')) talkDialog.close();
+      else if(e.target.closest('[data-sheet-fav]')) {
+        var fi=S.talkFavs.indexOf(talkIndex);
+        if(fi>=0)S.talkFavs.splice(fi,1);else S.talkFavs.push(talkIndex);
+        save('mateon.talkFavs',S.talkFavs);
+        var fb=talkDialog.querySelector('[data-sheet-fav]');
+        if(fb){fb.textContent=fi>=0?'☆':'★';fb.setAttribute('aria-pressed',String(fi<0));}
+      }
       else if(e.target.closest('[data-sheet-delete]')) {
         if(!deleteArmed){deleteArmed=true;e.target.closest('[data-sheet-delete]').textContent='한 번 더 눌러 삭제';return;}
         delete notes[talkIndex];
@@ -771,6 +891,7 @@
         var value=document.getElementById('talk-note').value.trim();
         if(!value){document.getElementById('talk-note').focus();showToast('생각을 한 줄 남겨주세요');return;}
         notes[talkIndex]={text:value,ts:Date.now()};
+        S.sharedText='';
         try{localStorage.setItem('mateon.talks',JSON.stringify(notes));}catch(err){showToast('저장 공간을 확인해 주세요');return;}
         var savedY=window.scrollY || 0;
         talkDialog.close();render();window.scrollTo(0,savedY);
@@ -1703,17 +1824,25 @@
       '<button class="chip' + (viewAll ? ' selected' : '') + '" type="button" data-action="exp-month" data-v="all">전체</button></div>';
     var catBars = mst.byCat.length ? '<div class="cat-bars">' + mst.byCat.map(function (c) {
       var bud = S.budgets[c.cat];
-      var over = bud && c.sum > bud;
-      return '<div class="cat-bar' + (over ? ' over' : '') + '"><span>' + esc(c.cat) + '</span><i style="width:' + Math.max(4, Math.round(c.sum / mst.byCat[0].sum * 100)) + '%"></i><b>' + fmtWon(c.sum) + (bud ? ' <small>/ ' + fmtWon(bud) + '</small>' : '') + '</b></div>';
+      var lv = ML.budgetLevel(c.sum, bud);
+      var warnTag = lv === 2 ? ' <small class="warn-tag">초과</small>' : lv === 1 ? ' <small class="warn-tag warn">80%↑</small>' : '';
+      return '<div class="cat-bar' + (lv === 2 ? ' over' : '') + '" role="img" aria-label="' + esc(c.cat) + ' ' + fmtWon(c.sum) + (bud ? ' / 예산 ' + fmtWon(bud) : '') + '"><span>' + esc(CAT_EMOJI[c.cat] || '📦') + ' ' + esc(c.cat) + '</span><i style="width:' + Math.max(4, Math.round(c.sum / mst.byCat[0].sum * 100)) + '%"></i><b>' + fmtWon(c.sum) + (bud ? ' <small>/ ' + fmtWon(bud) + '</small>' : '') + warnTag + '</b></div>';
     }).join('') + '</div>' : '<p class="field-hint">이 기간의 지출이 아직 없어요.</p>';
+    /* 최근 4개월 추이 미니 바 */
+    var trend = ML.monthTrend(S.expenses, 4);
+    var tmax = Math.max(1, Math.max.apply(null, trend.map(function (t) { return t.total; })));
+    var trendHTML = '<div class="trend-bars" role="img" aria-label="최근 4개월 지출 추이">' + trend.map(function (t) {
+      return '<div class="trend-bar" title="' + t.ym + ' ' + fmtWon(t.total) + '"><i style="height:' + Math.max(4, Math.round(t.total / tmax * 100)) + '%"></i><span>' + (+t.ym.slice(5)) + '월</span></div>';
+    }).join('') + '</div>';
     var statsCard = '<div class="card" style="margin-top:16px"><h4 class="card-title">' + monthLabel + ' 지출 요약</h4>' +
       '<div class="month-stats"><div><span>합계</span><strong>' + fmtWon(mst.total) + '</strong></div>' +
       '<div><span>' + esc(payerName('me')) + '</span><strong>' + fmtWon(mst.me) + '</strong></div>' +
-      '<div><span>' + esc(payerName('you')) + '</span><strong>' + fmtWon(mst.you) + '</strong></div></div>' + catBars + '</div>';
+      '<div><span>' + esc(payerName('you')) + '</span><strong>' + fmtWon(mst.you) + '</strong></div></div>' + catBars + trendHTML + '</div>';
 
     /* 카테고리별 월 예산 편집기 */
     var budgetKeys = Object.keys(S.budgets).filter(function (k) { return S.budgets[k] > 0; });
-    var budgetCard = '<details class="card" style="margin-top:14px"><summary>월 예산 (' + (budgetKeys.length ? '설정됨 ' + budgetKeys.length + '개' : '미설정') + ')</summary>' +
+    var budgetTotal = budgetKeys.reduce(function (a, k) { return a + S.budgets[k]; }, 0);
+    var budgetCard = '<details class="card" style="margin-top:14px"><summary>월 예산 (' + (budgetKeys.length ? '설정됨 ' + budgetKeys.length + '개 · 합계 ' + ML.fmtWonShort(budgetTotal) : '미설정') + ')</summary>' +
       '<p class="field-hint" style="margin-bottom:10px">카테고리별 이번 달 목표를 정하면 위 요약에서 사용량을 함께 보여줘요.</p>' +
       EXPENSE_CATS.map(function (c) {
         return '<div class="budget-row"><span>' + esc(c) + '</span><input class="input budget-in" type="number" inputmode="numeric" min="0" max="100000000" placeholder="0" data-cat="' + esc(c) + '" value="' + (S.budgets[c] || '') + '" aria-label="' + esc(c) + ' 월 예산"></div>';
@@ -1722,10 +1851,16 @@
 
     var view = viewAll ? list : list.filter(function (x) { return dateStr(x.ts).slice(0, 7) === S.settleMonth; });
     if (S.expFilter !== '전체') view = view.filter(function (x) { return (x.cat || '기타') === S.expFilter; });
+    if (S.expPayerFilter !== 'all') view = view.filter(function (x) { return x.payer === S.expPayerFilter; });
     var q = (S.expQuery || '').trim();
     if (q) view = view.filter(function (x) { return (x.memo || '').indexOf(q) !== -1; });
+    var viewTotal = view.reduce(function (a, x) { return a + x.amount; }, 0);
+    /* 긴 목록은 15건씩 잘라 "더 보기"로 펼친다 */
+    var showN = S.expShowN || 15;
+    var hidden = Math.max(0, view.length - showN);
+    var shown = view.slice(0, showN);
     var months = {};
-    view.forEach(function (x) { var k = dateStr(x.ts).slice(0, 7); (months[k] = months[k] || []).push(x); });
+    shown.forEach(function (x) { var k = dateStr(x.ts).slice(0, 7); (months[k] = months[k] || []).push(x); });
     var listHTML = Object.keys(months).sort().reverse().map(function (mk) {
       var sub = months[mk].reduce(function (a, x) { return a + x.amount; }, 0);
       return '<div class="settle-month"><span>' + (+mk.slice(5)) + '월</span><span>' + fmtWon(sub) + '</span></div>' +
@@ -1734,38 +1869,49 @@
           var shareTag = sh === 0.5 ? '' : ' · ' + Math.round(sh * 100) + ':' + Math.round((1 - sh) * 100);
           var fxTag = x.fx ? ' · 고정비' : '';
           var rcptTag = x.rcpt ? '<button class="item-del" data-action="exp-rcpt" data-v="' + x.id + '" type="button" aria-label="영수증 보기">🧾</button>' : '';
-          return '<div class="settle-row"><span class="settle-cat">' + esc(x.cat || '기타') + '</span>' +
-            '<span class="settle-info"><strong>' + esc(x.memo || '지출') + '</strong><small>' + esc(payerName(x.payer)) + ' · ' + fmtDate(x.ts) + shareTag + fxTag + '</small></span>' +
+          return '<div class="settle-row"><span class="settle-cat">' + esc(CAT_EMOJI[x.cat] || '📦') + '</span>' +
+            '<span class="settle-info"><strong>' + esc(x.memo || '지출') + '</strong><small>' + esc(payerName(x.payer)) + ' · ' + ML.dateLabel(x.ts) + shareTag + fxTag + '</small></span>' +
             '<span class="settle-amt">' + fmtWon(x.amount) + '</span>' + rcptTag +
             '<button class="item-del" data-action="exp-edit" data-v="' + x.id + '" type="button">수정</button>' + armBtn('exp-del', x.id, '삭제', '확인') + '</div>';
         }).join('');
     }).join('');
+    if (hidden > 0) listHTML += '<button class="btn btn-tertiary btn-md" data-action="exp-more" type="button" style="width:100%;margin-top:8px">' + hidden + '건 더 보기</button>';
 
-    var fixedHTML = '<details class="card" style="margin-top:16px"><summary>고정비 (' + S.fixedExpenses.length + ') — 매월 자동 기록</summary>' +
+    var fxEditing = S.expEditFx ? S.fixedExpenses.find(function (f) { return f.id === S.expEditFx; }) : null;
+    if (S.expEditFx && !fxEditing) S.expEditFx = null;
+    var fixedHTML = '<details class="card" style="margin-top:16px"' + (fxEditing ? ' open' : '') + '><summary>고정비 (' + S.fixedExpenses.length + ') — 매월 자동 기록</summary>' +
       (S.fixedExpenses.length ? S.fixedExpenses.map(function (f) {
-        return '<div class="settle-row"><span class="settle-cat">' + esc(f.cat || '기타') + '</span>' +
-          '<span class="settle-info"><strong>' + esc(f.memo) + '</strong><small>매월 ' + f.day + '일 · ' + esc(payerName(f.payer)) + '</small></span>' +
-          '<span class="settle-amt">' + fmtWon(f.amount) + '</span>' + armBtn('fx-del', f.id, '삭제', '확인') + '</div>';
+        var nextTs = ML.nextFixedTs(f.day || 1);
+        return '<div class="settle-row"><span class="settle-cat">' + esc(CAT_EMOJI[f.cat] || '📦') + '</span>' +
+          '<span class="settle-info"><strong>' + esc(f.memo) + '</strong><small>매월 ' + f.day + '일 · ' + esc(payerName(f.payer)) + (nextTs ? ' · 다음 ' + ML.dateLabel(nextTs) : '') + '</small></span>' +
+          '<span class="settle-amt">' + fmtWon(f.amount) + '</span>' +
+          '<button class="item-del" data-action="fx-edit" data-v="' + f.id + '" type="button">수정</button>' + armBtn('fx-del', f.id, '삭제', '확인') + '</div>';
       }).join('') : '<p class="field-hint">지출 추가 시 "매월 반복"을 켜면 고정비로 등록돼요.</p>') + '</details>';
 
-    var settledHTML = S.settled.length ? '<details class="card" style="margin-top:16px"><summary>지난 정산 기록 (' + S.settled.length + ')</summary>' +
+    var lastSettled = S.settled.length ? S.settled[S.settled.length - 1].ts : 0;
+    var settledHTML = S.settled.length ? '<details class="card" style="margin-top:16px"><summary>지난 정산 기록 (' + S.settled.length + (lastSettled ? ' · 마지막 ' + ML.dateLabel(lastSettled) : '') + ')</summary>' +
       S.settled.slice().reverse().map(function (z) {
-        return '<div class="settle-row"><span class="settle-info"><strong>' + esc(z.label) + '</strong><small>' + esc(payerName(z.net > 0 ? 'you' : 'me')) + ' → ' + esc(payerName(z.net > 0 ? 'me' : 'you')) + ' ' + fmtWon(Math.abs(z.net)) + '</small></span></div>';
+        return '<div class="settle-row"><span class="settle-info"><strong>' + esc(z.label) + '</strong><small>' + (z.ts ? ML.dateLabel(z.ts) + ' · ' : '') + esc(payerName(z.net > 0 ? 'you' : 'me')) + ' → ' + esc(payerName(z.net > 0 ? 'me' : 'you')) + ' ' + fmtWon(Math.abs(z.net)) + '</small></span></div>';
       }).join('') + '</details>' : '';
 
     var editing = S.expEditId ? S.expenses.find(function (x) { return x.id === S.expEditId; }) : null;
     if (S.expEditId && !editing) S.expEditId = null;
-    var filterBar = '<div class="exp-filter"><input id="exp-q" class="input exp-q" maxlength="30" placeholder="내용 검색" autocomplete="off" value="' + esc(S.expQuery || '') + '" aria-label="지출 내용 검색">' +
+    var filterBar = '<div class="exp-filter"><div class="exp-q-wrap"><input id="exp-q" class="input exp-q" maxlength="30" placeholder="내용 검색" autocomplete="off" value="' + esc(S.expQuery || '') + '" aria-label="지출 내용 검색">' +
+      (q ? '<button class="exp-q-clear" data-action="exp-q-clear" type="button" aria-label="검색 지우기">✕</button>' : '') + '</div>' +
       '<div class="chip-row">' + ['전체'].concat(EXPENSE_CATS).map(function (c) {
-        return '<button class="chip' + (S.expFilter === c ? ' selected' : '') + '" data-action="exp-filter" data-v="' + esc(c) + '" type="button">' + esc(c) + '</button>';
+        return '<button class="chip' + (S.expFilter === c ? ' selected' : '') + '" data-action="exp-filter" data-v="' + esc(c) + '" type="button" aria-pressed="' + (S.expFilter === c) + '">' + esc(c) + '</button>';
+      }).join('') + '</div>' +
+      '<div class="chip-row" role="group" aria-label="낸 사람 필터">' + [['all', '모두'], ['me', payerName('me')], ['you', payerName('you')]].map(function (p) {
+        return '<button class="chip chip-sm' + (S.expPayerFilter === p[0] ? ' selected' : '') + '" data-action="exp-payer-filter" data-v="' + p[0] + '" type="button" aria-pressed="' + (S.expPayerFilter === p[0]) + '">' + esc(p[1]) + '</button>';
       }).join('') + '</div></div>';
 
     shell(listPageHead('LIFE TOOLS', '생활비 정산', '함께 쓴 돈을 기록하고, 누가 얼마를 낼지 계산해요') +
       '<div class="settle-hero"><span>정산하면</span><strong>' + netText + '</strong><p>' + esc(payerName('me')) + ' ' + fmtWon(meP) + ' · ' + esc(payerName('you')) + ' ' + fmtWon(youP) + ' 지출</p></div>' +
       monthNav + statsCard + budgetCard +
-      '<div class="card" style="margin-top:16px"><h4 class="card-title">' + (editing ? '지출 수정' : '지출 추가') + '</h4>' +
+      '<div class="card" style="margin-top:16px"><h4 class="card-title">' + (fxEditing ? '고정비 수정' : editing ? '지출 수정' : '지출 추가') + '</h4>' +
       '<div class="field-group"><label class="field-label" for="exp-memo">내용</label><input id="exp-memo" class="input" maxlength="30" placeholder="예: 쓰레기봉투·세탁세제" autocomplete="off" value="' + esc(S.expMemo || '') + '"></div>' +
-      '<div class="field-group"><label class="field-label" for="exp-amt">금액</label><input id="exp-amt" class="input" type="number" inputmode="numeric" min="1" max="100000000" placeholder="0" autocomplete="off" value="' + esc(S.expAmt || '') + '"><span class="field-unit">원</span></div>' +
+      '<div class="field-group"><label class="field-label" for="exp-amt">금액</label><input id="exp-amt" class="input" type="number" inputmode="numeric" min="1" max="100000000" placeholder="0" autocomplete="off" value="' + esc(S.expAmt || '') + '"><span class="field-unit">원</span><small id="exp-amt-hint" class="field-hint amt-hint" aria-live="polite"></small></div>' +
+      '<div class="field-group"><label class="field-label" for="exp-date">날짜</label><input id="exp-date" class="input" type="date" value="' + esc(S.expDate || dateStr(Date.now())) + '" max="' + dateStr(Date.now()) + '" aria-label="지출 날짜"></div>' +
       '<div class="field-group"><span class="field-label">낸 사람</span><div class="chip-row">' +
       ['me', 'you'].map(function (w) { return '<button class="chip' + (S.expPayer === w ? ' selected' : '') + '" data-action="exp-payer" data-v="' + w + '" type="button">' + esc(payerName(w)) + '</button>'; }).join('') + '</div></div>' +
       '<div class="field-group"><span class="field-label">나누는 방법</span><div class="chip-row">' +
@@ -1774,17 +1920,17 @@
       (S.splitMode === 'exact' ? '<div class="split-input"><input id="exp-share" class="input" type="number" inputmode="numeric" min="0" placeholder="0" value="' + esc(S.expShare || '') + '" aria-label="내가 부담하는 금액"><span class="field-unit">원을 ' + esc(payerName('me')) + '이 부담</span></div>' : '') +
       '</div>' +
       '<div class="field-group" style="margin-bottom:0"><span class="field-label">분류</span><div class="chip-row">' +
-      EXPENSE_CATS.map(function (c) { return '<button class="chip' + (S.expCat === c ? ' selected' : '') + '" data-action="exp-cat" data-v="' + esc(c) + '" type="button">' + esc(c) + '</button>'; }).join('') + '</div></div>' +
-      (editing ? '' : '<label class="check-row"><input type="checkbox" id="exp-recur"> <span>매월 반복되는 고정비로 등록</span></label>' +
-      '<label class="check-row fx-day-row"><span>매월</span><input id="exp-day" class="input fx-day" type="number" inputmode="numeric" min="1" max="28" value="' + new Date().getDate() + '" aria-label="고정비 기록일"><span>일에 기록</span></label>') +
-      (S.pendingReceipt ? '<p class="field-hint" style="margin-top:8px">🧾 방금 스캔한 영수증이 이 지출에 첨부돼요</p>' : '') +
-      '<div class="cta-row" style="margin-top:14px"><button class="mobile-primary" data-action="exp-add" type="button">' + (editing ? '수정 저장' : '지출 기록하기') + '</button>' +
-      (editing ? '<button class="btn btn-tertiary btn-md" data-action="exp-edit-cancel" type="button">취소</button>' : '<button class="btn btn-secondary btn-md" data-action="exp-ocr" type="button">영수증 스캔</button>') + '</div>' +
+      EXPENSE_CATS.map(function (c) { return '<button class="chip' + (S.expCat === c ? ' selected' : '') + '" data-action="exp-cat" data-v="' + esc(c) + '" type="button" aria-pressed="' + (S.expCat === c) + '">' + esc(CAT_EMOJI[c] || '') + ' ' + esc(c) + '</button>'; }).join('') + '</div></div>' +
+      (editing ? '' : '<label class="check-row"><input type="checkbox" id="exp-recur"' + (fxEditing ? ' checked' : '') + '> <span>매월 반복되는 고정비로 등록</span></label>' +
+      '<label class="check-row fx-day-row"><span>매월</span><input id="exp-day" class="input fx-day" type="number" inputmode="numeric" min="1" max="28" value="' + (fxEditing ? fxEditing.day : new Date().getDate()) + '" aria-label="고정비 기록일"><span>일에 기록</span></label>') +
+      (S.pendingReceipt ? '<p class="field-hint" style="margin-top:8px">🧾 방금 스캔한 영수증이 이 지출에 첨부돼요 <button class="exp-rcpt-x" data-action="exp-rcpt-cancel" type="button">첨부 취소</button></p>' : '') +
+      '<div class="cta-row" style="margin-top:14px"><button class="mobile-primary" data-action="exp-add" type="button">' + (fxEditing ? '고정비 저장' : editing ? '수정 저장' : '지출 기록하기') + '</button>' +
+      (editing || fxEditing ? '<button class="btn btn-tertiary btn-md" data-action="exp-edit-cancel" type="button">취소</button>' : '<button class="btn btn-secondary btn-md" data-action="exp-ocr" type="button">영수증 스캔</button>') + '</div>' +
       '<input id="exp-receipt" type="file" accept="image/*" capture="environment" hidden></div>' +
       fixedHTML +
       (S.expenses.length ? '<div class="cta-col"><button class="btn btn-secondary btn-md" data-action="exp-copy" type="button">정산 내역 복사</button><button class="btn btn-secondary btn-md" data-action="exp-csv" type="button">CSV보내기</button><button class="btn btn-tertiary btn-md" data-action="exp-settle" type="button">이번 정산 마감하기</button></div>' : '') +
       (S.expenses.length ? filterBar : '') +
-      (listHTML ? '<div class="sec-head" style="margin-top:22px"><h3>지출 내역</h3><span class="badge badge-brand">' + view.length + '건</span></div>' + listHTML : (q || S.expFilter !== '전체' ? '<p class="field-hint" style="margin-top:16px">조건에 맞는 지출이 없어요.</p>' : '<div class="empty-notes" style="margin-top:22px">' + mobileIcon('chat') + '<p>아직 지출 기록이 없어요.<br>첫 공동 지출을 기록해 보세요.</p></div>')) +
+      (listHTML ? '<div class="sec-head" style="margin-top:22px"><h3>지출 내역</h3><span class="badge badge-brand">' + view.length + '건 · ' + ML.fmtWonShort(viewTotal) + '</span></div>' + listHTML : (q || S.expFilter !== '전체' || S.expPayerFilter !== 'all' ? '<p class="field-hint" style="margin-top:16px">조건에 맞는 지출이 없어요.</p>' : '<div class="empty-notes" style="margin-top:22px">' + mobileIcon('chat') + '<p>아직 지출 기록이 없어요.<br>첫 공동 지출을 기록해 보세요.</p></div>')) +
       settledHTML +
       '<p class="device-note">기록은 이 기기에만 저장돼요. 건별로 나누는 방법(반반·비율·정확 금액)을 정할 수 있고, 고정비는 매월 자동 기록돼요. 영수증 사진은 백업에 포함되지 않아요.</p>');
   }
@@ -1799,22 +1945,27 @@
       return '<div class="chore-row' + (x.done ? ' done' : '') + '">' +
         '<button class="chore-check" data-action="shop-done" data-v="' + x.id + '" type="button" aria-pressed="' + x.done + '" aria-label="' + esc(x.name) + ' 샀어요">' +
         '<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></button>' +
-        '<span class="chore-name">' + esc(x.name) + '</span>' +
-        '<span class="chore-who shop">' + esc(x.cat) + '</span>' +
+        '<span class="chore-name">' + esc(x.name) + (x.qty && x.qty > 1 ? ' <small class="chore-last">×' + x.qty + '</small>' : '') + '</span>' +
+        '<span class="chore-who shop">' + esc(SHOP_EMOJI[x.cat] || '📦') + ' ' + esc(x.cat) + '</span>' +
         armBtn('shop-del', x.id, '삭제', '확인') + '</div>';
     };
 
     var presets = SHOP_PRESETS.filter(function (p) { return !S.shopping.some(function (x) { return x.name === p; }); });
+    /* 다시 담기 제안 — 이전에 샀던 것 중 목록에 없는 것 */
+    var restock = done.filter(function (x) { return !open.some(function (o) { return o.name === x.name; }); }).slice(0, 5);
 
     shell(listPageHead('LIFE TOOLS', '같이 살 것', '장볼 때 필요한 것을 함께 적어두는 목록') +
       '<div class="settle-hero mint"><span>남은 항목</span><strong>' + open.length + '개' + (done.length ? ' · 산 것 ' + done.length + '개' : '') + '</strong>' +
       '<p>메이트와 동기화가 켜져 있으면 목록이 함께 업데이트돼요</p></div>' +
       '<div class="card" style="margin-top:16px"><h4 class="card-title">필요한 것 추가</h4>' +
       '<div class="custom-rule"><input id="shop-in" class="input" maxlength="30" placeholder="예: 휴지, 라면, 행주" autocomplete="off">' +
+      '<input id="shop-qty" class="input shop-qty" type="number" inputmode="numeric" min="1" max="99" placeholder="1" aria-label="수량">' +
       '<button class="btn btn-secondary btn-md" data-action="shop-add" type="button">추가</button></div>' +
-      '<div class="chip-row" style="margin-top:10px">' + SHOP_CATS.map(function (c) { return '<button class="chip' + (S.shopCat === c ? ' selected' : '') + '" data-action="shop-cat" data-v="' + esc(c) + '" type="button">' + esc(c) + '</button>'; }).join('') + '</div>' +
-      (presets.length ? '<div class="chip-row" style="margin-top:10px">' + presets.map(function (p) { return '<button class="chip" data-action="shop-preset" data-v="' + esc(p) + '" type="button">+ ' + esc(p) + '</button>'; }).join('') + '</div>' : '') + '</div>' +
+      '<div class="chip-row" style="margin-top:10px">' + SHOP_CATS.map(function (c) { return '<button class="chip' + (S.shopCat === c ? ' selected' : '') + '" data-action="shop-cat" data-v="' + esc(c) + '" type="button" aria-pressed="' + (S.shopCat === c) + '">' + esc(SHOP_EMOJI[c] || '') + ' ' + esc(c) + '</button>'; }).join('') + '</div>' +
+      (presets.length ? '<div class="chip-row" style="margin-top:10px">' + presets.map(function (p) { return '<button class="chip" data-action="shop-preset" data-v="' + esc(p) + '" type="button">+ ' + esc(p) + '</button>'; }).join('') + '</div>' : '') +
+      (restock.length ? '<div class="chip-row" style="margin-top:10px"><span class="field-hint" style="width:100%">다시 담기:</span>' + restock.map(function (x) { return '<button class="chip chip-sm" data-action="shop-restock" data-v="' + esc(x.name) + '" type="button">↻ ' + esc(x.name) + '</button>'; }).join('') + '</div>' : '') + '</div>' +
       (open.length ? '<div style="margin:18px 0 6px">' + open.map(row).join('') + '</div>' : '<div class="empty-notes" style="margin-top:18px">' + mobileIcon('chat') + '<p>살 것이 없어요.<br>필요한 게 생기면 바로 적어두세요.</p></div>') +
+      (open.length || done.length ? '<div class="cta-row"><button class="btn btn-secondary btn-md" data-action="shop-copy" type="button">목록 복사</button></div>' : '') +
       (done.length ? '<details class="card" style="margin-top:14px"><summary>산 것 (' + done.length + ')</summary>' + done.map(row).join('') +
         '<button class="btn btn-tertiary btn-md" data-action="shop-clear" type="button" style="margin-top:10px">산 것 모두 지우기</button></details>' : '') +
       '<p class="device-note">목록은 이 기기에 저장되고, 동기화가 켜져 있으면 메이트와 공유돼요.</p>');
@@ -1831,16 +1982,23 @@
       (lm.asked && lm.known / lm.asked >= 0.8) ? '서로를 꽤 잘 알고 있어요!' :
       (lm.known / lm.asked >= 0.5) ? '아는 만큼 더 궁금해지는 사이예요' : '아직 모르는 게 많아요. 더 물어봐요';
 
-    var q = doneAll ? null : LOVE_MAP_QUESTIONS[lm.idx % total];
+    var review = !!S.lmReview && (lm.wrong || []).length;
+    var qIdx = review ? lm.wrong[0] : lm.idx % total;
+    var q = (doneAll && !review) ? null : LOVE_MAP_QUESTIONS[qIdx];
+    var nextQ = (!doneAll && !review) ? LOVE_MAP_QUESTIONS[(lm.idx + 1) % total] : null;
     shell(listPageHead('PLAY', '러브맵 퀴즈', '메이트의 세계를 얼마나 알고 있는지 맞혀보기') +
       '<div class="settle-hero"><span>' + lm.asked + ' / ' + total + ' 질문' + (lm.asked ? ' · 정답률 ' + Math.round(lm.known / lm.asked * 100) + '%' + (lm.best ? ' · 최고 ' + lm.best + '%' : '') + (lm.rounds ? ' · ' + lm.rounds + '회차' : '') : '') + '</span><strong>' + msg + '</strong>' +
       '<div class="lovemap-bar"><i style="width:' + pct + '%"></i></div></div>' +
-      (q ? '<div class="lovemap-card"><span class="lovemap-no">Q' + (lm.asked + 1) + '</span><h3>' + esc(q) + '</h3>' +
+      (review ? '<div class="note-box info" style="margin-top:14px"><span>복습 모드 · 몰랐던 질문 ' + lm.wrong.length + '개 남음</span><button class="btn btn-tertiary btn-sm" data-action="lm-review-off" type="button">복습 종료</button></div>' : '') +
+      (q ? '<div class="lovemap-card"><span class="lovemap-no">' + (review ? '복습' : 'Q' + (lm.asked + 1)) + ' · ' + esc(LOVE_MAP_CATS[qIdx] || '질문') + '</span><h3>' + esc(q) + '</h3>' +
         '<p class="body-sm text-muted">먼저 마음속으로 답을 떠올린 뒤, 메이트에게 물어보세요.</p></div>' +
         '<div class="cta-row"><button class="mobile-primary" data-action="lm-know" type="button">맞혔어요</button>' +
         '<button class="btn btn-secondary btn-md" data-action="lm-dont" type="button">몰랐어요</button></div>' +
-        '<button class="btn btn-tertiary btn-md" data-action="lm-skip" type="button" style="margin-top:10px">이 질문 건너뛰기</button>'
+        '<button class="btn btn-tertiary btn-md" data-action="lm-skip" type="button" style="margin-top:10px">이 질문 건너뛰기</button>' +
+        (nextQ ? '<p class="lm-next"><small>다음 질문 · ' + esc(nextQ.length > 24 ? nextQ.slice(0, 24) + '…' : nextQ) + '</small></p>' : '') +
+        ((lm.wrong || []).length && !review ? '<button class="btn btn-tertiary btn-md" data-action="lm-review" type="button" style="margin-top:8px">몰랐던 질문 복습 (' + lm.wrong.length + ')</button>' : '')
       : '<div class="empty-notes">' + mobileIcon('heart') + '<p>' + total + '개 질문을 모두 나눴어요.<br>서로를 더 알아가는 데 끝은 없어요.</p>' +
+        ((lm.wrong || []).length ? '<button class="btn btn-secondary btn-md" data-action="lm-review" type="button" style="margin-bottom:10px">몰랐던 질문 복습 (' + lm.wrong.length + ')</button>' : '') +
         '<button class="btn btn-secondary btn-md" data-action="lm-reset" type="button">처음부터 다시 하기</button></div>') +
       '<p class="device-note">정답은 없어요 — 질문을 나누는 것 자체가 목적이에요. 진행은 이 기기에 저장돼요.</p>');
   }
@@ -1852,8 +2010,22 @@
   }
   function choreOwner(i, weekTs) {
     var ch = choreState();
-    var off = Math.round((mondayOf(weekTs) - mondayOf(ch.anchor)) / (7 * 86400000));
+    var it = ch.items[i];
+    var weeks = Math.round((mondayOf(weekTs) - mondayOf(ch.anchor)) / (7 * 86400000));
+    var off = it && it.freq === 'bw' ? Math.floor(weeks / 2) : weeks;
     return ((ch.rot[i] || 0) + off) % 2 === 0 ? 'me' : 'you';
+  }
+  /* 항목별 마지막 완료 정보: 로그값 {ts,by} 또는 구버전 true */
+  function choreLastDone(id) {
+    var best = null;
+    Object.keys(S.choreLog).forEach(function (wk) {
+      var v = S.choreLog[wk][id];
+      if (!v) return;
+      var ts = typeof v === 'object' ? v.ts : 0;
+      var by = typeof v === 'object' ? v.by : null;
+      if (!best || ts > best.ts) best = { ts: ts, by: by, week: wk };
+    });
+    return best;
   }
   function saveChores() { save('mateon.chores', S.chores); }
   function vChores() {
@@ -1861,14 +2033,28 @@
     var now = Date.now(), wk = isoWeekKey(now);
     var log = S.choreLog[wk] || {};
     var doneCount = ch.items.filter(function (it) { return log[it.id]; }).length;
+    /* 주간 분담 집계 — 완료자 기준 */
+    var myDone = 0, yourDone = 0;
+    ch.items.forEach(function (it) {
+      var v = log[it.id];
+      if (!v) return;
+      var by = typeof v === 'object' ? v.by : choreOwner(ch.items.indexOf(it), now);
+      if (by === 'me') myDone++; else yourDone++;
+    });
+    var shareTotal = myDone + yourDone;
+    var shareHTML = shareTotal ? '<div class="card" style="margin-top:14px"><h4 class="card-title">이번 주 분담</h4>' +
+      '<div class="chore-share" role="img" aria-label="완료한 집안일: ' + payerName('me') + ' ' + myDone + '개, ' + payerName('you') + ' ' + yourDone + '개"><i class="me" style="width:' + Math.round(myDone / shareTotal * 100) + '%"></i><i class="you" style="width:' + Math.round(yourDone / shareTotal * 100) + '%"></i></div>' +
+      '<div class="chore-share-meta"><span>' + esc(payerName('me')) + ' ' + myDone + '개</span><span>' + esc(payerName('you')) + ' ' + yourDone + '개</span></div></div>' : '';
 
     var itemsHTML = ch.items.length ? ch.items.map(function (it, i) {
       var who = choreOwner(i, now);
       var done = !!log[it.id];
+      var last = choreLastDone(it.id);
       return '<div class="chore-row' + (done ? ' done' : '') + '">' +
         '<button class="chore-check" data-action="chore-done" data-v="' + it.id + '" type="button" aria-pressed="' + done + '" aria-label="' + esc(it.name) + ' 완료">' +
         '<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></button>' +
-        '<span class="chore-name">' + esc(it.name) + '</span>' +
+        '<span class="chore-name">' + esc(it.name) + (last && last.ts ? '<small class="chore-last">마지막 완료 ' + ML.dateLabel(last.ts) + '</small>' : '') + '</span>' +
+        '<button class="chip chip-sm' + (it.freq === 'bw' ? ' selected' : '') + '" data-action="chore-freq" data-v="' + it.id + '" type="button" aria-label="주기 변경">' + (it.freq === 'bw' ? '격주' : '매주') + '</button>' +
         '<span class="chore-who ' + who + '">' + esc(payerName(who)) + '</span>' +
         armBtn('chore-del', it.id, '삭제', '확인') + '</div>';
     }).join('') : '<div class="empty-notes">' + mobileIcon('chat') + '<p>아직 나눌 집안일이 없어요.<br>아래에서 추가하거나 추천 항목을 눌러보세요.</p></div>';
@@ -1878,6 +2064,7 @@
     shell(listPageHead('LIFE TOOLS', '역할 분담', '집안일 담당을 정하고, 매주 자동으로 바꿔요') +
       '<div class="settle-hero mint"><span>이번 주 ' + weekRangeLabel(now) + '</span><strong>' + doneCount + ' / ' + ch.items.length + ' 완료</strong>' +
       '<p>매주 월요일마다 담당이 서로 바뀌어요</p></div>' +
+      shareHTML +
       '<div style="margin:18px 0 6px">' + itemsHTML + '</div>' +
       '<div class="card" style="margin-top:16px"><h4 class="card-title">집안일 추가</h4>' +
       '<div class="custom-rule"><input id="chore-in" class="input" maxlength="16" placeholder="예: 화장실 청소" autocomplete="off">' +
@@ -1889,12 +2076,14 @@
   }
 
   /* ================= View: 우리 일정 ================= */
-  /* 반복 일정: date는 최초 시작일로 고정하고, 표시는 그 주기로 굴려 계산한다 */
+  /* 반복 일정: date는 최초 시작일로 고정하고, 표시는 그 주기로 굴려 계산한다.
+     e.until이 있으면 그 날짜까지만 발생한다. */
   function nextOccurrence(e, from) {
-    if (e.rpt !== 'w' || e.date >= from) return e.date;
+    if (e.rpt !== 'w' || e.date >= from) { return e.until && e.date > e.until ? null : e.date; }
     var d = new Date(e.date + 'T12:00:00');
     while (dateStr(d.getTime()) < from) d.setDate(d.getDate() + 7);
-    return dateStr(d.getTime());
+    var out = dateStr(d.getTime());
+    return e.until && out > e.until ? null : out;
   }
   function monthEvents(ym) {
     var map = {};
@@ -1904,7 +2093,9 @@
         var cur = new Date(e.date + 'T12:00:00');
         while (dateStr(cur.getTime()) < ym + '-01') cur.setDate(cur.getDate() + 7);
         while (dateStr(cur.getTime()) < mend && dateStr(cur.getTime()).slice(0, 7) === ym) {
-          map[dateStr(cur.getTime())] = true; cur.setDate(cur.getDate() + 7);
+          var iso = dateStr(cur.getTime());
+          if (!e.until || iso <= e.until) map[iso] = true;
+          cur.setDate(cur.getDate() + 7);
         }
       } else if (e.date.slice(0, 7) === ym) map[e.date] = true;
     });
@@ -1915,23 +2106,32 @@
     var today = dateStr(Date.now());
     var nowYm = today.slice(0, 7);
     if (!S.calMonth) S.calMonth = nowYm;
+    if (!S.calDay) S.calDay = today;
     var evs = S.events.slice();
     var upcoming = evs.filter(function (e) { return e.date >= today || e.rpt === 'w'; })
-      .sort(function (a, b) { return nextOccurrence(a, today) < nextOccurrence(b, today) ? -1 : 1; });
+      .map(function (e) { return { e: e, occ: nextOccurrence(e, today) }; })
+      .filter(function (x) { return x.occ !== null; })
+      .sort(function (a, b) { return a.occ < b.occ ? -1 : 1; })
+      .map(function (x) { return x.e; });
     var past = evs.filter(function (e) { return e.date < today && e.rpt !== 'w'; })
       .sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+    var evEditing = S.evEditId ? S.events.find(function (e) { return e.id === S.evEditId; }) : null;
+    if (S.evEditId && !evEditing) S.evEditId = null;
 
     function row(e, isPast) {
       var showDate = isPast ? e.date : nextOccurrence(e, today);
       var d = new Date(showDate + 'T12:00:00');
       var dd = isPast ? '' : (showDate === today ? '<span class="badge badge-brand">오늘</span>' : showDate !== e.date ? '<span class="badge">' + showDate.slice(5).replace('-', '/') + '</span>' : '');
+      var timeTag = e.time ? ' · ' + esc(e.time) : '';
+      var rptTag = e.rpt === 'w' ? ' · 매주' + (e.until ? ' (~' + e.until.slice(5).replace('-', '/') + ')' : '') : '';
       return '<div class="event-row' + (isPast ? ' past' : '') + '"><span class="event-date"><b>' + d.getDate() + '</b><i>' + (d.getMonth() + 1) + '월</i></span>' +
         '<span class="event-info"><strong>' + esc(e.title) + '</strong>' + (e.memo ? '<small>' + esc(e.memo) + '</small>' : '') +
-        '<small>' + esc(e.who === 'me' ? payerName('me') : e.who === 'you' ? payerName('you') : '함께') + (e.rpt === 'w' ? ' · 매주' : '') + '</small></span>' +
-        dd + '<button class="item-del" data-action="ev-ics" data-v="' + e.id + '" type="button">ICS</button>' + armBtn('ev-del', e.id, '삭제', '확인') + '</div>';
+        '<small>' + esc(e.who === 'me' ? payerName('me') : e.who === 'you' ? payerName('you') : '함께') + timeTag + rptTag + '</small></span>' +
+        dd + '<button class="item-del" data-action="ev-ics" data-v="' + e.id + '" type="button">ICS</button>' +
+        '<button class="item-del" data-action="ev-edit" data-v="' + e.id + '" type="button">수정</button>' + armBtn('ev-del', e.id, '삭제', '확인') + '</div>';
     }
 
-    /* 월 뷰 그리드 — 일정·기념일이 있는 날에 점 표시 */
+    /* 월 뷰 그리드 — 일정·기념일이 있는 날에 점 표시, 탭하면 그날 일정 */
     var my = S.calMonth.split('-').map(Number);
     var first = new Date(my[0], my[1] - 1, 1);
     var dim = new Date(my[0], my[1], 0).getDate();
@@ -1941,18 +2141,34 @@
     for (var i = 0; i < startOffset; i++) cells += '<span class="cal-cell empty"></span>';
     for (var day = 1; day <= dim; day++) {
       var iso = S.calMonth + '-' + p2(day);
-      cells += '<span class="cal-cell' + (iso === today ? ' today' : '') + (has[iso] ? ' has' : '') + '">' + day + (has[iso] ? '<i></i>' : '') + '</span>';
+      var dows = ['일', '월', '화', '수', '목', '금', '토'][new Date(my[0], my[1] - 1, day).getDay()];
+      cells += '<button class="cal-cell' + (iso === today ? ' today' : '') + (iso === S.calDay ? ' sel' : '') + (has[iso] ? ' has' : '') + '" type="button" data-action="cal-day" data-v="' + iso + '" aria-label="' + my[1] + '월 ' + day + '일 ' + dows + '요일' + (has[iso] ? ', 일정 있음' : '') + '">' + day + (has[iso] ? '<i></i>' : '') + '</button>';
     }
     var calGrid = '<div class="cal-grid-wrap card" style="margin-top:16px">' +
-      '<div class="cal-nav"><button class="chip" type="button" data-action="cal-month" data-v="-1" aria-label="이전 달">‹</button><strong>' + my[0] + '년 ' + my[1] + '월</strong><button class="chip" type="button" data-action="cal-month" data-v="1" aria-label="다음 달">›</button></div>' +
-      '<div class="cal-grid"><span class="cal-dow">월</span><span class="cal-dow">화</span><span class="cal-dow">수</span><span class="cal-dow">목</span><span class="cal-dow">금</span><span class="cal-dow sat">토</span><span class="cal-dow sun">일</span>' + cells + '</div></div>';
+      '<div class="cal-nav"><button class="chip" type="button" data-action="cal-month" data-v="-1" aria-label="이전 달">‹</button>' +
+      '<strong>' + my[0] + '년 ' + my[1] + '월</strong>' +
+      '<span><button class="chip chip-sm" type="button" data-action="cal-today">오늘</button>' +
+      '<button class="chip" type="button" data-action="cal-month" data-v="1" aria-label="다음 달">›</button></span></div>' +
+      '<div class="cal-grid" role="grid"><span class="cal-dow">월</span><span class="cal-dow">화</span><span class="cal-dow">수</span><span class="cal-dow">목</span><span class="cal-dow">금</span><span class="cal-dow sat">토</span><span class="cal-dow sun">일</span>' + cells + '</div>';
 
-    /* 기념일 — 매년 같은 날에 D-day로 표시 */
+    /* 선택한 날짜의 일정 상세 */
+    var selItems = ML.eventsOnDay(S.events, S.anniv, S.calDay);
+    var selLabel = ML.dateLabel(new Date(S.calDay + 'T12:00:00').getTime());
+    calGrid += '<div class="cal-day-detail"><h5>' + esc(selLabel) + '</h5>' +
+      (selItems.length ? selItems.map(function (x) {
+        return '<div class="cal-day-item"><span class="k ' + x.kind + '"></span><span>' + esc(x.title) + (x.memo ? ' <small style="color:var(--app-muted)">' + esc(x.memo) + '</small>' : '') + '</span></div>';
+      }).join('') : '<p class="field-hint">이 날의 일정이 없어요.</p>') +
+      '<button class="btn btn-tertiary btn-sm" data-action="cal-add-day" type="button" style="margin-top:8px">이 날에 일정 추가</button></div></div>';
+
+    /* 기념일 — 매년 같은 날에 D-day로 표시, 마일스톤 배지 */
     var annivRows = S.anniv.map(function (a) {
       var nxt = ML.nextAnnivTs(a.date);
       var dd = nxt === null ? '' : ML.ddayLabel(nxt);
-      return '<div class="settle-row"><span class="settle-cat">기념일</span><span class="settle-info"><strong>' + esc(a.title) + '</strong><small>' + esc(a.date.slice(5)) + ' · 매년</small></span>' +
-        '<span class="badge badge-brand">' + esc(dd) + '</span>' + armBtn('anniv-del', a.id, '삭제', '확인') + '</div>';
+      var since = Math.floor((Date.now() - new Date(a.date + 'T12:00:00').getTime()) / 86400000);
+      var mile = ML.ddayMilestone(since);
+      return '<div class="settle-row"><span class="settle-cat">기념일</span><span class="settle-info"><strong>' + esc(a.title) + '</strong><small>' + esc(a.date.slice(5)) + ' · 매년' + (mile ? ' · 오늘 ' + mile : ' · D+' + Math.max(0, since) + '일째') + '</small></span>' +
+        '<span class="badge badge-brand">' + esc(dd) + '</span>' +
+        '<button class="item-del" data-action="anniv-ics" data-v="' + a.id + '" type="button">ICS</button>' + armBtn('anniv-del', a.id, '삭제', '확인') + '</div>';
     }).join('');
     var annivHTML = '<div class="card" style="margin-top:16px"><h4 class="card-title">우리 기념일</h4>' +
       (annivRows || '<p class="field-hint">만난 날, 입주일 같은 기념일을 등록해 두면 홈에 D-day로 떠요.</p>') +
@@ -1962,16 +2178,20 @@
 
     shell(listPageHead('LIFE TOOLS', '우리 일정', '이사일, 정산일, 점검일 같은 중요한 날을 함께 기록해요') +
       calGrid +
-      '<div class="card" style="margin-top:20px"><h4 class="card-title">일정 추가</h4>' +
-      '<div class="field-group"><label class="field-label" for="ev-date">날짜</label><input id="ev-date" class="input" type="date" value="' + today + '"></div>' +
-      '<div class="field-group"><label class="field-label" for="ev-title">제목</label><input id="ev-title" class="input" maxlength="30" placeholder="예: 전세 만기일" autocomplete="off"></div>' +
-      '<div class="field-group"><label class="field-label" for="ev-memo">메모 (선택)</label><input id="ev-memo" class="input" maxlength="60" placeholder="예: 오후 2시 집주인 연락" autocomplete="off"></div>' +
+      '<div class="card" style="margin-top:20px"><h4 class="card-title">' + (evEditing ? '일정 수정' : '일정 추가') + '</h4>' +
+      '<div class="field-group"><label class="field-label" for="ev-date">날짜</label><input id="ev-date" class="input" type="date" value="' + esc(evEditing ? evEditing.date : (S.calDay || today)) + '"></div>' +
+      '<div class="field-group"><label class="field-label" for="ev-time">시간 (선택)</label><input id="ev-time" class="input" type="time" value="' + esc(evEditing && evEditing.time ? evEditing.time : '') + '"></div>' +
+      '<div class="field-group"><label class="field-label" for="ev-title">제목</label><input id="ev-title" class="input" maxlength="30" placeholder="예: 전세 만기일" autocomplete="off" value="' + esc(evEditing ? evEditing.title : '') + '"></div>' +
+      '<div class="field-group"><label class="field-label" for="ev-memo">메모 (선택)</label><input id="ev-memo" class="input" maxlength="60" placeholder="예: 오후 2시 집주인 연락" autocomplete="off" value="' + esc(evEditing && evEditing.memo ? evEditing.memo : '') + '"></div>' +
       '<div class="field-group" style="margin-bottom:0"><span class="field-label">누구의 일정</span><div class="chip-row">' +
       [['both', '함께'], ['me', payerName('me')], ['you', payerName('you')]].map(function (w) {
-        return '<button class="chip' + (S.evWho === w[0] ? ' selected' : '') + '" data-action="ev-who" data-v="' + w[0] + '" type="button">' + esc(w[1]) + '</button>';
+        return '<button class="chip' + (S.evWho === w[0] ? ' selected' : '') + '" data-action="ev-who" data-v="' + w[0] + '" type="button" aria-pressed="' + (S.evWho === w[0]) + '">' + esc(w[1]) + '</button>';
       }).join('') + '</div></div>' +
-      '<label class="check-row" style="margin-bottom:0"><input type="checkbox" id="ev-rpt"> <span>매주 같은 요일에 반복</span></label>' +
-      '<button class="mobile-primary" data-action="ev-add" type="button" style="margin-top:14px">일정 추가하기</button></div>' +      annivHTML +
+      '<label class="check-row"><input type="checkbox" id="ev-rpt"' + (evEditing && evEditing.rpt === 'w' ? ' checked' : '') + '> <span>매주 같은 요일에 반복</span></label>' +
+      '<label class="check-row" style="margin-bottom:0"><span>반복 종료일 (선택)</span><input id="ev-until" class="input" type="date" value="' + esc(evEditing && evEditing.until ? evEditing.until : '') + '" aria-label="반복 종료일"></label>' +
+      '<div class="cta-row" style="margin-top:14px"><button class="mobile-primary" data-action="ev-add" type="button">' + (evEditing ? '수정 저장' : '일정 추가하기') + '</button>' +
+      (evEditing ? '<button class="btn btn-tertiary btn-md" data-action="ev-edit-cancel" type="button">취소</button>' : '') + '</div></div>' +
+      annivHTML +
 
       (upcoming.length ? '<div class="sec-head" style="margin-top:22px"><h3>다가오는 일정</h3><span class="badge badge-brand">' + upcoming.length + '</span></div>' + upcoming.map(function (e) { return row(e); }).join('') : '<div class="empty-notes" style="margin-top:22px">' + mobileIcon('chat') + '<p>예정된 일정이 없어요.<br>중요한 날을 추가해 보세요.</p></div>') +
       (past.length ? '<details class="card" style="margin-top:16px"><summary>지난 일정 (' + past.length + ')</summary>' + past.map(function (e) { return row(e, true); }).join('') + '</details>' : '') +
@@ -1989,6 +2209,10 @@
     var rules = agreementRules();
     var moodSel = cur ? cur.mood : 0;
     var keptSel = cur ? (cur.kept || []) : [];
+    /* 연속 체크인 스트릭 */
+    var weekSet = {};
+    S.checkins.forEach(function (c) { weekSet[c.week] = true; });
+    var streak = ML.streakWeeks(weekSet);
 
     var historyHTML = '';
     var past = S.checkins.filter(function (c) { return c.week !== wk; }).slice(-4).reverse();
@@ -1996,7 +2220,7 @@
       historyHTML = '<div class="sec-head" style="margin-top:22px"><h3>지난 체크인</h3></div>' +
         past.map(function (c) {
           var m = CHECKIN_MOODS.find(function (x) { return x.v === c.mood; });
-          return '<div class="checkin-hist"><span class="ch-emoji">' + (m ? m.emoji : '·') + '</span><span><strong>' + esc(c.week) + '</strong><small>' + (m ? esc(m.label) : '') + (c.fix ? ' · ' + esc(c.fix) : '') + '</small></span></div>';
+          return '<div class="checkin-hist"><span class="ch-emoji">' + (m ? m.emoji : '·') + '</span><span><strong>' + esc(c.week) + '</strong><small>' + (m ? esc(m.label) : '') + (c.fix ? ' · ' + esc(c.fix) : '') + (c.thanks ? ' · 💌 ' + esc(c.thanks) : '') + '</small></span></div>';
         }).join('');
     }
     /* 기분 추이 차트 — 최근 8주 */
@@ -2012,13 +2236,22 @@
       msn = { week: wk, list: ML.missionPick(wk, MISSION_PRESETS, 2).map(function (t, i) { return { id: 'm-' + wk + '-' + i, text: t, done: false }; }) };
       S.missions = msn; save('mateon.missions', msn);
     }
-    var missionHTML = '<div class="card" style="margin-top:14px"><h4 class="card-title">이번 주 우리 미션</h4>' +
+    var mDone = msn.list.filter(function (m) { return m.done; }).length;
+    var missionHTML = '<div class="card" style="margin-top:14px"><h4 class="card-title">이번 주 우리 미션 <span class="mission-rate">' + mDone + '/' + msn.list.length + '</span></h4>' +
       msn.list.map(function (m) {
         return '<button class="rule-item' + (m.done ? ' checked' : '') + '" data-action="mission-done" data-v="' + m.id + '" type="button" aria-pressed="' + m.done + '"><span class="rule-check"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span>' + esc(m.text) + '</span></button>';
-      }).join('') + '</div>';
+      }).join('') +
+      '<div class="custom-rule" style="margin-top:10px"><input id="mission-in" class="input" maxlength="30" placeholder="우리만의 미션 추가" autocomplete="off">' +
+      '<button class="btn btn-secondary btn-md" data-action="mission-add" type="button">추가</button></div></div>';
+
+    var cheer = streak >= 4 ? streak + '주 연속 체크인 중이에요. 꾸준함이 곧 애정이에요.' :
+      streak >= 2 ? streak + '주 연속 체크인 중이에요. 좋은 리듬이에요.' :
+      '매주 일요일 저녁, 한 주를 돌아보기 좋은 시간이에요.';
 
     shell(listPageHead('LIFE TOOLS', '이번 주 체크인', '일주일에 한 번, 우리 생활이 어땠는지 가볍게 돌아봐요') +
-      '<div class="card" style="margin-top:20px"><h4 class="card-title">' + weekRangeLabel(Date.now()) + ' · 이번 주 우리 생활은?</h4>' +
+      (streak ? '<div class="streak-badge" role="status">🔥 ' + streak + '주 연속 체크인</div>' : '') +
+      '<p class="field-hint" style="margin:10px 2px 0">' + esc(cheer) + '</p>' +
+      '<div class="card" style="margin-top:12px"><h4 class="card-title">' + weekRangeLabel(Date.now()) + ' · 이번 주 우리 생활은?</h4>' +
       '<div class="mood-row" role="radiogroup" aria-label="이번 주 기분">' +
       CHECKIN_MOODS.map(function (m) {
         return '<button class="mood-btn' + (moodSel === m.v ? ' on' : '') + '" data-action="ci-mood" data-v="' + m.v + '" type="button" role="radio" aria-checked="' + (moodSel === m.v) + '" aria-label="' + esc(m.label) + '"><span>' + m.emoji + '</span><small>' + esc(m.label) + '</small></button>';
@@ -2028,6 +2261,8 @@
           var on = keptSel.indexOf(i) >= 0;
           return '<button class="rule-item' + (on ? ' checked' : '') + '" data-action="ci-kept" data-v="' + i + '" type="button" aria-pressed="' + on + '"><span class="rule-check"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span>' + esc(t) + '</span></button>';
         }).join('') + '</div>' : '') +
+      '<div class="card" style="margin-top:14px"><h4 class="card-title">이번 주 고마웠던 일 (선택)</h4>' +
+      '<div class="field-group" style="margin-bottom:0"><input id="ci-thanks" class="input" maxlength="60" placeholder="예: 설거지 다 해줘서" value="' + esc(cur ? cur.thanks || '' : '') + '" autocomplete="off"></div></div>' +
       '<div class="card" style="margin-top:14px"><h4 class="card-title">다음 주에 나누고 싶은 것 (선택)</h4>' +
       '<div class="field-group" style="margin-bottom:0"><input id="ci-fix" class="input" maxlength="80" placeholder="예: 주말엔 같이 청소하기" value="' + esc(cur ? cur.fix || '' : '') + '" autocomplete="off"></div></div>' +
       '<div class="cta-col"><button class="btn btn-primary btn-lg" data-action="ci-save" type="button">' + (cur ? '체크인 수정하기' : '체크인 저장하기') + '</button></div>' +
@@ -2080,8 +2315,9 @@
         '<button class="btn btn-secondary btn-md" data-action="cg-save-rule" type="button">생활규칙으로도 추가</button>' +
         '<button class="btn btn-tertiary btn-md" data-action="cg-restart" type="button">처음으로</button></div></div>' +
         (S.conflictLog.length ? '<div class="sec-head" style="margin-top:20px"><h3>지난 합의</h3></div>' +
-          S.conflictLog.slice().reverse().slice(0, 5).map(function (l) {
-            return '<div class="checkin-hist"><span><strong>' + esc(l.note) + '</strong><small>' + fmtDate(l.ts) + ' · ' + esc((CONFLICT_DOMAINS.find(function (d) { return d.id === l.domain; }) || {}).title || '') + '</small></span></div>';
+          S.conflictLog.map(function (l, i) { return { l: l, i: i }; }).reverse().slice(0, 8).map(function (x) {
+            var l = x.l;
+            return '<div class="checkin-hist"><span><strong>' + esc(l.note) + '</strong><small>' + fmtDate(l.ts) + ' · ' + esc((CONFLICT_DOMAINS.find(function (d) { return d.id === l.domain; }) || {}).title || '') + '</small></span>' + armBtn('cglog-del', x.i, '삭제', '확인') + '</div>';
           }).join('') : '');
     }
     shell(head + body);
@@ -2124,6 +2360,8 @@
     { k: 'mateon.syncMeta', t: '마지막 동기화 시각' },
     { k: 'mateon.syncStat', t: '마지막 동기화 결과' },
     { k: 'mateon.lastBackup', t: '마지막 백업 시각' },
+    { k: 'mateon.talkFavs', t: '대화 주제 즐겨찾기' },
+    { k: 'mateon.homeName', t: '우리 공간 이름' },
   ];
   var BACKUP_KEYS = DATA_ITEMS.map(function (it) { return it.k; });
   var CHECKLIST_KEYS = {};
@@ -2204,25 +2442,31 @@
       return z && typeof z.ts === 'number' && typeof z.label === 'string' && z.label.length <= 40 && typeof z.net === 'number' && Number.isFinite(z.net);
     });
     if (key === 'mateon.chores') return !!(value && typeof value === 'object' && typeof value.anchor === 'number' &&
-      Array.isArray(value.items) && value.items.length <= 30 && value.items.every(function (it) { return it && typeof it.id === 'string' && it.id.length <= 24 && typeof it.name === 'string' && it.name.length > 0 && it.name.length <= 20; }) &&
+      Array.isArray(value.items) && value.items.length <= 30 && value.items.every(function (it) { return it && typeof it.id === 'string' && it.id.length <= 24 && typeof it.name === 'string' && it.name.length > 0 && it.name.length <= 20 && (!it.freq || it.freq === 'w' || it.freq === 'bw'); }) &&
       Array.isArray(value.rot) && value.rot.length <= 30 && value.rot.every(function (n) { return n === 0 || n === 1; }));
     if (key === 'mateon.choreLog') return !!(value && typeof value === 'object' && !Array.isArray(value) &&
       Object.keys(value).every(function (k) {
         var log = value[k];
         return /^\d{4}-W\d{2}$/.test(k) && log && typeof log === 'object' && !Array.isArray(log) &&
-          Object.keys(log).every(function (id) { return typeof log[id] === 'boolean'; });
+          Object.keys(log).every(function (id) {
+            var v = log[id];
+            return v === true || (v && typeof v === 'object' && typeof v.ts === 'number' && (!v.by || v.by === 'me' || v.by === 'you'));
+          });
       }));
     if (key === 'mateon.events') return Array.isArray(value) && value.length <= 300 && value.every(function (e) {
       return e && typeof e.id === 'string' && e.id.length <= 24 && /^\d{4}-\d{2}-\d{2}$/.test(e.date) &&
         typeof e.title === 'string' && e.title.length > 0 && e.title.length <= 30 &&
         (!e.memo || (typeof e.memo === 'string' && e.memo.length <= 60)) &&
         (e.who === 'me' || e.who === 'you' || e.who === 'both') &&
-        (e.rpt === undefined || e.rpt === 'w');
+        (e.rpt === undefined || e.rpt === 'w') &&
+        (!e.time || /^\d{2}:\d{2}$/.test(e.time)) &&
+        (!e.until || /^\d{4}-\d{2}-\d{2}$/.test(e.until));
     });
     if (key === 'mateon.checkins') return Array.isArray(value) && value.length <= 60 && value.every(function (c) {
       return c && /^\d{4}-W\d{2}$/.test(c.week) && c.mood >= 1 && c.mood <= 5 &&
         (!c.kept || (Array.isArray(c.kept) && c.kept.length <= 20 && c.kept.every(function (i) { return Number.isInteger(i) && i >= 0; }))) &&
-        (!c.fix || (typeof c.fix === 'string' && c.fix.length <= 80)) && typeof c.ts === 'number';
+        (!c.fix || (typeof c.fix === 'string' && c.fix.length <= 80)) && typeof c.ts === 'number' &&
+        (!c.thanks || (typeof c.thanks === 'string' && c.thanks.length <= 60));
     });
     if (key === 'mateon.customChecklist') return Array.isArray(value) && value.length <= 50 && value.every(function (x) {
       return x && typeof x.id === 'string' && x.id.length <= 24 && typeof x.text === 'string' && x.text.length > 0 && x.text.length <= 40;
@@ -2232,16 +2476,20 @@
     });
     if (key === 'mateon.shopping') return Array.isArray(value) && value.length <= 200 && value.every(function (x) {
       return x && typeof x.id === 'string' && x.id.length <= 24 && typeof x.name === 'string' && x.name.length > 0 && x.name.length <= 30 &&
-        SHOP_CATS.indexOf(x.cat) !== -1 && typeof x.done === 'boolean' && typeof x.ts === 'number';
+        SHOP_CATS.indexOf(x.cat) !== -1 && typeof x.done === 'boolean' && typeof x.ts === 'number' &&
+        (!x.qty || (Number.isInteger(x.qty) && x.qty >= 1 && x.qty <= 99));
     });
     if (key === 'mateon.lovemap') return !!(value && typeof value === 'object' &&
       Number.isInteger(value.idx) && value.idx >= 0 && value.idx <= LOVE_MAP_QUESTIONS.length &&
       Number.isInteger(value.known) && value.known >= 0 && Number.isInteger(value.asked) && value.asked >= 0 &&
       (!value.askedIdx || (Array.isArray(value.askedIdx) && value.askedIdx.length <= LOVE_MAP_QUESTIONS.length && value.askedIdx.every(function (i) { return Number.isInteger(i); }))) &&
+      (!value.wrong || (Array.isArray(value.wrong) && value.wrong.length <= LOVE_MAP_QUESTIONS.length && value.wrong.every(function (i) { return Number.isInteger(i); }))) &&
       (value.rounds === undefined || Number.isInteger(value.rounds)) && (value.best === undefined || (Number.isInteger(value.best) && value.best >= 0 && value.best <= 100)));
     if (key === 'mateon.tb') return Array.isArray(value);
     if (key === 'mateon.reminders') return !!(value && typeof value === 'object' && typeof value.checkin === 'boolean' && typeof value.agreement === 'boolean' &&
-      (value.chore === undefined || typeof value.chore === 'boolean'));
+      (value.chore === undefined || typeof value.chore === 'boolean') &&
+      (value.day === undefined || (Number.isInteger(value.day) && value.day >= 0 && value.day <= 6)));
+    if (key === 'mateon.homeName') return value === '' || (typeof value === 'string' && value.length <= 12);
     if (key === 'mateon.budgets') return !!(value && typeof value === 'object' && !Array.isArray(value) &&
       Object.keys(value).every(function (k) { return EXPENSE_CATS.indexOf(k) !== -1 && typeof value[k] === 'number' && value[k] > 0 && value[k] <= 100000000; }));
     if (key === 'mateon.anniv') return Array.isArray(value) && value.length <= 20 && value.every(function (a) {
@@ -2256,6 +2504,7 @@
     if (key === 'mateon.syncMeta') return !!(value && typeof value === 'object' && !Array.isArray(value) &&
       ['push', 'pull', 'err'].every(function (k) { return value[k] === undefined || typeof value[k] === 'number'; }));
     if (key === 'mateon.lastBackup') return typeof value === 'number' && value >= 0;
+    if (key === 'mateon.talkFavs') return Array.isArray(value) && value.length <= HOME_TALKS.length && value.every(function (i) { return Number.isInteger(i) && i >= 0 && i < HOME_TALKS.length; });
     if (key === 'mateon.syncStat') return value === null || !!(value && typeof value === 'object' &&
       typeof value.ts === 'number' && typeof value.ok === 'boolean');
     if (key === 'mateon.inviteDays') return value === 1 || value === 7 || value === 30;
@@ -2315,7 +2564,7 @@
     S.customChecklist = load('mateon.customChecklist') || [];
     S.conflictLog = load('mateon.conflictLog') || [];
     var rm = load('mateon.reminders');
-    S.reminders = { checkin: !rm || rm.checkin !== false, agreement: !rm || rm.agreement !== false, chore: !rm || rm.chore !== false };
+    S.reminders = { checkin: !rm || rm.checkin !== false, agreement: !rm || rm.agreement !== false, chore: !rm || rm.chore !== false, day: rm && Number.isInteger(rm.day) ? rm.day : 0 };
     S.inviteDays = load('mateon.inviteDays') || 7;
     S.fontSize = load('mateon.fontSize') === 'large' ? 'large' : 'normal';
     applyFontSize();
@@ -2324,6 +2573,8 @@
     S.budgets = load('mateon.budgets') || {};
     S.anniv = load('mateon.anniv') || [];
     S.missions = load('mateon.missions') || { week: '', list: [] };
+    S.talkFavs = load('mateon.talkFavs') || [];
+    S.homeName = load('mateon.homeName') || '';
     S.syncMeta = load('mateon.syncMeta') || {};
     S.syncStat = load('mateon.syncStat') || null;
     S.lastBackup = load('mateon.lastBackup') || 0;
@@ -2339,10 +2590,11 @@
     restoreDraft(load('mateon.activeDraft') || 'me');
   }
 
-  function applyBackupData(data) {
+  function applyBackupData(data, onlyKeys) {
     if (!data || Object.keys(data).some(function (k) { return !validBackupValue(k, data[k]); })) return false;
-    BACKUP_KEYS.forEach(remove);
+    if (!onlyKeys) BACKUP_KEYS.forEach(remove);
     Object.keys(data).forEach(function (key) {
+      if (onlyKeys && onlyKeys.indexOf(key) < 0) return;
       if (key === 'ds-theme') {
         try { localStorage.setItem(key, data[key]); } catch (e) { /* ignore */ }
       } else save(key, data[key]);
@@ -2378,12 +2630,47 @@
     copyText(text, '백업 JSON을 복사했어요');
   }
 
+  /* 백업 파일 미리보기 — 무엇이 들어있는지 보여준 뒤 전체/부분 복원 선택 */
+  var bkDialog = null;
+  function previewBackup(data) {
+    var info = DATA_ITEMS.filter(function (it) { return data[it.k] !== undefined; });
+    if (!info.length) { showToast('복원할 항목이 없어요'); return; }
+    if (!bkDialog) {
+      bkDialog = document.createElement('dialog');
+      bkDialog.className = 'talk-sheet';
+      document.body.appendChild(bkDialog);
+    }
+    bkDialog.innerHTML = '<div class="sheet-handle" aria-hidden="true"></div><div class="sheet-heading"><span>백업 내용</span><button class="icon-button" type="button" aria-label="닫기" data-bk-close>' + mobileIcon('close') + '</button></div>' +
+      '<p class="sheet-hint">복원할 항목을 골라주세요. 선택한 항목만 이 기기 데이터를 덮어써요.</p>' +
+      '<div class="bk-list">' + info.map(function (it) {
+        var v = data[it.k];
+        var n = Array.isArray(v) ? v.length + '개' : (typeof v === 'object' ? '있음' : '있음');
+        return '<label class="bk-row"><input type="checkbox" data-bk-key="' + it.k + '" checked><span>' + esc(it.t) + '</span><small>' + n + '</small></label>';
+      }).join('') + '</div>' +
+      '<button class="mobile-primary" type="button" data-bk-apply>선택한 항목 복원</button>' +
+      '<button class="btn btn-tertiary btn-md" type="button" data-bk-all style="margin-top:8px">전부 복원</button>';
+    bkDialog.onclick = function (e) {
+      if (e.target.closest('[data-bk-close]')) { bkDialog.close(); return; }
+      if (e.target.closest('[data-bk-apply]')) {
+        var keys = [];
+        bkDialog.querySelectorAll('[data-bk-key]').forEach(function (c) { if (c.checked) keys.push(c.getAttribute('data-bk-key')); });
+        if (!keys.length) { showToast('복원할 항목을 골라주세요'); return; }
+        bkDialog.close();
+        if (applyBackupData(data, keys)) { showToast('선택한 데이터를 복원했어요'); go('home'); }
+        return;
+      }
+      if (e.target.closest('[data-bk-all]')) {
+        bkDialog.close();
+        if (applyBackupData(data)) { showToast('백업 데이터를 복원했어요'); go('home'); }
+      }
+    };
+    if (typeof bkDialog.showModal === 'function') bkDialog.showModal();
+    else if (applyBackupData(data)) { showToast('백업 데이터를 복원했어요'); go('home'); }
+  }
   function importBackupText(text) {
     var data = parseBackup(text);
     if (!data) return false;
-    applyBackupData(data);
-    showToast('백업 데이터를 복원했어요');
-    go('home');
+    previewBackup(data);
     return true;
   }
 
@@ -2434,6 +2721,11 @@
       '<span class="share-opt-dot"></span>닉네임 포함 ' + (shareOn ? '켜짐' : '꺼짐') + '</button>' +
       '<div class="cta-col" style="margin-top:16px"><button class="btn btn-tertiary btn-md" data-action="share-home" type="button">친구에게 MATE:ON 공유</button></div>' +
       '</div>' +
+      '<div class="sec-head" style="margin-top:20px"><h3>우리 공간</h3></div>' +
+      '<div class="card">' +
+      '<div class="field-group"><label class="field-label" for="home-name">우리 공간 이름</label>' +
+      '<div class="custom-rule"><input id="home-name" class="input" maxlength="12" placeholder="예: 다원이네 🏠" value="' + esc(S.homeName || '') + '" autocomplete="off">' +
+      '<button class="btn btn-secondary btn-md" data-action="home-name" type="button">저장</button></div></div></div>' +
       '<div class="sec-head" style="margin-top:20px"><h3>알림·화면</h3></div>' +
       '<div class="card">' +
       '<button class="share-opt' + (S.reminders.checkin ? ' on' : '') + '" data-action="rem-checkin" type="button" aria-pressed="' + S.reminders.checkin + '">' +
@@ -2442,6 +2734,10 @@
       '<span class="share-opt-dot"></span>합의 점검일 알림 ' + (S.reminders.agreement ? '켜짐' : '꺼짐') + '</button>' +
       '<button class="share-opt' + (S.reminders.chore ? ' on' : '') + '" data-action="rem-chore" type="button" aria-pressed="' + S.reminders.chore + '">' +
       '<span class="share-opt-dot"></span>주말 집안일 알림 ' + (S.reminders.chore ? '켜짐' : '꺼짐') + '</button>' +
+      '<div class="field-group" style="margin-top:12px"><span class="field-label">체크인 알림 요일</span><div class="chip-row">' +
+      [['6', '토요일'], ['0', '일요일'], ['1', '월요일']].map(function (d) {
+        return '<button class="chip chip-sm' + (String(S.reminders.day || '0') === d[0] ? ' selected' : '') + '" data-action="rem-day" data-v="' + d[0] + '" type="button" aria-pressed="' + (String(S.reminders.day || '0') === d[0]) + '">' + d[1] + '</button>';
+      }).join('') + '</div></div>' +
       '<p class="caption text-muted" style="margin-top:10px">앱에 설치된 경우에만 알림이 와요. 웹에서는 홈 배너로 안내해요.</p>' +
       '</div>' +
       '<div class="sec-head" style="margin-top:20px"><h3>글자 크기</h3></div>' +
@@ -2454,6 +2750,7 @@
       '<div class="sec-head" style="margin-top:20px"><h3>백업</h3></div>' +
       '<div class="card backup-card">' +
       '<p class="body-sm text-muted">이 기기의 진단, 합의서, 체크리스트, 대화 기록을 JSON 파일로 옮길 수 있어요. 개인 정보가 포함되니 안전한 곳에 보관해 주세요.</p>' +
+      (S.quotaInfo ? '<p class="caption ' + (S.quotaInfo.pct > 80 ? 'sync-bad' : 'text-muted') + '" style="margin-top:6px">저장 공간 ' + S.quotaInfo.pct + '% 사용 중' + (S.quotaInfo.pct > 80 ? ' — 거의 찼어요. 백업 후 오래된 데이터를 정리해 주세요.' : '') + '</p>' : '') +
       '<div class="backup-actions">' +
       '<button class="btn btn-secondary btn-md" data-action="backup-export" type="button">백업 파일 내보내기</button>' +
       '<button class="btn btn-tertiary btn-md" data-action="backup-import" type="button">백업 파일 불러오기</button>' +
@@ -2466,6 +2763,16 @@
       '<div style="text-align:center;margin-top:16px">' +
       '<button class="btn-danger-text" data-action="reset-all" type="button">' +
       (S.resetArm ? '한 번 더 누르면 모든 데이터가 삭제됩니다' : '모든 데이터 삭제') + '</button></div>' +
+      '<div class="sec-head" style="margin-top:20px"><h3>이번 버전 새 기능</h3></div>' +
+      '<div class="card"><ul class="changelog">' +
+      '<li>지출 날짜 기록·수정, 지출자 필터, 예산 80% 경고</li>' +
+      '<li>집안일 격주 주기·분담 통계, 쇼핑 수량·목록 복사</li>' +
+      '<li>캘린더 날짜 탭·일정 편집·반복 종료일·ICS 내보내기</li>' +
+      '<li>체크인 스트릭·커스텀 미션·우리 온도·주간 리포트</li>' +
+      '<li>러브맵 오답 복습·대화 즐겨찾기·갈등 기록 관리</li>' +
+      '<li>백업 미리보기·부분 복원, 멀티탭·자동 동기화</li>' +
+      '<li>설치 배너·앱 바로가기·새 버전 알림</li>' +
+      '</ul></div>' +
       '<div class="sec-head" style="margin-top:20px"><h3>약관 및 정보</h3></div>' +
       '<div class="set-group">' +
       '<button class="set-link" data-action="privacy" type="button">개인정보처리방침' + chev + '</button>' +
@@ -2933,7 +3240,8 @@
             '<button class="btn btn-tertiary btn-md" data-action="sync-off" type="button">동기화 끄기</button>' : '') +
       '</div>' +
       (on ? '<p class="caption sync-stat ' + (S.syncStat && S.syncStat.ok === false ? 'sync-bad' : 'text-muted') + '" style="margin-top:8px">' +
-        esc(syncStatLine()) + '</p>' : '') +
+        esc(syncStatLine()) + (syncTimer ? ' · 저장 대기 중…' : '') + '</p>' : '') +
+      (on && S.syncMeta && (S.syncMeta.push || S.syncMeta.pull) ? '<p class="caption text-muted" style="margin-top:4px">보냄 ' + (S.syncMeta.push ? fmtDate(S.syncMeta.push) : '—') + ' · 받음 ' + (S.syncMeta.pull ? fmtDate(S.syncMeta.pull) : '—') + '</p>' : '') +
       (on ? '<p class="caption text-muted" style="margin-top:8px">방 코드를 아는 사람만 접근할 수 있어요. 민감한 데이터는 공유하지 마세요.</p>' : '');
   }
 
@@ -3114,7 +3422,7 @@
     else if (act === 'survey') {
       if (!S.profile.name.trim()) {
         var inp = document.getElementById('pf-name');
-        if (inp) { inp.classList.add('input-error'); inp.focus(); }
+        if (inp) { markBad(inp); }
         showToast('이름 또는 닉네임을 입력해 주세요');
         return;
       }
@@ -3295,7 +3603,7 @@
       var kv = kin ? kin.value.trim().toUpperCase() : '';
       var res = /^E[1-4]R[1-4]$/.test(kv) ? resultFromCode(kv) : null;
       if (!res) {
-        if (kin) { kin.classList.add('input-error'); kin.focus(); }
+        if (kin) { markBad(kin); }
         showToast('E1~E4와 R1~R4 조합으로 입력해 주세요 (예: E3R2)');
         return;
       }
@@ -3354,7 +3662,7 @@
       if (dk === 'mateon.checkins') { S.checkins = []; }
       if (dk === 'mateon.customChecklist') { S.customChecklist = []; }
       if (dk === 'mateon.conflictLog') { S.conflictLog = []; }
-      if (dk === 'mateon.reminders') { S.reminders = { checkin: true, agreement: true, chore: true }; syncNativeReminders(); }
+      if (dk === 'mateon.reminders') { S.reminders = { checkin: true, agreement: true, chore: true, day: 0 }; syncNativeReminders(); }
       if (dk === 'mateon.inviteDays') { S.inviteDays = 7; }
       if (dk === 'mateon.fontSize') { S.fontSize = 'normal'; applyFontSize(); }
       if (dk === 'mateon.seen') { S.seen = false; }
@@ -3365,11 +3673,26 @@
     /* ---- 생활비 정산 ---- */
     else if (act === 'exp-payer' || act === 'exp-cat' || act === 'exp-split') {
       /* 칩 리렌더가 입력 중인 내용을 지우지 않도록 폼 값을 보존한다 */
-      var m0 = document.getElementById('exp-memo'), a0 = document.getElementById('exp-amt'), s0 = document.getElementById('exp-share');
-      if (m0) S.expMemo = m0.value; if (a0) S.expAmt = a0.value; if (s0) S.expShare = s0.value;
+      var m0 = document.getElementById('exp-memo'), a0 = document.getElementById('exp-amt'), s0 = document.getElementById('exp-share'), d0 = document.getElementById('exp-date');
+      if (m0) S.expMemo = m0.value; if (a0) S.expAmt = a0.value; if (s0) S.expShare = s0.value; if (d0) S.expDate = d0.value;
       if (act === 'exp-payer') S.expPayer = el.dataset.v;
-      else if (act === 'exp-cat') S.expCat = el.dataset.v;
+      else if (act === 'exp-cat') { S.expCat = el.dataset.v; save('mateon.lastExpCat', S.expCat); }
       else S.splitMode = el.dataset.v;
+      render();
+    }
+    else if (act === 'exp-payer-filter') { S.expPayerFilter = el.dataset.v; S.expShowN = 15; render(); }
+    else if (act === 'exp-q-clear') { S.expQuery = ''; S.expShowN = 15; render(); var q0 = document.getElementById('exp-q'); if (q0) q0.focus(); }
+    else if (act === 'exp-more') { S.expShowN = (S.expShowN || 15) + 30; render(); }
+    else if (act === 'exp-rcpt-cancel') { S.pendingReceipt = null; showToast('영수증 첨부를 취소했어요'); render(); }
+    else if (act === 'fx-edit') {
+      var fxe = S.fixedExpenses.find(function (f) { return f.id === el.dataset.v; });
+      if (!fxe) return;
+      S.expEditFx = fxe.id; S.expEditId = null;
+      S.expMemo = fxe.memo || ''; S.expAmt = String(fxe.amount);
+      S.expPayer = fxe.payer; S.expCat = fxe.cat || '기타';
+      var fxSh = typeof fxe.share === 'number' ? fxe.share : 0.5;
+      if (fxSh === 0.5) { S.splitMode = 'equal'; S.expShare = ''; }
+      else { S.splitMode = 'percent'; S.expShare = String(Math.round(fxSh * 100)); }
       render();
     }
     else if (act === 'exp-month') {
@@ -3387,23 +3710,42 @@
       var memoEl = document.getElementById('exp-memo'), amtEl = document.getElementById('exp-amt');
       var memo = memoEl ? memoEl.value.trim() : '';
       var amt = amtEl ? Math.round(+String(amtEl.value).replace(/[^\d.]/g, '') || 0) : 0;
-      if (!memo) { if (memoEl) { memoEl.classList.add('input-error'); memoEl.focus(); } showToast('어디에 썼는지 적어주세요'); return; }
-      if (!amt || amt <= 0 || amt > 100000000) { if (amtEl) { amtEl.classList.add('input-error'); amtEl.focus(); } showToast('금액을 확인해 주세요'); return; }
+      if (!memo) { if (memoEl) { markBad(memoEl); } showToast('어디에 썼는지 적어주세요'); return; }
+      if (!amt || amt <= 0 || amt > 100000000) { if (amtEl) { markBad(amtEl); } showToast('금액을 확인해 주세요'); return; }
       var share = 0.5;
       if (S.splitMode !== 'equal') {
         var shareEl = document.getElementById('exp-share');
         var sv = shareEl ? +String(shareEl.value).replace(/[^\d.]/g, '') : NaN;
         if (S.splitMode === 'percent') {
-          if (!Number.isFinite(sv) || sv < 0 || sv > 100) { if (shareEl) { shareEl.classList.add('input-error'); shareEl.focus(); } showToast('부담 비율을 0~100 사이로 적어주세요'); return; }
+          if (!Number.isFinite(sv) || sv < 0 || sv > 100) { if (shareEl) { markBad(shareEl); } showToast('부담 비율을 0~100 사이로 적어주세요'); return; }
           share = sv / 100;
         } else if (S.splitMode === 'exact') {
-          if (!Number.isFinite(sv) || sv < 0 || sv > amt) { if (shareEl) { shareEl.classList.add('input-error'); shareEl.focus(); } showToast('내 부담금은 0~총액 사이로 적어주세요'); return; }
+          if (!Number.isFinite(sv) || sv < 0 || sv > amt) { if (shareEl) { markBad(shareEl); } showToast('내 부담금은 0~총액 사이로 적어주세요'); return; }
           share = sv / amt;
         }
       }
+      /* 고정비 수정 모드: fixedExpenses만 갱신하고 끝낸다 */
+      var fxEditRec = S.expEditFx ? S.fixedExpenses.find(function (f) { return f.id === S.expEditFx; }) : null;
+      if (fxEditRec) {
+        fxEditRec.memo = memo; fxEditRec.amount = amt; fxEditRec.payer = S.expPayer; fxEditRec.cat = S.expCat;
+        if (share !== 0.5) fxEditRec.share = Math.round(share * 1000) / 1000; else delete fxEditRec.share;
+        var fxDayEl = document.getElementById('exp-day');
+        var newDay = Math.round(fxDayEl ? +fxDayEl.value : 0);
+        if (Number.isInteger(newDay) && newDay >= 1 && newDay <= 28) fxEditRec.day = newDay;
+        S.expEditFx = null;
+        S.expMemo = ''; S.expAmt = ''; S.expShare = '';
+        save('mateon.fixedExpenses', S.fixedExpenses);
+        showToast('고정비를 수정했어요'); render(); scheduleSyncPush();
+        return;
+      }
+      var dateEl = document.getElementById('exp-date');
+      var dateV = dateEl && /^\d{4}-\d{2}-\d{2}$/.test(dateEl.value) ? dateEl.value : dateStr(Date.now());
+      if (dateV > dateStr(Date.now())) dateV = dateStr(Date.now());
+      var expTs = new Date(dateV + 'T12:00:00').getTime();
       var editRec = S.expEditId ? S.expenses.find(function (x) { return x.id === S.expEditId; }) : null;
       if (editRec) {
         editRec.memo = memo; editRec.amount = amt; editRec.payer = S.expPayer; editRec.cat = S.expCat;
+        editRec.ts = expTs;
         if (share !== 0.5) editRec.share = Math.round(share * 1000) / 1000; else delete editRec.share;
         S.expEditId = null;
         S.expMemo = ''; S.expAmt = ''; S.expShare = '';
@@ -3411,7 +3753,7 @@
         showToast('지출을 수정했어요'); render(); scheduleSyncPush();
         return;
       }
-      var rec2 = { id: uid(), ts: Date.now(), memo: memo, amount: amt, payer: S.expPayer, cat: S.expCat };
+      var rec2 = { id: uid(), ts: expTs, memo: memo, amount: amt, payer: S.expPayer, cat: S.expCat };
       if (share !== 0.5) rec2.share = Math.round(share * 1000) / 1000;
       var recurEl = document.getElementById('exp-recur');
       if (recurEl && recurEl.checked) {
@@ -3437,13 +3779,14 @@
       }
       S.expMemo = ''; S.expAmt = ''; S.expShare = '';
       save('mateon.expenses', S.expenses);
+      save('mateon.lastSplit', { mode: S.splitMode, share: share });
       showToast(rec2.fx ? '지출을 기록하고 고정비로 등록했어요' : '지출을 기록했어요'); render(); scheduleSyncPush();
     }
     else if (act === 'exp-edit') {
       var er = S.expenses.find(function (x) { return x.id === el.dataset.v; });
       if (!er) return;
-      S.expEditId = er.id;
-      S.expMemo = er.memo || ''; S.expAmt = String(er.amount);
+      S.expEditId = er.id; S.expEditFx = null;
+      S.expMemo = er.memo || ''; S.expAmt = String(er.amount); S.expDate = dateStr(er.ts);
       S.expPayer = er.payer; S.expCat = er.cat || '기타';
       var sh = expenseShare(er);
       if (sh === 0.5) { S.splitMode = 'equal'; S.expShare = ''; }
@@ -3453,9 +3796,9 @@
       if (memoIn) { memoIn.focus(); }
     }
     else if (act === 'exp-edit-cancel') {
-      S.expEditId = null; S.expMemo = ''; S.expAmt = ''; S.expShare = ''; render();
+      S.expEditId = null; S.expEditFx = null; S.expMemo = ''; S.expAmt = ''; S.expShare = ''; render();
     }
-    else if (act === 'exp-filter') { S.expFilter = el.dataset.v; render(); }
+    else if (act === 'exp-filter') { S.expFilter = el.dataset.v; S.expShowN = 15; render(); }
     else if (act === 'exp-rcpt') { showReceipt(el.dataset.v); }
     else if (act === 'exp-csv') {
       var viewAllCsv = S.settleMonth === 'all';
@@ -3494,15 +3837,29 @@
       var eid = el.dataset.v;
       if (S.delArm2 !== 'exp-del:' + eid) { S.delArm2 = 'exp-del:' + eid; render(); return; }
       S.delArm2 = null;
+      var delRec = S.expenses.find(function (x) { return x.id === eid; });
       S.expenses = S.expenses.filter(function (x) { return x.id !== eid; });
       rcptDel(eid);
-      save('mateon.expenses', S.expenses); render(); scheduleSyncPush();
+      save('mateon.expenses', S.expenses);
+      /* 되돌리기: 6초 안에 실행 취소 가능 */
+      if (delRec) {
+        S.expUndo = { rec: delRec, until: Date.now() + 6000 };
+        showToast('삭제했어요', { action: { label: '되돌리기', fn: function () {
+          if (S.expUndo && S.expUndo.rec === delRec) { S.expenses.push(delRec); S.expUndo = null; save('mateon.expenses', S.expenses); render(); scheduleSyncPush(); }
+        } } });
+      }
+      render(); scheduleSyncPush();
     }
     else if (act === 'exp-copy') {
       var meP = 0, youP = 0;
       S.expenses.forEach(function (x) { if (x.payer === 'me') meP += x.amount; else youP += x.amount; });
       var net = settleNet();
-      var lines = ['[MATE:ON 생활비 정산]', payerName('me') + ' 지출 ' + fmtWon(meP) + ' / ' + payerName('you') + ' 지출 ' + fmtWon(youP)];
+      var range = '';
+      if (S.expenses.length) {
+        var tsAsc = S.expenses.slice().sort(function (a, b) { return a.ts - b.ts; });
+        range = ML.dateLabel(tsAsc[0].ts) + ' ~ ' + ML.dateLabel(tsAsc[tsAsc.length - 1].ts);
+      }
+      var lines = ['[MATE:ON 생활비 정산]', '기간: ' + range, payerName('me') + ' 지출 ' + fmtWon(meP) + ' / ' + payerName('you') + ' 지출 ' + fmtWon(youP)];
       lines.push(net === 0 ? '정산: 딱 맞게 나눴어요' : '정산: ' + (net > 0 ? payerName('you') + ' → ' + payerName('me') : payerName('me') + ' → ' + payerName('you')) + ' ' + fmtWon(Math.abs(net)));
       lines.push('---');
       S.expenses.slice().sort(function (a, b) { return a.ts - b.ts; }).forEach(function (x) {
@@ -3524,16 +3881,31 @@
     }
     /* ---- 같이 살 것 ---- */
     else if (act === 'shop-cat') { S.shopCat = el.dataset.v; render(); }
-    else if (act === 'shop-add' || act === 'shop-preset') {
+    else if (act === 'shop-add' || act === 'shop-preset' || act === 'shop-restock') {
       var sin = document.getElementById('shop-in');
-      var sname = act === 'shop-preset' ? el.dataset.v : (sin ? sin.value.trim() : '');
-      if (!sname) { if (sin) { sin.classList.add('input-error'); sin.focus(); } showToast('살 것을 적어주세요'); return; }
+      var sqtyEl = document.getElementById('shop-qty');
+      var sname = act === 'shop-add' ? (sin ? sin.value.trim() : '') : el.dataset.v;
+      var sqty = sqtyEl ? Math.round(+sqtyEl.value || 1) : 1;
+      if (!Number.isInteger(sqty) || sqty < 1 || sqty > 99) sqty = 1;
+      if (!sname) { if (sin) { markBad(sin); } showToast('살 것을 적어주세요'); return; }
       if (sname.length > 30) sname = sname.slice(0, 30);
       if (S.shopping.length >= 200) { showToast('목록이 가득 찼어요. 산 것을 먼저 지워주세요'); return; }
-      if (S.shopping.some(function (x) { return x.name === sname && !x.done; })) { showToast('이미 목록에 있어요'); return; }
-      S.shopping.push({ id: uid(), name: sname, cat: S.shopCat, done: false, ts: Date.now() });
+      var existOpen = S.shopping.find(function (x) { return x.name === sname && !x.done; });
+      if (existOpen) {
+        /* 이미 있으면 수량만 합산 */
+        existOpen.qty = (existOpen.qty || 1) + (act === 'shop-add' ? sqty : 1);
+        save('mateon.shopping', S.shopping); showToast('수량을 더했어요'); render(); scheduleSyncPush(); return;
+      }
+      S.shopping.push({ id: uid(), name: sname, cat: S.shopCat, done: false, ts: Date.now(), qty: sqty });
       save('mateon.shopping', S.shopping);
       showToast('"' + sname + '"을(를) 추가했어요'); render(); scheduleSyncPush();
+    }
+    else if (act === 'shop-copy') {
+      var openItems = S.shopping.filter(function (x) { return !x.done; });
+      if (!openItems.length) { showToast('남은 항목이 없어요'); return; }
+      var shopText = '[같이 살 것 ' + ML.dateLabel(Date.now()) + ']\n' +
+        openItems.map(function (x) { return '□ ' + x.name + (x.qty > 1 ? ' ×' + x.qty : '') + ' (' + x.cat + ')'; }).join('\n');
+      copyText(shopText, '장보기 목록을 복사했어요');
     }
     else if (act === 'shop-done') {
       var sid = el.dataset.v;
@@ -3556,35 +3928,68 @@
     /* ---- 러브맵 퀴즈 ---- */
     else if (act === 'lm-know' || act === 'lm-dont' || act === 'lm-skip') {
       var lm = S.lovemap;
-      lm.asked++;
-      if (act === 'lm-know') lm.known++;
-      lm.askedIdx = lm.askedIdx || [];
-      lm.askedIdx.push(lm.idx);
-      if (lm.asked >= LOVE_MAP_QUESTIONS.length) {
-        lm.idx = 0;
-        lm.rounds = (lm.rounds || 0) + 1;
-        var acc = Math.round(lm.known / lm.asked * 100);
-        lm.best = Math.max(lm.best || 0, acc);
+      lm.wrong = lm.wrong || [];
+      if (S.lmReview && lm.wrong.length) {
+        /* 복습 모드: wrong 큐를 소비한다 */
+        if (act === 'lm-know') { lm.known++; lm.asked++; lm.wrong.shift(); }
+        else if (act === 'lm-dont') { lm.asked++; var w0 = lm.wrong.shift(); lm.wrong.push(w0); }
+        else lm.wrong.push(lm.wrong.shift());
+        if (!lm.wrong.length) { S.lmReview = false; showToast('복습 완료! 이제 다 알아요', {type:'good'}); buzz(40); }
+      } else {
+        lm.asked++;
+        if (act === 'lm-know') { lm.known++; var wi = lm.wrong.indexOf(lm.idx); if (wi >= 0) lm.wrong.splice(wi, 1); }
+        else if (act === 'lm-dont' && lm.wrong.indexOf(lm.idx) < 0) lm.wrong.push(lm.idx);
+        lm.askedIdx = lm.askedIdx || [];
+        lm.askedIdx.push(lm.idx);
+        if (lm.asked >= LOVE_MAP_QUESTIONS.length) {
+          lm.idx = 0;
+          lm.rounds = (lm.rounds || 0) + 1;
+          var acc = Math.round(lm.known / lm.asked * 100);
+          lm.best = Math.max(lm.best || 0, acc);
+        }
+        else { do { lm.idx = (lm.idx + 1) % LOVE_MAP_QUESTIONS.length; } while (lm.askedIdx.indexOf(lm.idx) !== -1); }
+        if (act === 'lm-know') showToast('서로를 잘 알고 있네요!');
       }
-      else { do { lm.idx = (lm.idx + 1) % LOVE_MAP_QUESTIONS.length; } while (lm.askedIdx.indexOf(lm.idx) !== -1); }
       lovemapSave();
-      if (act === 'lm-know') showToast('서로를 잘 알고 있네요!');
       render();
     }
+    else if (act === 'lm-review') { S.lmReview = true; render(); }
+    else if (act === 'lm-review-off') { S.lmReview = false; render(); }
     else if (act === 'lm-reset') {
-      S.lovemap = { idx: 0, known: 0, asked: 0, askedIdx: [] };
+      S.lovemap = { idx: 0, known: 0, asked: 0, askedIdx: [], wrong: [] };
+      S.lmReview = false;
       lovemapSave(); render(); showToast('러브맵을 처음부터 다시 시작해요');
+    }
+    else if (act === 'fab-menu') { S.fabOpen = !S.fabOpen; render(); }
+    else if (act === 'app-install') {
+      var p = S.installPrompt;
+      if (p && p.prompt) { p.prompt(); S.installPrompt = null; render(); }
+      else showToast('브라우저 메뉴에서 "홈 화면에 추가"를 눌러주세요');
+    }
+    else if (act === 'mission-add') {
+      var min = document.getElementById('mission-in');
+      var mtext = min ? min.value.trim().slice(0, 30) : '';
+      if (!mtext) { if (min) { markBad(min); } showToast('미션 내용을 적어주세요'); return; }
+      if (S.missions.list.length >= 5) { showToast('미션은 한 주에 5개까지예요'); return; }
+      if (S.missions.list.some(function (m) { return m.text === mtext; })) { showToast('이미 있는 미션이에요'); return; }
+      S.missions.list.push({ id: 'mc-' + uid(), text: mtext, done: false });
+      save('mateon.missions', S.missions); render(); showToast('우리만의 미션을 추가했어요'); scheduleSyncPush();
     }
     else if (act === 'mission-done') {
       var mid = el.dataset.v;
+      var allDone = false;
       S.missions.list.forEach(function (m) { if (m.id === mid) m.done = !m.done; });
+      allDone = S.missions.list.length > 0 && S.missions.list.every(function (m) { return m.done; });
       save('mateon.missions', S.missions); render(); scheduleSyncPush();
+      var mHit = S.missions.list.find(function (m) { return m.id === mid; });
+      if (mHit && mHit.done) buzz(30);
+      if (allDone) showToast('🎉 이번 주 미션 전부 완료!', {type:'good'}); else if (mHit && mHit.done) showToast('미션 완료!');
     }
     /* ---- 역할 분담 ---- */
     else if (act === 'chore-add') {
       var cin = document.getElementById('chore-in');
       var cname = cin ? cin.value.trim() : '';
-      if (!cname) { if (cin) { cin.classList.add('input-error'); cin.focus(); } showToast('집안일 이름을 적어주세요'); return; }
+      if (!cname) { if (cin) { markBad(cin); } showToast('집안일 이름을 적어주세요'); return; }
       if (cname.length > 16) cname = cname.slice(0, 16);
       var ch = choreState();
       if (ch.items.length >= 30) { showToast('집안일은 최대 30개까지 추가할 수 있어요'); return; }
@@ -3609,26 +4014,71 @@
       if (idx >= 0) { ch3.items.splice(idx, 1); ch3.rot.splice(idx, 1); }
       saveChores(); render(); scheduleSyncPush();
     }
+    else if (act === 'chore-freq') {
+      var cfid = el.dataset.v;
+      var chf = choreState();
+      chf.items.forEach(function (it) { if (it.id === cfid) it.freq = it.freq === 'bw' ? 'w' : 'bw'; });
+      saveChores(); render(); scheduleSyncPush();
+    }
     else if (act === 'chore-done') {
       var chid = el.dataset.v; var wk = isoWeekKey();
       if (!S.choreLog[wk]) S.choreLog[wk] = {};
-      S.choreLog[wk][chid] = !S.choreLog[wk][chid];
-      if (!S.choreLog[wk][chid]) delete S.choreLog[wk][chid];
+      var cur = S.choreLog[wk][chid];
+      if (cur) { delete S.choreLog[wk][chid]; }
+      else {
+        S.choreLog[wk][chid] = { ts: Date.now(), by: 'me' };
+        buzz(20);
+        showToast('잘했어요! 완료로 기록했어요', { type: 'good' });
+      }
       save('mateon.choreLog', S.choreLog); render();
     }
     /* ---- 우리 일정 ---- */
     else if (act === 'ev-who') { S.evWho = el.dataset.v; render(); }
+    else if (act === 'cal-day') { S.calDay = el.dataset.v; render(); }
+    else if (act === 'cal-today') { var t0 = dateStr(Date.now()); S.calMonth = t0.slice(0, 7); S.calDay = t0; render(); }
+    else if (act === 'cal-add-day') {
+      /* 선택한 날짜로 폼을 채우고 폼으로 스크롤 */
+      render();
+      var fd = document.getElementById('ev-date'), ft = document.getElementById('ev-title');
+      if (fd) fd.value = S.calDay;
+      if (ft) { ft.focus(); ft.scrollIntoView({ block: 'center' }); }
+    }
+    else if (act === 'ev-edit') {
+      var eer = S.events.find(function (e) { return e.id === el.dataset.v; });
+      if (!eer) return;
+      S.evEditId = eer.id; S.evWho = eer.who || 'both';
+      render();
+      var et0 = document.getElementById('ev-title');
+      if (et0) { et0.focus(); et0.scrollIntoView({ block: 'center' }); }
+    }
+    else if (act === 'ev-edit-cancel') { S.evEditId = null; render(); }
     else if (act === 'ev-add') {
       var edEl = document.getElementById('ev-date'), etEl = document.getElementById('ev-title'), emEl = document.getElementById('ev-memo'), erEl = document.getElementById('ev-rpt');
+      var tmEl = document.getElementById('ev-time'), unEl = document.getElementById('ev-until');
       var edate = edEl ? edEl.value : '';
       var etitle = etEl ? etEl.value.trim() : '';
       var ememo = emEl ? emEl.value.trim() : '';
       var erpt = erEl && erEl.checked ? 'w' : null;
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(edate)) { if (edEl) { edEl.classList.add('input-error'); edEl.focus(); } showToast('날짜를 선택해 주세요'); return; }
-      if (!etitle) { if (etEl) { etEl.classList.add('input-error'); etEl.focus(); } showToast('일정 제목을 적어주세요'); return; }
+      var etime = tmEl && /^\d{2}:\d{2}$/.test(tmEl.value) ? tmEl.value : null;
+      var euntil = unEl && /^\d{4}-\d{2}-\d{2}$/.test(unEl.value) && unEl.value >= edate ? unEl.value : null;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(edate)) { if (edEl) { markBad(edEl); } showToast('날짜를 선택해 주세요'); return; }
+      if (!etitle) { if (etEl) { markBad(etEl); } showToast('일정 제목을 적어주세요'); return; }
+      var evEditRec = S.evEditId ? S.events.find(function (e) { return e.id === S.evEditId; }) : null;
+      if (evEditRec) {
+        evEditRec.date = edate; evEditRec.title = etitle.slice(0, 30); evEditRec.memo = ememo.slice(0, 60); evEditRec.who = S.evWho;
+        if (etime) evEditRec.time = etime; else delete evEditRec.time;
+        if (erpt) evEditRec.rpt = 'w'; else delete evEditRec.rpt;
+        if (euntil) evEditRec.until = euntil; else delete evEditRec.until;
+        S.evEditId = null;
+        save('mateon.events', S.events);
+        showToast('일정을 수정했어요'); render(); scheduleSyncPush();
+        return;
+      }
       if (S.events.length >= 300) { showToast('일정은 최대 300개까지 등록할 수 있어요'); return; }
       var newEv = { id: uid(), date: edate, title: etitle.slice(0, 30), memo: ememo.slice(0, 60), who: S.evWho };
+      if (etime) newEv.time = etime;
       if (erpt) newEv.rpt = 'w';
+      if (euntil) newEv.until = euntil;
       S.events.push(newEv);
       save('mateon.events', S.events);
       showToast(erpt ? '매주 반복 일정을 추가했어요' : '일정을 추가했어요'); render(); scheduleSyncPush();
@@ -3644,7 +4094,7 @@
       var atEl = document.getElementById('anniv-title'), adEl = document.getElementById('anniv-date');
       var atitle = atEl ? atEl.value.trim() : '';
       var adate = adEl ? adEl.value : '';
-      if (!atitle) { if (atEl) { atEl.classList.add('input-error'); atEl.focus(); } showToast('기념일 이름을 적어주세요'); return; }
+      if (!atitle) { if (atEl) { markBad(atEl); } showToast('기념일 이름을 적어주세요'); return; }
       if (!/^\d{4}-\d{2}-\d{2}$/.test(adate)) { showToast('기념일 날짜를 선택해 주세요'); return; }
       if (S.anniv.length >= 30) { showToast('기념일은 최대 30개까지 등록할 수 있어요'); return; }
       S.anniv.push({ id: uid(), title: atitle.slice(0, 20), date: adate });
@@ -3662,18 +4112,30 @@
       var evid = el.dataset.v;
       if (S.delArm2 !== 'ev-del:' + evid) { S.delArm2 = 'ev-del:' + evid; render(); return; }
       S.delArm2 = null;
+      var evDel = S.events.find(function (e2) { return e2.id === evid; });
       S.events = S.events.filter(function (e2) { return e2.id !== evid; });
-      save('mateon.events', S.events); render(); scheduleSyncPush();
+      save('mateon.events', S.events);
+      if (evDel) {
+        showToast('일정을 삭제했어요', { action: { label: '되돌리기', fn: function () {
+          S.events.push(evDel); save('mateon.events', S.events); render(); scheduleSyncPush();
+        } } });
+      }
+      render(); scheduleSyncPush();
+    }
+    else if (act === 'anniv-ics') {
+      var anv = S.anniv.find(function (x) { return x.id === el.dataset.v; });
+      if (!anv) return;
+      var aics = ML.buildICS({ id: 'anniv-' + anv.id, date: anv.date, title: anv.title + ' (기념일)' }, { yearly: true });
+      var ablob = new Blob([aics], { type: 'text/calendar;charset=utf-8' });
+      var aa = document.createElement('a');
+      aa.href = URL.createObjectURL(ablob); aa.download = 'mateon-anniv.ics'; aa.click();
+      setTimeout(function () { URL.revokeObjectURL(aa.href); }, 1000);
+      showToast('기념일 캘린더 파일을 내려받았어요');
     }
     else if (act === 'ev-ics') {
       var ev = S.events.find(function (x) { return x.id === el.dataset.v; });
       if (!ev) return;
-      var evd = ev.date.replace(/-/g, '');
-      var ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//MATEON//KO', 'BEGIN:VEVENT',
-        'UID:mateon-ev-' + ev.id + '@mateon', 'DTSTART;VALUE=DATE:' + evd,
-        'SUMMARY:' + ev.title.replace(/[,;\n]/g, ' ') + ' (MATE:ON)',
-        ev.memo ? 'DESCRIPTION:' + ev.memo.replace(/[,;\n]/g, ' ') : '',
-        'END:VEVENT', 'END:VCALENDAR'].filter(Boolean).join('\r\n');
+      var ics = ML.buildICS({ id: 'ev-' + ev.id, date: ev.date, title: ev.title + ' (MATE:ON)', memo: ev.memo, rpt: ev.rpt });
       var blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
       var a = document.createElement('a');
       a.href = URL.createObjectURL(blob); a.download = 'mateon-event.ics'; a.click();
@@ -3703,9 +4165,11 @@
       var cur3 = thisCheckin();
       var fixEl = document.getElementById('ci-fix');
       var fixVal = fixEl ? fixEl.value.trim().slice(0, 80) : '';
+      var thxEl = document.getElementById('ci-thanks');
+      var thxVal = thxEl ? thxEl.value.trim().slice(0, 60) : '';
       if (!cur3) { showToast('이번 주 기분을 먼저 골라주세요'); return; }
       if (!cur3.mood) { showToast('이번 주 기분을 먼저 골라주세요'); return; }
-      cur3.fix = fixVal; cur3.ts = Date.now();
+      cur3.fix = fixVal; cur3.thanks = thxVal; cur3.ts = Date.now();
       save('mateon.checkins', S.checkins);
       showToast('이번 주 체크인을 저장했어요'); render(); scheduleSyncPush();
     }
@@ -3715,10 +4179,17 @@
     else if (act === 'cg-timer') { S.cgStart = Date.now(); render(); startCgCountdown(); }
     else if (act === 'cg-reset-timer') { S.cgStart = Date.now(); render(); startCgCountdown(); }
     else if (act === 'cg-restart') { S.cgStep = 0; S.cgStart = null; if (cgTimerId) { clearInterval(cgTimerId); cgTimerId = null; } render(); }
+    else if (act === 'cglog-del') {
+      var li = +el.dataset.v;
+      if (S.delArm2 !== 'cglog-del:' + li) { S.delArm2 = 'cglog-del:' + li; render(); return; }
+      S.delArm2 = null;
+      S.conflictLog.splice(li, 1);
+      save('mateon.conflictLog', S.conflictLog); render(); showToast('기록을 지웠어요');
+    }
     else if (act === 'cg-save' || act === 'cg-save-rule') {
       var noteEl = document.getElementById('cg-note');
       var note = noteEl ? noteEl.value.trim().slice(0, 80) : '';
-      if (!note) { if (noteEl) { noteEl.classList.add('input-error'); noteEl.focus(); } showToast('약속 내용을 적어주세요'); return; }
+      if (!note) { if (noteEl) { markBad(noteEl); } showToast('약속 내용을 적어주세요'); return; }
       S.conflictLog.push({ ts: Date.now(), note: note, domain: S.cgDomain });
       if (S.conflictLog.length > 100) S.conflictLog = S.conflictLog.slice(-100);
       save('mateon.conflictLog', S.conflictLog);
@@ -3734,7 +4205,7 @@
     else if (act === 'cl-add') {
       var clin = document.getElementById('cl-custom-in');
       var cltext = clin ? clin.value.trim() : '';
-      if (!cltext) { if (clin) { clin.classList.add('input-error'); clin.focus(); } showToast('항목을 적어주세요'); return; }
+      if (!cltext) { if (clin) { markBad(clin); } showToast('항목을 적어주세요'); return; }
       if (S.customChecklist.length >= 50) { showToast('직접 추가 항목은 최대 50개까지예요'); return; }
       S.customChecklist.push({ id: uid(), text: cltext.slice(0, 40) });
       save('mateon.customChecklist', S.customChecklist);
@@ -3764,6 +4235,16 @@
       save('mateon.reminders', S.reminders); syncNativeReminders();
       showToast(S.reminders.chore ? '주말 집안일 알림을 켰어요' : '주말 집안일 알림을 껐어요'); render();
     }
+    else if (act === 'rem-day') {
+      S.reminders.day = +el.dataset.v;
+      save('mateon.reminders', S.reminders); syncNativeReminders(); render();
+    }
+    else if (act === 'home-name') {
+      var hnEl = document.getElementById('home-name');
+      S.homeName = hnEl ? hnEl.value.trim().slice(0, 12) : '';
+      save('mateon.homeName', S.homeName); render();
+      showToast(S.homeName ? '우리 공간 이름을 바꿨어요' : '기본 이름으로 돌아왔어요');
+    }
     else if (act === 'font-size') {
       S.fontSize = el.dataset.v === 'large' ? 'large' : 'normal';
       save('mateon.fontSize', S.fontSize); applyFontSize(); render();
@@ -3782,8 +4263,8 @@
       var endV = endEl ? endEl.value.trim() : '';
       var roomV = roomEl ? roomEl.value.trim() : '';
       var tokV = tokEl ? tokEl.value.trim() : '';
-      if (!/^https:\/\//.test(endV)) { if (endEl) { endEl.classList.add('input-error'); endEl.focus(); } showToast('https:// 로 시작하는 서버 주소를 입력해 주세요'); return; }
-      if (!/^[A-Za-z0-9\-_]{3,40}$/.test(roomV)) { if (roomEl) { roomEl.classList.add('input-error'); roomEl.focus(); } showToast('방 코드는 영문·숫자·-·_ 3~40자로 정해주세요'); return; }
+      if (!/^https:\/\//.test(endV)) { if (endEl) { markBad(endEl); } showToast('https:// 로 시작하는 서버 주소를 입력해 주세요'); return; }
+      if (!/^[A-Za-z0-9\-_]{3,40}$/.test(roomV)) { if (roomEl) { markBad(roomEl); } showToast('방 코드는 영문·숫자·-·_ 3~40자로 정해주세요'); return; }
       if (!S.syncCfg) S.syncCfg = { endpoint: '', room: '', slot: 'a', token: '' };
       S.syncCfg.endpoint = endV; S.syncCfg.room = roomV; S.syncCfg.token = tokV;
       if (!S.syncCfg.slot) S.syncCfg.slot = 'a';
@@ -3843,8 +4324,9 @@
       S.expenses = []; S.settled = []; S.fixedExpenses = []; S.chores = null; S.choreLog = {};
       S.events = []; S.checkins = []; S.customChecklist = []; S.conflictLog = [];
       S.shopping = []; S.lovemap = { idx: 0, known: 0, asked: 0 }; tbStore = null;
-      S.budgets = {}; S.anniv = []; S.missions = { week: '', list: [] }; S.lastBackup = 0; S.syncStat = null;
-      S.reminders = { checkin: true, agreement: true, chore: true };
+      S.budgets = {}; S.anniv = []; S.missions = { week: '', list: [] }; S.lastBackup = 0; S.syncStat = null; S.talkFavs = [];
+      S.reminders = { checkin: true, agreement: true, chore: true, day: 0 };
+      S.homeName = '';
       S.inviteDays = 7; S.fontSize = 'normal'; applyFontSize();
       S.seen = true; S.syncCfg = null; S.delArm2 = null;
       S.cgStep = 0; S.cgDomain = 'D';
@@ -3875,6 +4357,14 @@
 
   // 이름 입력 동기화
   app.addEventListener('input', function (e) {
+    /* 입력 시작하면 오류 표시 해제 */
+    if (e.target.classList && e.target.classList.contains('input-error')) {
+      e.target.classList.remove('input-error');
+      e.target.removeAttribute('aria-invalid');
+    }
+    /* 폼 드래프트 — 라우트를 나가도 입력값이 유지되도록 상태에 반영 */
+    if (e.target.id === 'exp-amt') S.expAmt = e.target.value;
+    if (e.target.id === 'exp-memo') S.expMemo = e.target.value;
     if (e.target.id === 'pf-name') S.profile.name = e.target.value;
     if (e.target.id === 'exp-q') {
       /* 지출 검색: 키 입력마다 목록만 다시 그리고 포커스·커서를 복원한다 */
@@ -3883,6 +4373,14 @@
       render();
       var again = document.getElementById('exp-q');
       if (again) { again.focus(); try { again.setSelectionRange(caret, caret); } catch (err) { } }
+    }
+    if (e.target.id === 'exp-amt') {
+      /* 금액 입력 시 읽기 쉬운 한국어 금액 힌트 */
+      var hint = document.getElementById('exp-amt-hint');
+      if (hint) {
+        var av = Math.round(+String(e.target.value).replace(/[^\d.]/g, '') || 0);
+        hint.textContent = av > 0 ? ML.fmtWonShort(av) + ' (' + av.toLocaleString('ko-KR') + '원)' : '';
+      }
     }
     if (e.target.id === 'partner-link') {
       S.connectionInput = e.target.value;
@@ -3907,6 +4405,7 @@
 
   /* ================= Router ================= */
   function go(route) {
+    S.fabOpen = false;
     if (currentRoute() === route) { render(); return; }
     location.hash = '#/' + route;
   }
@@ -4057,6 +4556,47 @@
     }, { passive: true });
   })();
 
+  /* ---- 풀투리프레시: 최상단에서 아래로 당기면 새로고침 + 동기화 pull ---- */
+  (function initPullRefresh() {
+    if (typeof document === 'undefined' || !document.addEventListener) return;
+    var startY = null, pulling = false, ind = null;
+    function ensureInd() {
+      if (!ind && document.createElement && document.body) {
+        ind = document.createElement('div');
+        ind.className = 'ptr-ind';
+        ind.setAttribute('role', 'status');
+        ind.textContent = '당겨서 새로고침';
+        document.body.appendChild(ind);
+      }
+      return ind;
+    }
+    document.addEventListener('touchstart', function (e) {
+      if (!e.touches || e.touches.length !== 1) { startY = null; return; }
+      startY = (window.scrollY || 0) <= 0 ? e.touches[0].clientY : null;
+      pulling = false;
+    }, { passive: true });
+    document.addEventListener('touchmove', function (e) {
+      if (startY === null || !e.touches || !e.touches.length) return;
+      var dy = e.touches[0].clientY - startY;
+      if (dy > 40 && (window.scrollY || 0) <= 0) {
+        pulling = true;
+        var el = ensureInd();
+        if (el) { el.classList.add('show'); el.textContent = dy > 80 ? '놓으면 새로고침' : '당겨서 새로고침'; }
+      }
+    }, { passive: true });
+    document.addEventListener('touchend', function () {
+      if (pulling) {
+        pulling = false;
+        var el = ensureInd();
+        if (el) { el.textContent = '새로고침 중…'; setTimeout(function () { el.classList.remove('show'); }, 500); }
+        buzz(12);
+        render();
+        if (syncOn()) syncPull();
+      }
+      startY = null;
+    }, { passive: true });
+  })();
+
   /* ================= 스플래시 (총 ~1초: 선명해지기 620ms + 페이드 320ms) ================= */
   (function dismissSplash() {
     var sp = document.getElementById('splash');
@@ -4066,6 +4606,104 @@
   })();
 
   syncNativeReminders();
+
+  /* ---- 데이터/동기화 부트 작업 ---- */
+  /* 시작 시 자동 pull + 앱 포커스 시 pull */
+  if (syncOn()) syncPull();
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible' && syncOn()) syncPull();
+    });
+    window.addEventListener('focus', function () { if (syncOn()) syncPull(); });
+  }
+  /* 멀티탭 동기화 — 다른 탭의 localStorage 변경을 반영 */
+  if (typeof window !== 'undefined' && window.addEventListener) {
+    window.addEventListener('storage', function (e) {
+      if (!e.key || e.key.indexOf('mateon.') !== 0) return;
+      hydrateStateFromStorage();
+      render();
+    });
+  }
+  /* 고아 영수증 정리 — 지출이 삭제된 사진을 IndexedDB에서 제거 */
+  (function cleanOrphanReceipts() {
+    if (!window.indexedDB) return;
+    rcptDB().then(function (db) {
+      var tx = db.transaction('receipts', 'readwrite');
+      var store = tx.objectStore('receipts');
+      var keep = {};
+      S.expenses.forEach(function (x) { if (x.rcpt) keep[x.id] = true; });
+      var rq = store.getAllKeys();
+      rq.onsuccess = function () {
+        (rq.result || []).forEach(function (k) { if (!keep[k]) store.delete(k); });
+      };
+    }).catch(function () { });
+  })();
+  /* 오래된 기록 정리 — 집안일 로그 26주, 정산 이력 200개, 갈등 기록 100개 유지 */
+  (function retentionSweep() {
+    var changed = false;
+    var wks = Object.keys(S.choreLog);
+    if (wks.length > 26) {
+      wks.sort();
+      wks.slice(0, wks.length - 26).forEach(function (w) { delete S.choreLog[w]; });
+      save('mateon.choreLog', S.choreLog); changed = true;
+    }
+    if (S.settled.length > 200) { S.settled = S.settled.slice(-200); save('mateon.settled', S.settled); changed = true; }
+    if (S.conflictLog.length > 100) { S.conflictLog = S.conflictLog.slice(-100); save('mateon.conflictLog', S.conflictLog); changed = true; }
+    if (changed) scheduleSyncPush();
+  })();
+  /* 손상 데이터 정리 — 검증에 실패하는 키를 .corrupt로 백업 후 제거 */
+  (function purgeCorrupt() {
+    DATA_ITEMS.forEach(function (it) {
+      var raw = rawGet(it.k);
+      if (raw === null || it.k === 'ds-theme') return;
+      var ok = true;
+      try { ok = validBackupValue(it.k, JSON.parse(raw)); } catch (e) { ok = false; }
+      if (!ok) { try { localStorage.setItem(it.k + '.corrupt', raw); localStorage.removeItem(it.k); } catch (e) { } }
+    });
+  })();
+  /* 저장 공간 사용량 — 설정 화면에 표시 */
+  if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.estimate) {
+    navigator.storage.estimate().then(function (e) {
+      if (e && e.quota) { S.quotaInfo = { used: e.usage || 0, quota: e.quota, pct: Math.round((e.usage || 0) / e.quota * 100) }; if (currentRoute() === 'settings') render(); }
+    }).catch(function () { });
+  }
+  /* ---- PWA ---- */
+  /* 설치 배너 — beforeinstallprompt를 받으면 홈에 배너 표시 */
+  if (typeof window !== 'undefined' && window.addEventListener) {
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();
+      S.installPrompt = e;
+      if (currentRoute() === 'home' || currentRoute() === '') render();
+    });
+    window.addEventListener('appinstalled', function () { S.installPrompt = null; showToast('MATE:ON이 설치됐어요'); render(); });
+    /* 서비스 워커 새 버전 — 대기 중이면 배너로 알림 */
+    window.addEventListener('load', function () {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistration().then(function (reg) {
+          if (!reg) return;
+          reg.addEventListener('updatefound', function () {
+            var nw = reg.installing;
+            if (!nw) return;
+            nw.addEventListener('statechange', function () {
+              if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+                showToast('새 버전이 준비됐어요', { duration: 8000, action: { label: '새로고침', fn: function () { location.reload(); } } });
+              }
+            });
+          });
+        }).catch(function () { });
+      }
+    });
+    /* 전역 오류 수집 — 콘솔에 남기고 조용히 토스트 */
+    window.addEventListener('error', function (e) {
+      try { console.error('[mateon]', e.message); } catch (x) { }
+    });
+    /* share_target으로 받은 텍스트 — 오늘의 대화에 미리 담기 */
+    try {
+      var q = new URLSearchParams(location.search || '');
+      var shared = q.get('shared_text') || q.get('shared_title') || '';
+      if (shared) S.sharedText = shared.slice(0, 400);
+    } catch (e) { }
+  }
   /* 네이티브: 보안 저장소의 동기화 토큰을 런타임 설정에 주입 */
   if (window.MateNative && window.MateNative.secureGet && S.syncCfg && !S.syncCfg.token) {
     window.MateNative.secureGet('sync-token').then(function (tok) {

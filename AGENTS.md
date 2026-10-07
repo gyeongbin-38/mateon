@@ -7,8 +7,9 @@
 | 작업 | 명령 |
 |------|------|
 | 개발 서버 | `npm run dev` (server.js) |
-| 테스트 | `npm test` = test-score + test-smoke (299개 DOM 스텁) + test-sw + test-qr |
-| E2E | `npm run e2e` — Playwright 실브라우저 44개 (브라우저 캐시 `C:\tools\ms-playwright`) |
+| 테스트 | `npm test` = test-score + test-smoke (299개 DOM 스텁) + test-lifetools (34개 순수함수) + test-sw + test-qr |
+| E2E | `npm run e2e` — Playwright 실브라우저 47개 (브라우저 캐시 `C:\tools\ms-playwright`) |
+| 번들 크기 | `npm run size` — js/css/html/벤더 예산 체크 (release-check에 포함) |
 | 빌드 | `npm run build` → `dist/` (esbuild가 `native/bridge.js` → `dist/js/native.js` 번들) |
 | SW 검증 | `node test-sw.js` |
 | 출시 검증 | `npm run release:check` (strict; 외부 계정 의존 항목은 실패 예정) |

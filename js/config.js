@@ -2,7 +2,7 @@
 window.MATEON_CONFIG = Object.freeze({
   appId: 'io.github.gyeongbin38.mateon',
   version: '0.3.0',
-  assetVersion: '20261007-02',
+  assetVersion: '20261008-01',
   webBaseUrl: 'https://gyeongbin-38.github.io/mateon/',
   customScheme: 'mateon',
   privacyPolicyUrl: 'https://gyeongbin-38.github.io/mateon/#/privacy'

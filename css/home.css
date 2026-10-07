@@ -418,3 +418,192 @@ body {max-width:480px;box-shadow:0 0 0 1px #3039430a;}
 .sync-stat::before {content:'';width:7px;height:7px;border-radius:50%;background:var(--app-mint);flex-shrink:0;}
 .sync-stat.sync-bad::before {background:#e0717f;}
 .sync-bad {color:#c2455a !important;}
+
+/* ---- Round 4: 112개 개선 — 정산/달력/UX/접근성 ---- */
+/* 지출 추이 바 */
+.trend-bars {display:flex;align-items:flex-end;gap:8px;height:52px;margin-top:14px;padding-top:8px;border-top:1px dashed var(--app-line);}
+.trend-bar {flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;height:100%;min-width:0;}
+.trend-bar i {display:block;width:100%;max-width:26px;border-radius:5px 5px 2px 2px;background:var(--app-mint);min-height:3px;}
+.trend-bar:last-child i {background:var(--app-coral);}
+.trend-bar span {font-size:9px;color:var(--app-muted);}
+.warn-tag {color:#d94b62;font-weight:750;}
+.warn-tag.warn {color:#c98a1b;}
+.amt-hint {display:block;margin-top:4px;color:var(--app-pink-ink);font-weight:600;}
+.exp-q-wrap {position:relative;}
+.exp-q-wrap .exp-q {padding-right:40px;}
+.exp-q-clear {position:absolute;right:4px;top:50%;transform:translateY(-50%);width:36px;height:36px;border:0;background:none;color:var(--app-muted);font-size:13px;cursor:pointer;border-radius:50%;}
+.exp-q-clear:active {background:var(--app-soft);}
+.exp-rcpt-x {border:0;background:none;color:var(--app-coral);font:inherit;font-size:11px;font-weight:700;cursor:pointer;text-decoration:underline;margin-left:4px;padding:2px 4px;}
+.chip-sm {min-height:34px !important;padding:5px 12px;font-size:11px;}
+
+/* 토스트 액션/타입 */
+.toast-action {border:0;background:none;color:var(--app-pink-ink);font:inherit;font-size:13px;font-weight:800;cursor:pointer;margin-left:12px;padding:4px 6px;text-decoration:underline;}
+.toast-warn {background:#4a3420 !important;}
+.toast-good {background:#1e3d2b !important;}
+[data-theme="dark"] .toast-warn {background:#3a2b1c !important;}
+[data-theme="dark"] .toast-good {background:#1d3328 !important;}
+
+/* 오늘 할 일 카드 · 관계 온도 */
+.today-card {display:flex;flex-direction:column;gap:8px;}
+.today-row {display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:12px;background:var(--app-surface);border:1px solid var(--app-line);}
+.today-row .t-ic {width:30px;height:30px;display:grid;place-items:center;border-radius:9px;font-size:15px;flex-shrink:0;background:var(--app-soft);}
+.today-row .t-tx {flex:1;min-width:0;}
+.today-row .t-tx strong {display:block;font-size:12px;font-weight:700;color:var(--app-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.today-row .t-tx small {font-size:10px;color:var(--app-muted);}
+.today-row .t-act {flex-shrink:0;}
+
+.rel-temp {display:flex;align-items:center;gap:14px;}
+.rel-temp .temp-num {font-size:30px;font-weight:800;color:var(--app-pink-ink);font-variant-numeric:tabular-nums;line-height:1;}
+.rel-temp .temp-meta {flex:1;min-width:0;}
+.rel-temp .temp-meta strong {display:block;font-size:13px;color:var(--app-ink);}
+.rel-temp .temp-meta small {font-size:11px;color:var(--app-muted);line-height:1.5;}
+.temp-gauge {height:6px;border-radius:99px;background:var(--app-line);margin-top:8px;overflow:hidden;}
+.temp-gauge i {display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--app-coral),var(--app-pink-ink));transition:width .4s;}
+
+/* 주간 분담률 바 */
+.chore-share {display:flex;height:10px;border-radius:99px;overflow:hidden;margin:10px 0 4px;background:var(--app-line);}
+.chore-share i {display:block;height:100%;}
+.chore-share .me {background:var(--app-coral);}
+.chore-share .you {background:var(--app-mint);}
+.chore-share-meta {display:flex;justify-content:space-between;font-size:10px;color:var(--app-muted);}
+
+/* 달력 셀 버튼화 + 선택 상태 */
+.cal-cell {border:0;background:none;cursor:pointer;font-family:inherit;}
+.cal-cell.sel {background:var(--app-mint);color:var(--app-ink);box-shadow:inset 0 0 0 1.5px var(--app-mint);}
+.cal-cell:focus-visible {outline:2px solid var(--app-coral);outline-offset:1px;}
+.cal-day-detail {margin-top:12px;border-top:1px dashed var(--app-line);padding-top:10px;}
+.cal-day-detail h5 {font-size:12px;margin:0 0 8px;color:var(--app-ink);}
+.cal-day-item {display:flex;align-items:center;gap:8px;font-size:12px;color:var(--app-ink);padding:5px 0;}
+.cal-day-item .k {width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.cal-day-item .k.event {background:var(--app-coral);}
+.cal-day-item .k.anniv {background:var(--app-pink-ink);}
+
+/* 스켈레톤 홈 */
+.skel {border-radius:14px;background:linear-gradient(90deg,var(--app-surface) 25%,var(--app-soft) 50%,var(--app-surface) 75%);background-size:200% 100%;animation:skel-shine 1.4s infinite;}
+@keyframes skel-shine {0%{background-position:200% 0;}100%{background-position:-200% 0;}}
+.skel-hero {height:120px;margin-bottom:14px;}
+.skel-card {height:64px;margin-bottom:10px;}
+.skel-line {height:14px;margin-bottom:10px;}
+
+/* 홈 FAB */
+.fab {position:fixed;right:16px;bottom:86px;z-index:40;width:54px;height:54px;border-radius:50%;border:0;background:var(--app-coral);color:#fff;font-size:24px;font-weight:700;box-shadow:0 6px 20px rgba(224,113,127,.4);cursor:pointer;display:grid;place-items:center;}
+.fab:active {transform:scale(.94);}
+
+/* 설치 배너 */
+.install-banner {display:flex;align-items:center;gap:12px;background:var(--app-surface);border:1px solid var(--app-line);border-radius:16px;padding:12px 14px;margin-bottom:12px;}
+.install-banner .ib-ic {width:38px;height:38px;border-radius:10px;background:var(--app-soft);display:grid;place-items:center;flex-shrink:0;}
+.install-banner .ib-tx {flex:1;min-width:0;}
+.install-banner .ib-tx strong {display:block;font-size:12px;color:var(--app-ink);}
+.install-banner .ib-tx small {font-size:10px;color:var(--app-muted);}
+.install-banner button {flex-shrink:0;}
+
+/* 응원 메시지 */
+.cheer-card {background:linear-gradient(135deg,#fff8e7,var(--app-surface));border:1px solid #f0ddba;}
+.cheer-msg {font-size:13px;font-weight:650;color:var(--app-ink);line-height:1.6;}
+.cheer-meta {font-size:10px;color:var(--app-muted);margin-top:6px;}
+[data-theme="dark"] .cheer-card {background:linear-gradient(135deg,#2e2a20,var(--app-surface));border-color:#4d4230;}
+
+/* 응원 칩 */
+.cheer-chips {display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+
+/* 미션 진행 */
+.mission-progress {height:5px;border-radius:99px;background:var(--app-line);overflow:hidden;margin-top:8px;}
+.mission-progress i {display:block;height:100%;background:var(--app-mint);}
+
+/* 대화 즐겨찾기 별 */
+.fav-star {border:0;background:none;font-size:16px;cursor:pointer;padding:4px;color:var(--app-muted);line-height:1;}
+.fav-star.on {color:#e8b53a;}
+
+/* 갈등 타이머 */
+.cg-timer {font-size:26px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--app-pink-ink);text-align:center;margin:8px 0;}
+
+/* 포커스 링 통일 */
+.btn:focus-visible,.chip:focus-visible,.icon-button:focus-visible,.mobile-primary:focus-visible,.set-link:focus-visible,.item-del:focus-visible {outline:2px solid var(--app-coral);outline-offset:2px;}
+
+/* 고대비 모드 */
+@media (prefers-contrast: more) {
+  :root {--app-muted:#4a5058;--app-line:#5a616b;}
+  [data-theme="dark"] {--app-muted:#c9ced6;--app-line:#8a919c;}
+  .badge,.chip,.field-hint {border-width:1.5px;}
+}
+
+/* 화면리더 전용 */
+.sr-only {position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
+
+.chore-last {display:block;font-size:10px;color:var(--app-muted);font-weight:400;margin-top:1px;}
+.shop-qty {width:56px;flex-shrink:0;text-align:center;}
+.exp-filter .chip-row {margin-top:8px;}
+
+/* 관계 온도 카드 */
+.temp-card {display:flex;gap:14px;align-items:center;background:var(--app-surface);border:1px solid var(--app-line);border-radius:16px;padding:16px;margin:0 20px 20px;}
+.temp-face {font-size:34px;line-height:1;}
+.temp-info {flex:1;min-width:0;}
+.temp-info strong {font-size:22px;font-weight:800;color:var(--app-ink);}
+.temp-bar {height:8px;border-radius:99px;background:var(--app-line);overflow:hidden;margin:6px 0;}
+.temp-bar i {display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#ffb36b,#ff7e9d);}
+.temp-info p {font-size:12px;color:var(--app-muted);margin:0;}
+
+/* 주간 리포트 */
+.week-report {display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:0 20px 20px;}
+.wr-item {background:var(--app-surface);border:1px solid var(--app-line);border-radius:12px;padding:12px 6px;text-align:center;}
+.wr-item strong {display:block;font-size:16px;font-weight:800;color:var(--app-ink);}
+.wr-item small {font-size:10px;color:var(--app-muted);}
+
+.streak-badge {display:inline-flex;align-items:center;gap:4px;background:#fff3e0;color:#e65100;border-radius:99px;padding:5px 12px;font-size:12px;font-weight:700;margin:12px 20px 0;}
+.mission-rate {font-size:12px;color:var(--app-muted);font-weight:600;margin-left:4px;}
+.lm-next {margin:10px 0 0;text-align:center;color:var(--app-muted);}
+
+/* 플로팅 빠른 추가 버튼 */
+.fab-wrap {position:fixed;right:16px;bottom:calc(96px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom,0px)));z-index:40;display:flex;flex-direction:column;align-items:flex-end;gap:10px;}
+.fab {width:56px;height:56px;border-radius:50%;border:0;background:var(--app-coral);color:#fff;font-size:26px;font-weight:600;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.22);display:flex;align-items:center;justify-content:center;line-height:1;}
+.fab:active {transform:scale(.94);}
+.fab-menu {display:flex;flex-direction:column;gap:6px;background:var(--app-surface);border:1px solid var(--app-line);border-radius:14px;padding:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);}
+.fab-menu button {display:flex;align-items:center;gap:8px;min-height:44px;padding:8px 14px;border:0;border-radius:10px;background:none;color:var(--app-ink);font-size:14px;font-weight:600;cursor:pointer;text-align:left;white-space:nowrap;}
+.fab-menu button:active {background:var(--app-line);}
+
+/* 오늘 할 일 */
+.today-tasks {background:var(--app-surface);border:1px solid var(--app-line);border-radius:16px;margin:14px 20px;padding:14px;}
+.today-tasks h2 {font-size:14px;font-weight:800;margin:0 0 10px;color:var(--app-ink);}
+.today-tasks h2 span {font-size:11px;color:var(--app-muted);font-weight:600;margin-left:6px;}
+.tt-row {display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:8px 4px;border:0;background:none;color:var(--app-ink);font-size:14px;font-weight:600;cursor:pointer;text-align:left;border-radius:8px;}
+.tt-row small {color:var(--app-muted);font-weight:500;}
+.tt-dot {width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.tt-dot.ev {background:#7e9dff;}
+.tt-dot.ch {background:#5ec4a0;}
+.tt-dot.sh {background:#ffb36b;}
+
+/* 풀투리프레시 인디케이터 */
+.ptr-ind {position:fixed;top:8px;left:50%;transform:translate(-50%,-60px);background:var(--app-ink);color:var(--app-paper);font-size:12px;font-weight:700;padding:8px 16px;border-radius:99px;z-index:80;transition:transform .25s ease;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.2);}
+.ptr-ind.show {transform:translate(-50%,0);}
+
+/* 키보드 포커스 링 */
+:focus-visible {outline:2.5px solid var(--app-coral);outline-offset:2px;border-radius:4px;}
+button:focus:not(:focus-visible) {outline:none;}
+
+/* 최소 터치 타겟 */
+.icon-button {min-width:44px;min-height:44px;}
+.chip {min-height:44px;}
+.chip-sm {min-height:36px;}
+.cal-cell {min-height:44px;}
+
+/* 부트 스켈레톤 */
+.skel-boot {padding:24px 20px;}
+.skel-bar {height:16px;border-radius:8px;background:linear-gradient(90deg,var(--app-line) 25%,var(--app-paper) 50%,var(--app-line) 75%);background-size:200% 100%;animation:skel-sh 1.2s infinite;margin-bottom:14px;}
+.skel-bar.w60 {width:60%;}
+.skel-bar.w40 {width:40%;}
+.skel-card {height:120px;border-radius:16px;background:linear-gradient(90deg,var(--app-line) 25%,var(--app-paper) 50%,var(--app-line) 75%);background-size:200% 100%;animation:skel-sh 1.2s infinite;margin-bottom:14px;}
+.skel-card.short {height:72px;}
+@keyframes skel-sh {0%{background-position:200% 0;}100%{background-position:-200% 0;}}
+@media (prefers-reduced-motion: reduce) {.skel-bar,.skel-card {animation:none;}}
+
+/* 백업 미리보기 */
+.bk-list {display:flex;flex-direction:column;gap:2px;margin:12px 0;max-height:50vh;overflow-y:auto;}
+.bk-row {display:flex;align-items:center;gap:10px;min-height:44px;padding:8px 10px;border-radius:10px;font-size:14px;cursor:pointer;}
+.bk-row:active {background:var(--app-line);}
+.bk-row input {width:18px;height:18px;flex-shrink:0;accent-color:var(--app-coral);}
+.bk-row span {flex:1;}
+.bk-row small {color:var(--app-muted);}
+
+/* 변경 노트 */
+.changelog {margin:0;padding:0 0 0 18px;font-size:13px;line-height:1.9;color:var(--app-ink);}
+.changelog li::marker {color:var(--app-coral);}
