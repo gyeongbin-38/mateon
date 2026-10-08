@@ -16,6 +16,7 @@ dependencies {
     implementation project(':capacitor-local-notifications')
     implementation project(':capacitor-share')
     implementation project(':capawesome-capacitor-app-shortcuts')
+    implementation project(':capawesome-capacitor-badge')
     implementation project(':capgo-capacitor-updater')
     implementation project(':capacitor-secure-storage-plugin')
 

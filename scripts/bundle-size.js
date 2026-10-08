@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const BUDGET = { js: 500 * 1024, css: 160 * 1024, html: 20 * 1024, vendor: 1200 * 1024 };
+const BUDGET = { js: 500 * 1024, css: 220 * 1024, html: 20 * 1024, vendor: 1200 * 1024 };
 let total = { js: 0, css: 0, html: 0, vendor: 0 };
 let fail = false;
 

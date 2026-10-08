@@ -55,6 +55,8 @@ global.navigator = {};
 eval(fs.readFileSync('js/config.js', 'utf8') + '\n' +
   fs.readFileSync('js/data.js', 'utf8') + '\n' +
   fs.readFileSync('js/lifetools.js', 'utf8') + '\n' +
+  fs.readFileSync('js/secure.js', 'utf8') + '\n' +
+  fs.readFileSync('js/i18n.js', 'utf8') + '\n' +
   fs.readFileSync('js/mateon.js', 'utf8') +
   '\n;globalThis.__d={QUESTIONS,CHARACTERS,DOMAINS,SAMPLE_RESULTS,TALK_STARTERS,LIFE_QUESTIONS,LOVE_MAP_QUESTIONS};');
 
@@ -406,7 +408,7 @@ async function answerAll() {
   const cssSrc = fs.readFileSync('css/mateon.css', 'utf8');
   check('transition: all 제거', !cssSrc.includes('transition: all'));
   check('skip link 존재', indexSrc.includes('skip-link') && lastHTML.includes('id="main"'));
-  check('CDN preconnect', indexSrc.includes('rel="preconnect"'));
+  check('외부 CDN 의존 없음 (폰트 자체호스팅)', !indexSrc.includes('jsdelivr') && indexSrc.includes('css/pretendard.css'));
   check('장식 SVG aria-hidden', lastHTML.includes('svg aria-hidden="true"'));
   check('무한 루프 애니메이션 없음', !/animation:\s*[a-z-]+\s+[\d.]+s[^;]*infinite/.test(cssSrc));
   check('theme-color 배경 일치', indexSrc.includes('content="#FFFFFF"'));

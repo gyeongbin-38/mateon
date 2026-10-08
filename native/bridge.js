@@ -8,6 +8,7 @@ import { LocalNotifications, Weekday } from '@capacitor/local-notifications';
 import { CapacitorUpdater } from '@capgo/capacitor-updater';
 import { AppShortcuts } from '@capawesome/capacitor-app-shortcuts';
 import { SecureStoragePlugin } from 'capacitor-secure-storage-plugin';
+import { Badge } from '@capawesome/capacitor-badge';
 
 if (Capacitor.isNativePlatform()) {
   const webBase = () => (window.MATEON_CONFIG && window.MATEON_CONFIG.webBaseUrl) || '';
@@ -30,9 +31,16 @@ if (Capacitor.isNativePlatform()) {
       const list = [];
       if (reminders.checkin) list.push({id:9001,title:'MATE:ON 주간 체크인',body:'이번 주 우리 집 분위기, 1분이면 정리돼요',schedule:{on:{weekday:Weekday.Sunday,hour:20,minute:0}}});
       if (reminders.agreement) list.push({id:9002,title:'MATE:ON 합의 점검일',body:'우리집 규칙, 오늘 한 번 점검해 볼까요?',schedule:{every:'month',on:{day:1,hour:19,minute:0}}});
-      if (reminders.chore) list.push({id:9003,title:'MATE:ON 집안일 리마인더',body:'이번 주 내 차례 집안일을 확인해 보세요',schedule:{on:{weekday:Weekday.Saturday,hour:11,minute:0}}});
+      if (reminders.chore) list.push({id:9003,title:'MATE:ON 집안일 리마인더',body:'이번 주 내 차례 집안일을 확인해 보세요',schedule:{on:{weekday:Weekday.Saturday,hour:11,minute:0}},actionTypeId:'MATEON_CHORE'});
       if (list.length) await LocalNotifications.schedule({notifications:list});
       return true;
+    },
+    /* ---- 앱 아이콘 배지: 미완료 항목 수 ---- */
+    async setBadge(n) {
+      try {
+        if (n > 0) await Badge.set({count: Math.min(n, 99)});
+        else await Badge.clear();
+      } catch (e) { /* 배지 미지원 런처는 무시 */ }
     },
     /* ---- 암호화 저장소 (Android Keystore / iOS Keychain) ---- */
     async secureSet(key, value) {
@@ -89,6 +97,16 @@ if (Capacitor.isNativePlatform()) {
   };
   document.documentElement.classList.add('native-app');
   async function init() {
+    /* 알림 액션: 집안일 알림에 "확인하러 가기" 버튼 */
+    try {
+      await LocalNotifications.registerActionTypes({types:[{id:'MATEON_CHORE',actions:[{id:'open',title:'확인하러 가기'}]}]});
+      await LocalNotifications.addListener('localNotificationActionPerformed', e => {
+        const routes = {9001:'checkin', 9002:'agreement', 9003:'chores'};
+        const route = routes[e.notification && e.notification.id] || 'home';
+        if (window.__mateon && window.__mateon.navigate) window.__mateon.navigate(route);
+        else location.hash = '#/' + route;
+      });
+    } catch (e) { /* 구형 OS 무시 */ }
     await App.addListener('backButton', () => {
       if (!window.__mateon?.handleBack()) App.minimizeApp();
     });

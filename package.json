@@ -7,6 +7,7 @@
     "dev": "node server.js",
     "test": "node test-score.js && node test-smoke.js && node test-lifetools.js && node test-sw.js && node scripts/test-qr.js",
     "size": "node scripts/bundle-size.js",
+    "lint": "eslint .",
     "e2e": "node scripts/e2e.mjs",
     "ota": "node scripts/make-ota.js",
     "build": "node scripts/build-app.js",
@@ -33,6 +34,7 @@
     "@capacitor/local-notifications": "^8.3.1",
     "@capacitor/share": "^8.0.2",
     "@capawesome/capacitor-app-shortcuts": "^8.0.2",
+    "@capawesome/capacitor-badge": "^8.0.3",
     "@capgo/capacitor-updater": "^8.52.1",
     "capacitor-secure-storage-plugin": "^0.13.0",
     "driver.js": "^1.9.0",
@@ -44,6 +46,8 @@
   "devDependencies": {
     "@capacitor/cli": "8.4.3",
     "esbuild": "^0.28.2",
+    "eslint": "^10.12.0",
+    "globals": "^17.13.0",
     "playwright": "^1.63.0",
     "sharp": "^0.35.4"
   }
