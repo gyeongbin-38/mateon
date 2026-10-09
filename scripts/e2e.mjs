@@ -61,7 +61,8 @@ const srv = await serve();
 const browser = await chromium.launch();
 const errors = [];
 const newPage = async () => {
-  const p = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  /* 로케일 고정 — CI(en-US)에서도 한국어 UI 문자열 검증이 결정적이게 */
+  const p = await browser.newPage({ viewport: { width: 390, height: 844 }, locale: 'ko-KR' });
   p.on('pageerror', e => errors.push(String(e)));
   p.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
   return p;

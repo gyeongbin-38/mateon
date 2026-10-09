@@ -49,7 +49,9 @@ Object.defineProperty(global.location, 'hash', {
   set: (v) => { _hash = v; hashListeners.forEach(fn => fn()); },
 });
 global.history = { replaceState: (a, b, c) => { if (c) location.hash = c; } };
-global.navigator = {};
+/* Node 24의 global.navigator는 읽기 전용 getter — defineProperty로 스텁 교체.
+   language를 ko로 고정해 로케일 의존(i18n) 테스트가 CI(en-US)에서도 결정적이게 한다. */
+Object.defineProperty(global, 'navigator', { value: { language: 'ko-KR' }, configurable: true, writable: true });
 
 /* ---- 스크립트 로드 ---- */
 eval(fs.readFileSync('js/config.js', 'utf8') + '\n' +
