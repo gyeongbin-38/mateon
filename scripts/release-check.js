@@ -7,8 +7,12 @@ const release = require(path.join(root, 'release.config.json'));
 const failures = [];
 const warnings = [];
 
-function fail(message) { failures.push(message); }
-function warn(message) { strict ? failures.push(message) : warnings.push(message); }
+function fail(message) {
+  failures.push(message);
+}
+function warn(message) {
+  strict ? failures.push(message) : warnings.push(message);
+}
 function check(name, condition, detail) {
   if (!condition) fail(name + (detail ? ': ' + detail : ''));
 }
@@ -49,8 +53,8 @@ check('web base URL', /^https:\/\//.test(release.webBaseUrl), release.webBaseUrl
 check('privacy URL', /^https:\/\//.test(release.privacyPolicyUrl), release.privacyPolicyUrl);
 
 check('index runtime config script', indexSrc.includes(`js/config.js?v=${release.assetVersion}`));
-const assetQueries = Array.from(indexSrc.matchAll(/\?v=([^"'\s>]+)/g), match => match[1]);
-check('index asset version', assetQueries.length >= 7 && assetQueries.every(version => version === release.assetVersion), assetQueries.join(', '));
+const assetQueries = Array.from(indexSrc.matchAll(/\?v=([^"'\s>]+)/g), (match) => match[1]);
+check('index asset version', assetQueries.length >= 7 && assetQueries.every((version) => version === release.assetVersion), assetQueries.join(', '));
 check('service worker version', swSrc.includes(`const VERSION = '${release.assetVersion}'`));
 check('service worker runtime config cache', swSrc.includes('js/config.js'));
 check('public HTTPS invite links', mateonSrc.includes(`publicBaseURL() + '?invite='`));
@@ -117,11 +121,11 @@ if (!process.env.APPLE_TEAM_ID && !process.env.DEVELOPMENT_TEAM) {
 
 if (warnings.length) {
   console.log('Release warnings:');
-  warnings.forEach(message => console.log('  - ' + message));
+  warnings.forEach((message) => console.log('  - ' + message));
 }
 if (failures.length) {
   console.error('Release check failed:');
-  failures.forEach(message => console.error('  - ' + message));
+  failures.forEach((message) => console.error('  - ' + message));
   process.exitCode = 1;
 } else {
   console.log('Release check passed' + (strict ? ' (strict)' : ''));

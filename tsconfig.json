@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "checkJs": true,
+    "noEmit": true,
+    "allowJs": true,
+    "target": "es2020",
+    "lib": ["es2020", "dom", "dom.iterable"],
+    "module": "none",
+    "strict": false,
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+    "types": [],
+    "allowSyntheticDefaultImports": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
+  },
+  /* sw.js 제외 — 서비스워커 WebWorker lib이 DOM lib과 충돌 (waitUntil/clients 등) */
+  "include": ["js/*.js", "js/globals.d.ts"],
+  "exclude": ["js/vendor/**", "node_modules/**", "dist/**", "android/**", "ios/**", "release/**", "ota/**"]
+}

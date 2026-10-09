@@ -1,8 +1,17 @@
 /* test-lifetools.js — js/lifetools.js 순수 함수 단위 테스트
    DOM 없이 window.MateLife만 검증한다. */
 const fs = require('fs');
-let passed = 0, failed = 0;
-function check(name, ok) { if (ok) { passed++; console.log('  OK ' + name); } else { failed++; console.log('  FAIL ' + name); } }
+let passed = 0,
+  failed = 0;
+function check(name, ok) {
+  if (ok) {
+    passed++;
+    console.log('  OK ' + name);
+  } else {
+    failed++;
+    console.log('  FAIL ' + name);
+  }
+}
 
 global.window = {};
 eval(fs.readFileSync('js/lifetools.js', 'utf8'));
@@ -37,7 +46,13 @@ const exps = [
   { ts: Date.now(), payer: 'you', amount: 3000, memo: 'b', cat: '공과금' },
 ];
 const trend = ML.monthTrend(exps, 3);
-check('monthTrend 3개월', trend.length === 3 && trend.every(function (t) { return /^\d{4}-\d{2}$/.test(t.ym); }));
+check(
+  'monthTrend 3개월',
+  trend.length === 3 &&
+    trend.every(function (t) {
+      return /^\d{4}-\d{2}$/.test(t.ym);
+    })
+);
 check('monthTrend 이번달 합계', trend[2].total === 4000);
 check('nextFixedTs 미래일', ML.nextFixedTs(15) >= new Date().setHours(0, 0, 0, 0));
 

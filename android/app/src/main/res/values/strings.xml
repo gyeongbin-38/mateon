@@ -4,4 +4,5 @@
     <string name="title_activity_main">MATE:ON</string>
     <string name="package_name">io.github.gyeongbin38.mateon</string>
     <string name="custom_url_scheme">mateon</string>
+    <string name="widget_desc">기념일 D-day와 이번 주 미션을 홈 화면에서 확인해요</string>
 </resources>

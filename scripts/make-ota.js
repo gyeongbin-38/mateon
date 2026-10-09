@@ -21,15 +21,22 @@ async function main() {
   const zip = path.join(outDir, `mateon-${ver}.zip`);
   if (fs.existsSync(zip)) fs.unlinkSync(zip);
   // Windows Compress-Archive로 dist/* 전체를 번들 루트에 배치
-  execFileSync('powershell', [
-    '-NoProfile', '-Command',
-    `Compress-Archive -Path '${dist}\\*' -DestinationPath '${zip}' -CompressionLevel Optimal`,
-  ]);
-  fs.writeFileSync(path.join(outDir, 'latest.json'), JSON.stringify({
-    version: ver,
-    url: `ota/mateon-${ver}.zip`,
-  }, null, 2) + '\n');
+  execFileSync('powershell', ['-NoProfile', '-Command', `Compress-Archive -Path '${dist}\\*' -DestinationPath '${zip}' -CompressionLevel Optimal`]);
+  fs.writeFileSync(
+    path.join(outDir, 'latest.json'),
+    JSON.stringify(
+      {
+        version: ver,
+        url: `ota/mateon-${ver}.zip`,
+      },
+      null,
+      2
+    ) + '\n'
+  );
   console.log(`OTA bundle: ota/mateon-${ver}.zip (${(fs.statSync(zip).size / 1024 / 1024).toFixed(2)} MB)`);
   console.log('ota/ 폴더를 webBaseUrl 루트에 업로드하면 앱에서 가져갑니다.');
 }
-main().catch(err => { console.error(err.message); process.exitCode = 1; });
+main().catch((err) => {
+  console.error(err.message);
+  process.exitCode = 1;
+});

@@ -1,0 +1,14 @@
+node_modules/
+dist/
+android/
+ios/
+js/vendor/
+ota/
+release/
+fonts/
+assets/ocr/
+*.min.js
+package-lock.json
+dev-dist/
+*.cjs
+backups/

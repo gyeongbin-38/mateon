@@ -8,7 +8,11 @@ const targets = ['character-sheet.png', 'character-sheet-cutout-v2.png'];
     const src = path.join(assets, name);
     const out = src.replace(/\.png$/, '.webp');
     await sharp(src).webp({ quality: 88, alphaQuality: 95, effort: 6 }).toFile(out);
-    const a = fs.statSync(src).size, b = fs.statSync(out).size;
+    const a = fs.statSync(src).size,
+      b = fs.statSync(out).size;
     console.log(name, '→', path.basename(out), `${(a / 1e6).toFixed(2)}MB → ${(b / 1e6).toFixed(2)}MB`);
   }
-})().catch(e => { console.error(e); process.exit(1); });
+})().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

@@ -6,9 +6,15 @@ const buf = fs.readFileSync(process.argv[2]);
 const MAGIC = Buffer.from('APK Sig Block 42');
 let eocd = -1;
 for (let i = buf.length - 22; i > Math.max(0, buf.length - 66000); i--) {
-  if (buf.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }
+  if (buf.readUInt32LE(i) === 0x06054b50) {
+    eocd = i;
+    break;
+  }
 }
-if (eocd < 0) { console.log('FAIL: no EOCD'); process.exit(1); }
+if (eocd < 0) {
+  console.log('FAIL: no EOCD');
+  process.exit(1);
+}
 const cdSize = buf.readUInt32LE(eocd + 12);
 const cdOffset = buf.readUInt32LE(eocd + 16);
 // APK v2+ signature block sits right before the central directory
@@ -23,7 +29,10 @@ for (let i = cdOffset; i < cdOffset + cdSize - 46; i++) {
     if (/META-INF\/.*\.(SF|RSA|DSA|EC)$/i.test(name) || /META-INF\/MANIFEST\.MF$/i.test(name)) found.push(name);
   }
 }
-const jarSigned = found.some(n => /\.(RSA|DSA|EC)$/i.test(n));
+const jarSigned = found.some((n) => /\.(RSA|DSA|EC)$/i.test(n));
 if (hasV2) console.log('PASS: APK signature block (v2+) found');
 if (jarSigned) console.log('PASS: JAR signature found:', found.slice(0, 4).join(', '));
-if (!hasV2 && !jarSigned) { console.log('FAIL: unsigned — no v2 block, no META-INF signature entries'); process.exit(1); }
+if (!hasV2 && !jarSigned) {
+  console.log('FAIL: unsigned — no v2 block, no META-INF signature entries');
+  process.exit(1);
+}

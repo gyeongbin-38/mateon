@@ -26,4 +26,4 @@ const child = spawn('cmd.exe', ['/d', '/s', '/c', '.\\gradlew.bat ' + task], {
   env,
   stdio: 'inherit',
 });
-child.on('exit', code => process.exit(code || 0));
+child.on('exit', (code) => process.exit(code || 0));

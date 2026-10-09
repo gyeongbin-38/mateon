@@ -6,8 +6,10 @@ const LOCAL_BROWSERS = 'C:\\tools\\ms-playwright';
 if (fs.existsSync(LOCAL_BROWSERS)) process.env.PLAYWRIGHT_BROWSERS_PATH = LOCAL_BROWSERS;
 const ROOT = path.join(__dirname, '..');
 const OUT = path.join(ROOT, 'release', 'graphic');
-const LOGO = fs.readFileSync(path.join(ROOT, 'assets', 'logo-symbol.svg'), 'utf8')
-  .replace(/"/g, "'").replace(/\n/g, '');
+const LOGO = fs
+  .readFileSync(path.join(ROOT, 'assets', 'logo-symbol.svg'), 'utf8')
+  .replace(/"/g, "'")
+  .replace(/\n/g, '');
 
 const PAGE = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -48,4 +50,7 @@ async function main() {
   console.log('done →', OUT);
   await browser.close();
 }
-main().catch(function (e) { console.error(e); process.exit(1); });
+main().catch(function (e) {
+  console.error(e);
+  process.exit(1);
+});

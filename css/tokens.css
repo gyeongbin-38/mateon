@@ -9,79 +9,79 @@
 :root {
   color-scheme: light;
   /* ---------- Primitive: Color ---------- */
-  --brand-50:  #FFF0F1;
-  --brand-100: #FFE0E3;
-  --brand-200: #FFC2C8;
-  --brand-300: #FF99A3;
-  --brand-400: #FF8591;
-  --brand-500: #FF6B7A;
-  --brand-600: #FF4255;
-  --brand-700: #FF142C;
-  --brand-800: #E00017;
-  --brand-900: #AD0012;
-  --brand-950: #70000B;
+  --brand-50: #fff0f1;
+  --brand-100: #ffe0e3;
+  --brand-200: #ffc2c8;
+  --brand-300: #ff99a3;
+  --brand-400: #ff8591;
+  --brand-500: #ff6b7a;
+  --brand-600: #ff4255;
+  --brand-700: #ff142c;
+  --brand-800: #e00017;
+  --brand-900: #ad0012;
+  --brand-950: #70000b;
 
-  --secondary-50:  #F0F5FF;
-  --secondary-100: #E0EBFF;
-  --secondary-200: #C2D7FF;
-  --secondary-300: #99BCFF;
-  --secondary-400: #85AFFF;
-  --secondary-500: #6B9EFF;
-  --secondary-600: #4283FF;
-  --secondary-700: #1465FF;
-  --secondary-800: #004DE0;
-  --secondary-900: #003CAD;
+  --secondary-50: #f0f5ff;
+  --secondary-100: #e0ebff;
+  --secondary-200: #c2d7ff;
+  --secondary-300: #99bcff;
+  --secondary-400: #85afff;
+  --secondary-500: #6b9eff;
+  --secondary-600: #4283ff;
+  --secondary-700: #1465ff;
+  --secondary-800: #004de0;
+  --secondary-900: #003cad;
   --secondary-950: #002770;
 
-  --neutral-0:   #FFFFFF;
-  --neutral-50:  #FAFAFA;
-  --neutral-100: #F2F2F2;
-  --neutral-200: #E6E6E6;
-  --neutral-300: #D4D4D4;
-  --neutral-400: #A3A3A3;
+  --neutral-0: #ffffff;
+  --neutral-50: #fafafa;
+  --neutral-100: #f2f2f2;
+  --neutral-200: #e6e6e6;
+  --neutral-300: #d4d4d4;
+  --neutral-400: #a3a3a3;
   --neutral-500: #737373;
   --neutral-600: #525252;
   --neutral-700: #404040;
-  --neutral-800: #2E2E2E;
-  --neutral-900: #1C1C1C;
+  --neutral-800: #2e2e2e;
+  --neutral-900: #1c1c1c;
   --neutral-950: #121212;
 
-  --error-50:  #F9B8B3;
-  --error-400: #F25A50;
-  --error-500: #F04438;
-  --error-600: #ED2012;
-  --error-700: #C31A0F;
-  --error-950: #2B0603;
+  --error-50: #f9b8b3;
+  --error-400: #f25a50;
+  --error-500: #f04438;
+  --error-600: #ed2012;
+  --error-700: #c31a0f;
+  --error-950: #2b0603;
 
-  --warning-50:  #FBCA89;
-  --warning-400: #F89B22;
-  --warning-500: #F79009;
-  --warning-600: #D07907;
-  --warning-700: #A45F05;
-  --warning-950: #140B01;
+  --warning-50: #fbca89;
+  --warning-400: #f89b22;
+  --warning-500: #f79009;
+  --warning-600: #d07907;
+  --warning-700: #a45f05;
+  --warning-950: #140b01;
 
-  --info-50:  #B0D5FD;
-  --info-400: #479DFB;
-  --info-500: #2E90FA;
-  --info-600: #067BF9;
-  --info-700: #0565CC;
-  --info-950: #01162D;
+  --info-50: #b0d5fd;
+  --info-400: #479dfb;
+  --info-500: #2e90fa;
+  --info-600: #067bf9;
+  --info-700: #0565cc;
+  --info-950: #01162d;
 
-  --success-50:  #5EEFAC;
-  --success-400: #14CE77;
-  --success-500: #12B76A;
-  --success-600: #0E9254;
-  --success-700: #0A683C;
-  --success-950: #02130B;
+  --success-50: #5eefac;
+  --success-400: #14ce77;
+  --success-500: #12b76a;
+  --success-600: #0e9254;
+  --success-700: #0a683c;
+  --success-950: #02130b;
 
   --transparent: transparent;
 
   /* ---------- Primitive: Spacing ---------- */
-  --space-0:  0;
-  --space-2:  2px;
-  --space-4:  4px;
-  --space-6:  6px;
-  --space-8:  8px;
+  --space-0: 0;
+  --space-2: 2px;
+  --space-4: 4px;
+  --space-6: 6px;
+  --space-8: 8px;
   --space-12: 12px;
   --space-16: 16px;
   --space-20: 20px;
@@ -95,93 +95,88 @@
 
   /* ---------- Primitive: Radius ---------- */
   --radius-none: 0;
-  --radius-xs:   4px;
-  --radius-sm:   8px;
-  --radius-md:   12px;
-  --radius-lg:   16px;
-  --radius-xl:   20px;
-  --radius-2xl:  28px;
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 28px;
   --radius-full: 9999px;
 
   /* ---------- Primitive: Shadow ---------- */
   --shadow-sm: 0 1px 2px 0 rgba(10, 10, 10, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(10, 10, 10, 0.10),
-               0 2px 4px -2px rgba(10, 10, 10, 0.10);
-  --shadow-lg: 0 10px 15px -3px rgba(10, 10, 10, 0.10),
-               0 4px 6px -4px rgba(10, 10, 10, 0.10);
-  --shadow-xl: 0 20px 25px -5px rgba(10, 10, 10, 0.15),
-               0 8px 10px -6px rgba(10, 10, 10, 0.10);
+  --shadow-md: 0 4px 6px -1px rgba(10, 10, 10, 0.1), 0 2px 4px -2px rgba(10, 10, 10, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(10, 10, 10, 0.1), 0 4px 6px -4px rgba(10, 10, 10, 0.1);
+  --shadow-xl: 0 20px 25px -5px rgba(10, 10, 10, 0.15), 0 8px 10px -6px rgba(10, 10, 10, 0.1);
 
   /* ---------- Primitive: Font ---------- */
-  --font-sans: 'Pretendard Variable', Pretendard, -apple-system,
-               BlinkMacSystemFont, 'Malgun Gothic', 'Apple SD Gothic Neo',
-               sans-serif;
+  --font-sans: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
 
-  --font-weight-regular:  400;
-  --font-weight-medium:   500;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
   --font-weight-semibold: 600;
-  --font-weight-bold:     700;
+  --font-weight-bold: 700;
 
-  --font-size-xs:  12px;
-  --font-size-sm:  14px;
-  --font-size-md:  16px;
-  --font-size-lg:  18px;
-  --font-size-xl:  20px;
+  --font-size-xs: 12px;
+  --font-size-sm: 14px;
+  --font-size-md: 16px;
+  --font-size-lg: 18px;
+  --font-size-xl: 20px;
   --font-size-2xl: 24px;
   --font-size-3xl: 30px;
   --font-size-4xl: 36px;
   --font-size-5xl: 48px;
 
-  --leading-tight:   1.25;
-  --leading-snug:    1.375;
-  --leading-normal:  1.5;
+  --leading-tight: 1.25;
+  --leading-snug: 1.375;
+  --leading-normal: 1.5;
   --leading-relaxed: 1.625;
 
-  --tracking-tight:  -0.02em;
+  --tracking-tight: -0.02em;
   --tracking-normal: 0;
 
   /* ---------- Semantic: Background ---------- */
-  --bg-canvas:         var(--neutral-0);
-  --bg-surface:        var(--neutral-50);
-  --bg-subtle:         var(--neutral-100);
-  --bg-disabled:       var(--neutral-200);
-  --bg-brand:          var(--brand-500);
-  --bg-brand-hover:    var(--brand-600);
-  --bg-brand-pressed:  var(--brand-700);
-  --bg-brand-subtle:   var(--brand-50);
-  --bg-danger:         var(--error-500);
-  --bg-danger-hover:   var(--error-600);
+  --bg-canvas: var(--neutral-0);
+  --bg-surface: var(--neutral-50);
+  --bg-subtle: var(--neutral-100);
+  --bg-disabled: var(--neutral-200);
+  --bg-brand: var(--brand-500);
+  --bg-brand-hover: var(--brand-600);
+  --bg-brand-pressed: var(--brand-700);
+  --bg-brand-subtle: var(--brand-50);
+  --bg-danger: var(--error-500);
+  --bg-danger-hover: var(--error-600);
   --bg-danger-pressed: var(--error-700);
-  --bg-danger-subtle:  var(--error-50);
+  --bg-danger-subtle: var(--error-50);
   --bg-success-subtle: var(--success-50);
   --bg-warning-subtle: var(--warning-50);
-  --bg-info-subtle:    var(--info-50);
+  --bg-info-subtle: var(--info-50);
 
   /* ---------- Semantic: Text ---------- */
-  --text-primary:   var(--neutral-900);
+  --text-primary: var(--neutral-900);
   --text-secondary: var(--neutral-700);
-  --text-muted:     var(--neutral-500);
-  --text-disabled:  var(--neutral-400);
-  --text-brand:     var(--brand-600);
-  --text-on-brand:  var(--neutral-0);
-  --text-link:      var(--secondary-600);
-  --text-error:     var(--error-600);
-  --text-success:   var(--success-700);
-  --text-warning:   var(--warning-700);
-  --text-info:      var(--info-600);
+  --text-muted: var(--neutral-500);
+  --text-disabled: var(--neutral-400);
+  --text-brand: var(--brand-600);
+  --text-on-brand: var(--neutral-0);
+  --text-link: var(--secondary-600);
+  --text-error: var(--error-600);
+  --text-success: var(--success-700);
+  --text-warning: var(--warning-700);
+  --text-info: var(--info-600);
 
   /* ---------- Semantic: Border ---------- */
   --border-default: var(--neutral-200);
-  --border-subtle:  var(--neutral-100);
-  --border-strong:  var(--neutral-300);
-  --border-brand:   var(--brand-500);
-  --border-focus:   var(--brand-500);
-  --border-error:   var(--error-500);
+  --border-subtle: var(--neutral-100);
+  --border-strong: var(--neutral-300);
+  --border-brand: var(--brand-500);
+  --border-focus: var(--brand-500);
+  --border-error: var(--error-500);
 
   /* ---------- Semantic: Status ---------- */
-  --status-error:   var(--error-500);
+  --status-error: var(--error-500);
   --status-warning: var(--warning-500);
-  --status-info:    var(--info-500);
+  --status-info: var(--info-500);
   --status-success: var(--success-500);
 
   /* ---------- Component: Button ---------- */
@@ -230,45 +225,45 @@
 /* ============================================================
    Semantic: Dark theme
    ============================================================ */
-[data-theme="dark"] {
+[data-theme='dark'] {
   color-scheme: dark;
-  --bg-canvas:         var(--neutral-950);
-  --bg-surface:        var(--neutral-900);
-  --bg-subtle:         var(--neutral-800);
-  --bg-disabled:       var(--neutral-700);
-  --bg-brand:          var(--brand-400);
-  --bg-brand-hover:    var(--brand-300);
-  --bg-brand-pressed:  var(--brand-500);
-  --bg-brand-subtle:   var(--brand-950);
-  --bg-danger:         var(--error-400);
-  --bg-danger-hover:   var(--error-500);
+  --bg-canvas: var(--neutral-950);
+  --bg-surface: var(--neutral-900);
+  --bg-subtle: var(--neutral-800);
+  --bg-disabled: var(--neutral-700);
+  --bg-brand: var(--brand-400);
+  --bg-brand-hover: var(--brand-300);
+  --bg-brand-pressed: var(--brand-500);
+  --bg-brand-subtle: var(--brand-950);
+  --bg-danger: var(--error-400);
+  --bg-danger-hover: var(--error-500);
   --bg-danger-pressed: var(--error-600);
-  --bg-danger-subtle:  var(--error-950);
+  --bg-danger-subtle: var(--error-950);
   --bg-success-subtle: var(--success-950);
   --bg-warning-subtle: var(--warning-950);
-  --bg-info-subtle:    var(--info-950);
+  --bg-info-subtle: var(--info-950);
 
-  --text-primary:   var(--neutral-50);
+  --text-primary: var(--neutral-50);
   --text-secondary: var(--neutral-300);
-  --text-muted:     var(--neutral-400);
-  --text-disabled:  var(--neutral-600);
-  --text-brand:     var(--brand-400);
-  --text-on-brand:  var(--neutral-950);
-  --text-link:      var(--secondary-400);
-  --text-error:     var(--error-400);
-  --text-success:   var(--success-400);
-  --text-warning:   var(--warning-400);
-  --text-info:      var(--info-400);
+  --text-muted: var(--neutral-400);
+  --text-disabled: var(--neutral-600);
+  --text-brand: var(--brand-400);
+  --text-on-brand: var(--neutral-950);
+  --text-link: var(--secondary-400);
+  --text-error: var(--error-400);
+  --text-success: var(--success-400);
+  --text-warning: var(--warning-400);
+  --text-info: var(--info-400);
 
   --border-default: var(--neutral-700);
-  --border-subtle:  var(--neutral-800);
-  --border-strong:  var(--neutral-600);
-  --border-brand:   var(--brand-400);
-  --border-focus:   var(--brand-400);
-  --border-error:   var(--error-400);
+  --border-subtle: var(--neutral-800);
+  --border-strong: var(--neutral-600);
+  --border-brand: var(--brand-400);
+  --border-focus: var(--brand-400);
+  --border-error: var(--error-400);
 
-  --status-error:   var(--error-400);
+  --status-error: var(--error-400);
   --status-warning: var(--warning-400);
-  --status-info:    var(--info-400);
+  --status-info: var(--info-400);
   --status-success: var(--success-400);
 }

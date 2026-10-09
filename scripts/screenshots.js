@@ -10,9 +10,19 @@ if (fs.existsSync(LOCAL_BROWSERS)) process.env.PLAYWRIGHT_BROWSERS_PATH = LOCAL_
 const ROOT = path.join(__dirname, '..');
 const DIST = path.join(ROOT, 'dist');
 const OUT = path.join(ROOT, 'release', 'screenshots');
-const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
-  '.svg': 'image/svg+xml', '.png': 'image/png', '.webp': 'image/webp', '.woff2': 'font/woff2',
-  '.webmanifest': 'application/manifest+json', '.wasm': 'application/wasm', '.txt': 'text/plain' };
+const MIME = {
+  '.html': 'text/html',
+  '.js': 'text/javascript',
+  '.css': 'text/css',
+  '.json': 'application/json',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+  '.woff2': 'font/woff2',
+  '.webmanifest': 'application/manifest+json',
+  '.wasm': 'application/wasm',
+  '.txt': 'text/plain',
+};
 
 function serve(root, port) {
   return new Promise(function (res, rej) {
@@ -21,12 +31,18 @@ function serve(root, port) {
       if (p === '/') p = '/index.html';
       const f = path.join(root, p);
       fs.readFile(f, function (err, data) {
-        if (err) { rs.writeHead(404); rs.end('nf'); return; }
+        if (err) {
+          rs.writeHead(404);
+          rs.end('nf');
+          return;
+        }
         rs.writeHead(200, { 'Content-Type': MIME[path.extname(f)] || 'application/octet-stream' });
         rs.end(data);
       });
     });
-    srv.listen(port, '127.0.0.1', function () { res(srv); });
+    srv.listen(port, '127.0.0.1', function () {
+      res(srv);
+    });
     srv.on('error', rej);
   });
 }
@@ -76,11 +92,17 @@ const SHOTS = [
 
 async function main() {
   const useDev = process.argv.includes('--dev');
-  let srv = null, base;
-  if (useDev) { base = 'http://127.0.0.1:8787'; }
-  else {
-    if (!fs.existsSync(path.join(DIST, 'index.html'))) { console.error('dist/가 없습니다 — npm run build 먼저'); process.exit(1); }
-    srv = await serve(DIST, 8899); base = 'http://127.0.0.1:8899';
+  let srv = null,
+    base;
+  if (useDev) {
+    base = 'http://127.0.0.1:8787';
+  } else {
+    if (!fs.existsSync(path.join(DIST, 'index.html'))) {
+      console.error('dist/가 없습니다 — npm run build 먼저');
+      process.exit(1);
+    }
+    srv = await serve(DIST, 8899);
+    base = 'http://127.0.0.1:8899';
   }
   fs.mkdirSync(OUT, { recursive: true });
   const { chromium } = require('playwright');
@@ -91,14 +113,19 @@ async function main() {
     await page.goto(base + '/' + s.hash, { waitUntil: 'networkidle' });
     /* 스플래시(~1.2s)가 DOM에서 제거될 때까지 대기 */
     await page.waitForSelector('#splash', { state: 'detached', timeout: 4000 }).catch(function () {
-      return page.evaluate(function () { var sp = document.getElementById('splash'); if (sp) sp.remove(); });
+      return page.evaluate(function () {
+        var sp = document.getElementById('splash');
+        if (sp) sp.remove();
+      });
     });
     /* 첫 렌더가 끝나 부트 스켈레톤이 사라질 때까지 대기 */
-    await page.waitForSelector('#app .skel-boot', { state: 'detached', timeout: 5000 }).catch(function () { });
+    await page.waitForSelector('#app .skel-boot', { state: 'detached', timeout: 5000 }).catch(function () {});
     await page.waitForTimeout(s.wait || 500);
     await page.evaluate(function () {
-      var t = document.querySelector('.toast'); if (t) t.style.display = 'none';
-      var sp = document.getElementById('splash'); if (sp) sp.remove();
+      var t = document.querySelector('.toast');
+      if (t) t.style.display = 'none';
+      var sp = document.getElementById('splash');
+      if (sp) sp.remove();
     });
     await page.screenshot({ path: path.join(OUT, s.name) });
     console.log('captured', s.name);
@@ -107,4 +134,7 @@ async function main() {
   if (srv) srv.close();
   console.log('done →', OUT);
 }
-main().catch(function (e) { console.error(e); process.exit(1); });
+main().catch(function (e) {
+  console.error(e);
+  process.exit(1);
+});

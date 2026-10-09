@@ -8,7 +8,11 @@
     "test": "node test-score.js && node test-smoke.js && node test-lifetools.js && node test-sw.js && node scripts/test-qr.js",
     "size": "node scripts/bundle-size.js",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit --checkJs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "e2e": "node scripts/e2e.mjs",
+    "e2e:webkit": "node scripts/e2e.mjs webkit",
     "ota": "node scripts/make-ota.js",
     "build": "node scripts/build-app.js",
     "export:svg": "node scripts/export-faithful-svg.mjs && node scripts/assemble-svg-deliverables.mjs && node scripts/build-svg-review.mjs",
@@ -18,6 +22,7 @@
     "android:debug": "npm run build && cap sync android && node scripts/build-android.js",
     "android:release": "npm run build && cap sync android && node scripts/build-android.js bundleRelease && node scripts/verify-aab.js android/app/build/outputs/bundle/release/app-release.aab",
     "verify:aab": "node scripts/verify-aab.js android/app/build/outputs/bundle/release/app-release.aab",
+    "play:sim": "node scripts/play-submission.js",
     "shots": "node scripts/screenshots.js",
     "graphic": "node scripts/feature-graphic.js",
     "release:check": "npm test && npm run size && npm run build && node scripts/release-check.js --strict"
@@ -51,6 +56,8 @@
     "eslint": "^10.12.0",
     "globals": "^17.13.0",
     "playwright": "^1.63.0",
-    "sharp": "^0.35.4"
+    "prettier": "^3.9.9",
+    "sharp": "^0.35.4",
+    "typescript": "^5.6.3"
   }
 }

@@ -36,15 +36,22 @@
 
   function setTheme(theme) {
     root.dataset.theme = theme;
-    try { localStorage.setItem('ds-theme', theme); } catch (e) { /* ignore */ }
+    try {
+      localStorage.setItem('ds-theme', theme);
+    } catch (e) {
+      /* ignore */
+    }
     refreshTokenValues();
   }
 
   var savedTheme = null;
-  try { savedTheme = localStorage.getItem('ds-theme'); } catch (e) { /* ignore */ }
+  try {
+    savedTheme = localStorage.getItem('ds-theme');
+  } catch (e) {
+    /* ignore */
+  }
 
-  var prefersDark = window.matchMedia &&
-    window.matchMedia('(prefers-color-scheme: dark)').matches;
+  var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
 
   setTheme(savedTheme || (prefersDark ? 'dark' : 'light'));
 
@@ -76,11 +83,14 @@
 
   function copyText(text) {
     if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard.writeText(text).then(function () {
-        showToast('복사됨 ' + text);
-      }).catch(function () {
-        fallbackCopy(text);
-      });
+      navigator.clipboard
+        .writeText(text)
+        .then(function () {
+          showToast('복사됨 ' + text);
+        })
+        .catch(function () {
+          fallbackCopy(text);
+        });
     } else {
       fallbackCopy(text);
     }
@@ -92,9 +102,7 @@
   });
 
   /* ---------- 스크롤스파이 ---------- */
-  var navLinks = Array.prototype.slice.call(
-    document.querySelectorAll('.site-nav a[href^="#"]')
-  );
+  var navLinks = Array.prototype.slice.call(document.querySelectorAll('.site-nav a[href^="#"]'));
 
   if ('IntersectionObserver' in window && navLinks.length) {
     var linkById = {};
@@ -102,15 +110,20 @@
       linkById[a.getAttribute('href').slice(1)] = a;
     });
 
-    var observer = new IntersectionObserver(function (entries) {
-      entries.forEach(function (entry) {
-        if (entry.isIntersecting) {
-          navLinks.forEach(function (a) { a.classList.remove('active'); });
-          var link = linkById[entry.target.id];
-          if (link) link.classList.add('active');
-        }
-      });
-    }, { rootMargin: '-35% 0px -60% 0px' });
+    var observer = new IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) {
+            navLinks.forEach(function (a) {
+              a.classList.remove('active');
+            });
+            var link = linkById[entry.target.id];
+            if (link) link.classList.add('active');
+          }
+        });
+      },
+      { rootMargin: '-35% 0px -60% 0px' }
+    );
 
     document.querySelectorAll('main section[id]').forEach(function (section) {
       observer.observe(section);
@@ -147,5 +160,5 @@
 
   /* ---------- 푸터 연도 ---------- */
   var yearEl = document.getElementById('year');
-  if (yearEl) yearEl.textContent = new Date().getFullYear();
+  if (yearEl) yearEl.textContent = String(new Date().getFullYear());
 })();

@@ -12,7 +12,11 @@ if (fs.existsSync(envFile)) {
   }
 }
 /* 포터블 도구 경로 (C:\tools) — 이미 PATH에 있으면 그대로 사용 */
-for (const [key, val] of [['JAVA_HOME', 'C:\\tools\\jdk-21'], ['ANDROID_HOME', 'C:\\tools\\android-sdk'], ['ANDROID_SDK_ROOT', 'C:\\tools\\android-sdk']]) {
+for (const [key, val] of [
+  ['JAVA_HOME', 'C:\\tools\\jdk-21'],
+  ['ANDROID_HOME', 'C:\\tools\\android-sdk'],
+  ['ANDROID_SDK_ROOT', 'C:\\tools\\android-sdk'],
+]) {
   if (!process.env[key] && fs.existsSync(val)) process.env[key] = val;
 }
 
@@ -34,7 +38,7 @@ if (isRelease) {
     console.error(`Upload keystore not found: ${keystore}`);
     process.exit(1);
   }
-  const missingSecrets = ['MATEON_UPLOAD_STORE_PASSWORD', 'MATEON_UPLOAD_KEY_PASSWORD'].filter(name => !process.env[name]);
+  const missingSecrets = ['MATEON_UPLOAD_STORE_PASSWORD', 'MATEON_UPLOAD_KEY_PASSWORD'].filter((name) => !process.env[name]);
   if (missingSecrets.length) {
     console.error(`Missing signing secrets: ${missingSecrets.join(', ')}`);
     process.exit(1);
@@ -43,9 +47,7 @@ if (isRelease) {
 
 const windows = process.platform === 'win32';
 const command = windows ? 'cmd.exe' : './gradlew';
-const args = windows
-  ? ['/d', '/s', '/c', `.\\gradlew.bat ${task}`]
-  : [task];
+const args = windows ? ['/d', '/s', '/c', `.\\gradlew.bat ${task}`] : [task];
 const result = spawnSync(command, args, { cwd: path.resolve(__dirname, '../android'), stdio: 'inherit' });
 if (result.error) console.error(result.error.message);
 process.exitCode = result.status ?? 1;

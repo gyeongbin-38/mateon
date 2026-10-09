@@ -23,11 +23,14 @@ const SLOT_RE = /^[ab]$/;
 const MAX_BODY = 64 * 1024;
 
 function cors(extra) {
-  return Object.assign({
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  }, extra);
+  return Object.assign(
+    {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+    extra
+  );
 }
 
 export default {
@@ -57,7 +60,11 @@ export default {
     if (request.method === 'PUT') {
       const body = await request.text();
       if (body.length > MAX_BODY) return new Response('too large', { status: 413, headers: cors() });
-      try { JSON.parse(body); } catch (e) { return new Response('invalid json', { status: 400, headers: cors() }); }
+      try {
+        JSON.parse(body);
+      } catch (e) {
+        return new Response('invalid json', { status: 400, headers: cors() });
+      }
       await env.SYNC_KV.put(key, body, { expirationTtl: 60 * 60 * 24 * 90 });
       return new Response('{"ok":true}', { headers: cors({ 'Content-Type': 'application/json' }) });
     }

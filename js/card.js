@@ -6,12 +6,19 @@ window.MateCard = (function () {
   'use strict';
 
   var FONT = "'Pretendard Variable', Pretendard, -apple-system, 'Segoe UI', 'Malgun Gothic', sans-serif";
-  var CORAL = '#FF6B7A', CORAL_D = '#FF4255', BLUE = '#6B9EFF', BLUE_D = '#4283FF';
-  var INK = '#1C1C1C', SUB = '#525252', MUTE = '#737373', LINE = '#E6E6E6';
+  var CORAL = '#FF6B7A',
+    CORAL_D = '#FF4255',
+    BLUE = '#6B9EFF',
+    BLUE_D = '#4283FF';
+  var INK = '#1C1C1C',
+    SUB = '#525252',
+    MUTE = '#737373',
+    LINE = '#E6E6E6';
 
   function makeCanvas(w, h) {
     var c = document.createElement('canvas');
-    c.width = w; c.height = h;
+    c.width = w;
+    c.height = h;
     return c;
   }
 
@@ -26,11 +33,15 @@ window.MateCard = (function () {
   }
 
   function wrapText(ctx, text, maxW) {
-    var words = text.split(''), lines = [], cur = '';
+    var words = text.split(''),
+      lines = [],
+      cur = '';
     for (var i = 0; i < words.length; i++) {
       var t = cur + words[i];
-      if (ctx.measureText(t).width > maxW && cur) { lines.push(cur); cur = words[i]; }
-      else cur = t;
+      if (ctx.measureText(t).width > maxW && cur) {
+        lines.push(cur);
+        cur = words[i];
+      } else cur = t;
     }
     if (cur) lines.push(cur);
     return lines;
@@ -38,7 +49,8 @@ window.MateCard = (function () {
 
   function gradient(ctx, w, h, c1, c2) {
     var g = ctx.createLinearGradient(0, 0, 0, h);
-    g.addColorStop(0, c1); g.addColorStop(1, c2);
+    g.addColorStop(0, c1);
+    g.addColorStop(1, c2);
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, w, h);
   }
@@ -63,23 +75,39 @@ window.MateCard = (function () {
     ctx.lineWidth = 16;
     ctx.strokeStyle = CORAL;
     ctx.beginPath();
-    ctx.moveTo(26, 94); ctx.lineTo(26, 56);
-    ctx.quadraticCurveTo(26, 38, 44, 33); ctx.lineTo(60, 27);
-    ctx.quadraticCurveTo(66, 29, 68, 37); ctx.lineTo(73, 52);
+    ctx.moveTo(26, 94);
+    ctx.lineTo(26, 56);
+    ctx.quadraticCurveTo(26, 38, 44, 33);
+    ctx.lineTo(60, 27);
+    ctx.quadraticCurveTo(66, 29, 68, 37);
+    ctx.lineTo(73, 52);
     ctx.stroke();
     ctx.strokeStyle = BLUE;
     ctx.beginPath();
-    ctx.moveTo(102, 94); ctx.lineTo(102, 56);
-    ctx.quadraticCurveTo(102, 38, 84, 33); ctx.lineTo(68, 27);
-    ctx.quadraticCurveTo(62, 29, 60, 37); ctx.lineTo(55, 52);
+    ctx.moveTo(102, 94);
+    ctx.lineTo(102, 56);
+    ctx.quadraticCurveTo(102, 38, 84, 33);
+    ctx.lineTo(68, 27);
+    ctx.quadraticCurveTo(62, 29, 60, 37);
+    ctx.lineTo(55, 52);
     ctx.stroke();
     ctx.fillStyle = CORAL;
-    ctx.beginPath(); ctx.arc(38, 15, 10, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath();
+    ctx.arc(38, 15, 10, 0, Math.PI * 2);
+    ctx.fill();
     ctx.fillStyle = BLUE;
-    ctx.beginPath(); ctx.arc(90, 15, 10, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath();
+    ctx.arc(90, 15, 10, 0, Math.PI * 2);
+    ctx.fill();
     ctx.fillStyle = INK;
-    [[54, 64], [66, 64], [54, 78], [66, 78]].forEach(function (p) {
-      roundRect(ctx, p[0], p[1], 8, 8, 1.5); ctx.fill();
+    [
+      [54, 64],
+      [66, 64],
+      [54, 78],
+      [66, 78],
+    ].forEach(function (p) {
+      roundRect(ctx, p[0], p[1], 8, 8, 1.5);
+      ctx.fill();
     });
     ctx.restore();
   }
@@ -88,7 +116,8 @@ window.MateCard = (function () {
     ctx.font = '700 ' + fs + 'px ' + FONT;
     var w = ctx.measureText(text).width + 36;
     roundRect(ctx, x, y, w, fs + 22, (fs + 22) / 2);
-    ctx.fillStyle = bg; ctx.fill();
+    ctx.fillStyle = bg;
+    ctx.fill();
     ctx.fillStyle = fg;
     ctx.textAlign = 'center';
     ctx.fillText(text, x + w / 2, y + fs + 11);
@@ -107,20 +136,25 @@ window.MateCard = (function () {
     ctx.textAlign = 'left';
     var ty = y + 22;
     roundRect(ctx, x, ty, w, 18, 9);
-    ctx.fillStyle = 'rgba(28,28,28,0.07)'; ctx.fill();
+    ctx.fillStyle = 'rgba(28,28,28,0.07)';
+    ctx.fill();
     if (pct > 0) {
-      var gw = Math.max(18, w * pct / 100);
+      var gw = Math.max(18, (w * pct) / 100);
       var g = ctx.createLinearGradient(x, 0, x + gw, 0);
-      g.addColorStop(0, color1); g.addColorStop(1, color2);
+      g.addColorStop(0, color1);
+      g.addColorStop(1, color2);
       roundRect(ctx, x, ty, gw, 18, 9);
-      ctx.fillStyle = g; ctx.fill();
+      ctx.fillStyle = g;
+      ctx.fill();
     }
   }
 
   /* ---------- 결과 카드 ---------- */
   function resultCard(o) {
-    var W = 1080, H = 1350;
-    var c = makeCanvas(W, H), ctx = c.getContext('2d');
+    var W = 1080,
+      H = 1350;
+    var c = makeCanvas(W, H),
+      ctx = c.getContext('2d');
     gradient(ctx, W, H, '#FFF5F6', '#F0F5FF');
     glow(ctx, W * 0.5, H * 0.1, W * 0.6, '#FFC2C8', 0.5);
     glow(ctx, W * 0.1, H, W * 0.4, '#C2D7FF', 0.45);
@@ -135,10 +169,14 @@ window.MateCard = (function () {
     ctx.fillText('나의 동거 캐릭터', W / 2, 190);
 
     // 메인 카드
-    var cx = 60, cy = 220, cw = W - 120, ch = 970;
+    var cx = 60,
+      cy = 220,
+      cw = W - 120,
+      ch = 970;
     ctx.save();
     ctx.shadowColor = 'rgba(255,66,85,0.18)';
-    ctx.shadowBlur = 40; ctx.shadowOffsetY = 12;
+    ctx.shadowBlur = 40;
+    ctx.shadowOffsetY = 12;
     roundRect(ctx, cx, cy, cw, ch, 32);
     ctx.fillStyle = '#FFFFFF';
     ctx.fill();
@@ -149,9 +187,10 @@ window.MateCard = (function () {
     ctx.fillStyle = INK;
     ctx.font = '800 68px ' + FONT;
     ctx.fillText(o.name, W / 2, cy + 135);
-    if(o.art) {
-      var sx=[126,430,734,1031][+o.code[1]-1], sy=[843,604,365,123][+o.code[3]-1];
-      ctx.drawImage(o.art,sx,sy,294,229,250,385,580,452);
+    if (o.art) {
+      var sx = [126, 430, 734, 1031][+o.code[1] - 1],
+        sy = [843, 604, 365, 123][+o.code[3] - 1];
+      ctx.drawImage(o.art, sx, sy, 294, 229, 250, 385, 580, 452);
     }
 
     ctx.fillStyle = SUB;
@@ -186,8 +225,10 @@ window.MateCard = (function () {
 
   /* ---------- 합의서 카드 ---------- */
   function agreementCard(o) {
-    var W = 1080, H = 1350;
-    var c = makeCanvas(W, H), ctx = c.getContext('2d');
+    var W = 1080,
+      H = 1350;
+    var c = makeCanvas(W, H),
+      ctx = c.getContext('2d');
     gradient(ctx, W, H, '#FFF5F6', '#F0F5FF');
 
     drawLogo(ctx, W / 2 - 48, 70, 0.75);
@@ -199,10 +240,13 @@ window.MateCard = (function () {
     ctx.font = '500 26px ' + FONT;
     ctx.fillText(o.names + '  ·  ' + o.date, W / 2, 248);
 
-    var cx = 90, cy = 300, cw = W - 180;
+    var cx = 90,
+      cy = 300,
+      cw = W - 180;
     ctx.save();
     ctx.shadowColor = 'rgba(28,28,28,0.10)';
-    ctx.shadowBlur = 30; ctx.shadowOffsetY = 10;
+    ctx.shadowBlur = 30;
+    ctx.shadowOffsetY = 10;
     roundRect(ctx, cx, cy, cw, 820, 24);
     ctx.fillStyle = '#FFFFFF';
     ctx.fill();

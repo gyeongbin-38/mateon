@@ -14,63 +14,107 @@ if (Capacitor.isNativePlatform()) {
   const webBase = () => (window.MATEON_CONFIG && window.MATEON_CONFIG.webBaseUrl) || '';
 
   window.MateNative = {
-    isNative:true,
-    copy: text => Clipboard.write({string:text}),
-    share: (title,text,url) => Share.share({title,text:text + (url ? '\n'+url : ''),dialogTitle:title}),
-    async shareFile(filename,data,isText=false) {
-      const file=await Filesystem.writeFile({path:filename,data,directory:Directory.Cache,...(isText?{encoding:Encoding.UTF8}:{})});
-      return Share.share({files:[file.uri],dialogTitle:filename});
+    isNative: true,
+    copy: (text) => Clipboard.write({ string: text }),
+    share: (title, text, url) => Share.share({ title, text: text + (url ? '\n' + url : ''), dialogTitle: title }),
+    async shareFile(filename, data, isText = false) {
+      const file = await Filesystem.writeFile({ path: filename, data, directory: Directory.Cache, ...(isText ? { encoding: Encoding.UTF8 } : {}) });
+      return Share.share({ files: [file.uri], dialogTitle: filename });
     },
     async syncReminders(reminders) {
       const enabled = reminders && (reminders.checkin || reminders.agreement || reminders.chore);
-      const want = enabled ? await LocalNotifications.requestPermissions() : {display:'denied'};
+      const want = enabled ? await LocalNotifications.requestPermissions() : { display: 'denied' };
       const pending = await LocalNotifications.getPending();
-      const ours = pending.notifications.filter(n => n.id === 9001 || n.id === 9002 || n.id === 9003);
-      if (ours.length) await LocalNotifications.cancel({notifications:ours});
+      const ours = pending.notifications.filter((n) => n.id === 9001 || n.id === 9002 || n.id === 9003);
+      if (ours.length) await LocalNotifications.cancel({ notifications: ours });
       if (want.display !== 'granted') return false;
       const list = [];
-      if (reminders.checkin) list.push({id:9001,title:'MATE:ON 주간 체크인',body:'이번 주 우리 집 분위기, 1분이면 정리돼요',schedule:{on:{weekday:Weekday.Sunday,hour:20,minute:0}}});
-      if (reminders.agreement) list.push({id:9002,title:'MATE:ON 합의 점검일',body:'우리집 규칙, 오늘 한 번 점검해 볼까요?',schedule:{every:'month',on:{day:1,hour:19,minute:0}}});
-      if (reminders.chore) list.push({id:9003,title:'MATE:ON 집안일 리마인더',body:'이번 주 내 차례 집안일을 확인해 보세요',schedule:{on:{weekday:Weekday.Saturday,hour:11,minute:0}},actionTypeId:'MATEON_CHORE'});
-      if (list.length) await LocalNotifications.schedule({notifications:list});
+      if (reminders.checkin)
+        list.push({
+          id: 9001,
+          title: 'MATE:ON 주간 체크인',
+          body: '이번 주 우리 집 분위기, 1분이면 정리돼요',
+          schedule: { on: { weekday: Weekday.Sunday, hour: 20, minute: 0 } },
+        });
+      if (reminders.agreement)
+        list.push({
+          id: 9002,
+          title: 'MATE:ON 합의 점검일',
+          body: '우리집 규칙, 오늘 한 번 점검해 볼까요?',
+          schedule: { every: 'month', on: { day: 1, hour: 19, minute: 0 } },
+        });
+      if (reminders.chore)
+        list.push({
+          id: 9003,
+          title: 'MATE:ON 집안일 리마인더',
+          body: '이번 주 내 차례 집안일을 확인해 보세요',
+          schedule: { on: { weekday: Weekday.Saturday, hour: 11, minute: 0 } },
+          actionTypeId: 'MATEON_CHORE',
+        });
+      if (list.length) await LocalNotifications.schedule({ notifications: list });
       return true;
     },
     /* ---- 일정별 알림 — id 9100~ 해시, 앞에서 예약 전량 재등록 ---- */
     async scheduleEventReminders(items) {
       const pending = await LocalNotifications.getPending();
-      const ours = pending.notifications.filter(n => n.id >= 9100 && n.id < 9200);
-      if (ours.length) await LocalNotifications.cancel({notifications:ours});
+      const ours = pending.notifications.filter((n) => n.id >= 9100 && n.id < 9200);
+      if (ours.length) await LocalNotifications.cancel({ notifications: ours });
       if (!items || !items.length) return true;
       const perm = await LocalNotifications.checkPermissions();
       if (perm.display !== 'granted') return false;
-      const hash = s => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) & 0xffff; return h; };
-      const list = items.map(it => ({
-        id: 9100 + hash(String(it.id)) % 100,
+      const hash = (s) => {
+        let h = 0;
+        for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) & 0xffff;
+        return h;
+      };
+      const list = items.map((it) => ({
+        id: 9100 + (hash(String(it.id)) % 100),
         title: 'MATE:ON 일정',
         body: it.title + (it.rem >= 1440 ? ' — ' + Math.round(it.rem / 1440) + '일 전이에요' : ' — ' + it.rem + '분 전이에요'),
-        schedule: {at: new Date(it.at)},
+        schedule: { at: new Date(it.at) },
       }));
-      await LocalNotifications.schedule({notifications:list});
+      await LocalNotifications.schedule({ notifications: list });
       return true;
+    },
+    /* ---- 홈 화면 위젯: 제목·D-day·미션 텍스트 갱신 ---- */
+    async updateWidget(data) {
+      try {
+        const plugin = Capacitor.Plugins && Capacitor.Plugins.MateWidget;
+        if (plugin) await plugin.update(data);
+      } catch {
+        /* 위젯 미지원 환경 무시 */
+      }
+    },
+    /* ---- 공유받은 이미지 경로를 file:// URL로 변환 ---- */
+    fileUrl(path) {
+      return Capacitor.convertFileSrc(path);
     },
     /* ---- 앱 아이콘 배지: 미완료 항목 수 ---- */
     async setBadge(n) {
       try {
-        if (n > 0) await Badge.set({count: Math.min(n, 99)});
+        if (n > 0) await Badge.set({ count: Math.min(n, 99) });
         else await Badge.clear();
-      } catch { /* 배지 미지원 런처는 무시 */ }
+      } catch {
+        /* 배지 미지원 런처는 무시 */
+      }
     },
     /* ---- 암호화 저장소 (Android Keystore / iOS Keychain) ---- */
     async secureSet(key, value) {
-      const r = await SecureStoragePlugin.set({key:'mateon.' + key, value:String(value)});
+      const r = await SecureStoragePlugin.set({ key: 'mateon.' + key, value: String(value) });
       return r.value === true;
     },
     async secureGet(key) {
-      try { const r = await SecureStoragePlugin.get({key:'mateon.' + key}); return r.value || null; }
-      catch { return null; }
+      try {
+        const r = await SecureStoragePlugin.get({ key: 'mateon.' + key });
+        return r.value || null;
+      } catch {
+        return null;
+      }
     },
     async secureRemove(key) {
-      try { await SecureStoragePlugin.remove({key:'mateon.' + key}); } catch { }
+      try {
+        await SecureStoragePlugin.remove({ key: 'mateon.' + key });
+      } catch {}
     },
     /* ---- OTA 업데이트 (수동 모드: 설정에서 "앱 업데이트 확인") ----
        webBaseUrl/ota/latest.json 을 읽어 버전이 다르면 번들을 내려받아 교체한다.
@@ -79,32 +123,44 @@ if (Capacitor.isNativePlatform()) {
       const base = webBase();
       if (!base) return '업데이트 주소가 설정되지 않았어요';
       try {
-        const res = await fetch(base.replace(/\/$/,'') + '/ota/latest.json?ts=' + Date.now(), {cache:'no-cache'});
+        const res = await fetch(base.replace(/\/$/, '') + '/ota/latest.json?ts=' + Date.now(), { cache: 'no-cache' });
         if (!res.ok) return '업데이트 정보가 아직 없어요';
         const meta = await res.json();
         if (!meta || !meta.version || !meta.url) return '업데이트 정보가 아직 없어요';
         const current = (window.MATEON_CONFIG && window.MATEON_CONFIG.assetVersion) || (window.MATEON_CONFIG || {}).version;
         if (meta.version === current) return '이미 최신 버전이에요';
-        const url = /^https?:/.test(meta.url) ? meta.url : base.replace(/\/$/,'') + '/' + meta.url.replace(/^\//,'');
-        const bundle = await CapacitorUpdater.download({url, version: String(meta.version)});
-        await CapacitorUpdater.next({id: bundle.id});
+        const url = /^https?:/.test(meta.url) ? meta.url : base.replace(/\/$/, '') + '/' + meta.url.replace(/^\//, '');
+        const bundle = await CapacitorUpdater.download({ url, version: String(meta.version) });
+        await CapacitorUpdater.next({ id: bundle.id });
         return '업데이트 완료 — 앱을 다시 시작하면 적용돼요';
       } catch {
         return '업데이트를 확인하지 못했어요. 나중에 다시 시도해 주세요';
       }
     },
+    /* ---- OTA 번들 롤백 — 내장 번들로 되돌린다 (업데이트가 부팅은 되지만 깨진 경우) ---- */
+    async rollbackUpdate() {
+      try {
+        await CapacitorUpdater.reset();
+        await CapacitorUpdater.reload();
+        return '이전 버전으로 되돌렸어요';
+      } catch {
+        return '되돌릴 이전 버전이 없어요';
+      }
+    },
     /* ---- 앱 숏컷 (런처 길게 눌러 바로가기) ---- */
     async setupShortcuts() {
       const shortcuts = [
-        {id:'checkin', title:'주간 체크인', description:'이번 주 우리 생활 점검하기'},
-        {id:'space', title:'생활 도구', description:'정산·쇼핑·일정·체크인'},
-        {id:'settle', title:'생활비 정산', description:'함께 쓴 돈 바로 기록'},
+        { id: 'checkin', title: '주간 체크인', description: '이번 주 우리 생활 점검하기' },
+        { id: 'space', title: '생활 도구', description: '정산·쇼핑·일정·체크인' },
+        { id: 'settle', title: '생활비 정산', description: '함께 쓴 돈 바로 기록' },
       ];
       try {
-        await AppShortcuts.set({shortcuts});
-      } catch { /* 시뮬레이터·구형 OS는 무시 */ }
-      await AppShortcuts.addListener('click', e => {
-        const routes = {checkin:'checkin', space:'space', settle:'settle'};
+        await AppShortcuts.set({ shortcuts });
+      } catch {
+        /* 시뮬레이터·구형 OS는 무시 */
+      }
+      await AppShortcuts.addListener('click', (e) => {
+        const routes = { checkin: 'checkin', space: 'space', settle: 'settle' };
         const route = routes[e.shortcutId];
         if (route) {
           if (window.__mateon && window.__mateon.navigate) window.__mateon.navigate(route);
@@ -117,26 +173,32 @@ if (Capacitor.isNativePlatform()) {
   async function init() {
     /* 알림 액션: 집안일 알림에 "확인하러 가기" 버튼 */
     try {
-      await LocalNotifications.registerActionTypes({types:[{id:'MATEON_CHORE',actions:[{id:'open',title:'확인하러 가기'}]}]});
-      await LocalNotifications.addListener('localNotificationActionPerformed', e => {
-        const routes = {9001:'checkin', 9002:'agreement', 9003:'chores'};
+      await LocalNotifications.registerActionTypes({ types: [{ id: 'MATEON_CHORE', actions: [{ id: 'open', title: '확인하러 가기' }] }] });
+      await LocalNotifications.addListener('localNotificationActionPerformed', (e) => {
+        const routes = { 9001: 'checkin', 9002: 'agreement', 9003: 'chores' };
         const route = routes[e.notification && e.notification.id] || 'home';
         if (window.__mateon && window.__mateon.navigate) window.__mateon.navigate(route);
         else location.hash = '#/' + route;
       });
-    } catch { /* 구형 OS 무시 */ }
+    } catch {
+      /* 구형 OS 무시 */
+    }
     await App.addListener('backButton', () => {
       if (!window.__mateon?.handleBack()) App.minimizeApp();
     });
-    const open = ({url}) => window.__mateon?.acceptNativeLink(url);
-    await App.addListener('appUrlOpen',open);
-    const launch=await App.getLaunchUrl();
-    if(launch?.url) open(launch);
-    await window.MateNative.setupShortcuts().catch(()=>{});
-    document.addEventListener('click',e=>{
-      if(e.target.closest('.nav-item,.mobile-primary,[data-sheet-save]')) Haptics.impact({style:ImpactStyle.Light}).catch(()=>{});
+    const open = ({ url }) => window.__mateon?.acceptNativeLink(url);
+    await App.addListener('appUrlOpen', open);
+    const launch = await App.getLaunchUrl();
+    if (launch?.url) open(launch);
+    await window.MateNative.setupShortcuts().catch(() => {});
+    /* OTA 부팅 성공 신호 — 여기까지 도달 못 하면 다음 실행 때 이전 번들로 자동 복귀 */
+    try {
+      await CapacitorUpdater.notifyAppReady();
+    } catch {}
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('.nav-item,.mobile-primary,[data-sheet-save]')) Haptics.impact({ style: ImpactStyle.Light }).catch(() => {});
     });
   }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>init().catch(console.error),{once:true});
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => init().catch(console.error), { once: true });
   else init().catch(console.error);
 }

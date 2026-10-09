@@ -5,19 +5,24 @@ const fs = require('fs');
 const store = {};
 let lastHTML = '';
 const listeners = {};
-const appEl = { addEventListener: (t, fn) => { listeners['app:' + t] = fn; } };
+const appEl = {
+  addEventListener: (t, fn) => {
+    listeners['app:' + t] = fn;
+  },
+};
 Object.defineProperty(appEl, 'innerHTML', {
-  get() { return lastHTML; },
-  set(v) { lastHTML = v; },
+  get() {
+    return lastHTML;
+  },
+  set(v) {
+    lastHTML = v;
+  },
 });
 const toastEl = { textContent: '', classList: { add() {}, remove() {} } };
 
 const fakeInputs = {};
 global.document = {
-  getElementById: (id) =>
-    id === 'app' ? appEl :
-    id === 'toast' ? toastEl :
-    fakeInputs[id] || null,
+  getElementById: (id) => (id === 'app' ? appEl : id === 'toast' ? toastEl : fakeInputs[id] || null),
   documentElement: { dataset: {} },
   querySelectorAll: () => [],
   createElement: () => ({ style: {}, setAttribute() {}, select() {}, remove() {}, value: '', click() {} }),
@@ -34,34 +39,57 @@ const hashListeners = [];
 global.window = {
   matchMedia: () => ({ matches: false }),
   scrollTo: () => {},
-  addEventListener: (t, fn) => { if (t === 'hashchange') hashListeners.push(fn); },
+  addEventListener: (t, fn) => {
+    if (t === 'hashchange') hashListeners.push(fn);
+  },
   isSecureContext: false,
 };
 global.localStorage = {
   getItem: (k) => store[k] ?? null,
-  setItem: (k, v) => { store[k] = v; },
-  removeItem: (k) => { delete store[k]; },
+  setItem: (k, v) => {
+    store[k] = v;
+  },
+  removeItem: (k) => {
+    delete store[k];
+  },
 };
 let _hash = '';
 global.location = { search: '', href: 'file:///C:/test/index.html', pathname: '/C:/test/index.html' };
 Object.defineProperty(global.location, 'hash', {
   get: () => _hash,
-  set: (v) => { _hash = v; hashListeners.forEach(fn => fn()); },
+  set: (v) => {
+    _hash = v;
+    hashListeners.forEach((fn) => fn());
+  },
 });
-global.history = { replaceState: (a, b, c) => { if (c) location.hash = c; } };
+global.history = {
+  replaceState: (a, b, c) => {
+    if (c) location.hash = c;
+  },
+};
 /* Node 24의 global.navigator는 읽기 전용 getter — defineProperty로 스텁 교체.
    language를 ko로 고정해 로케일 의존(i18n) 테스트가 CI(en-US)에서도 결정적이게 한다. */
 Object.defineProperty(global, 'navigator', { value: { language: 'ko-KR' }, configurable: true, writable: true });
 
 /* ---- 스크립트 로드 ---- */
-eval(fs.readFileSync('js/config.js', 'utf8') + '\n' +
-  fs.readFileSync('js/data.js', 'utf8') + '\n' +
-  fs.readFileSync('js/lifetools.js', 'utf8') + '\n' +
-  fs.readFileSync('js/secure.js', 'utf8') + '\n' +
-  fs.readFileSync('js/i18n.js', 'utf8') + '\n' +
-  fs.readFileSync('js/household.js', 'utf8') + '\n' +
-  fs.readFileSync('js/mateon.js', 'utf8') +
-  '\n;globalThis.__d={QUESTIONS,CHARACTERS,DOMAINS,SAMPLE_RESULTS,TALK_STARTERS,LIFE_QUESTIONS,LOVE_MAP_QUESTIONS};');
+eval(
+  fs.readFileSync('js/config.js', 'utf8') +
+    '\n' +
+    fs.readFileSync('js/data.js', 'utf8') +
+    '\n' +
+    fs.readFileSync('js/lifetools.js', 'utf8') +
+    '\n' +
+    fs.readFileSync('js/secure.js', 'utf8') +
+    '\n' +
+    fs.readFileSync('js/i18n.js', 'utf8') +
+    '\n' +
+    fs.readFileSync('js/household.js', 'utf8') +
+    '\n' +
+    fs.readFileSync('js/appviews.js', 'utf8') +
+    '\n' +
+    fs.readFileSync('js/mateon.js', 'utf8') +
+    '\n;globalThis.__d={QUESTIONS,CHARACTERS,DOMAINS,SAMPLE_RESULTS,TALK_STARTERS,LIFE_QUESTIONS,LOVE_MAP_QUESTIONS};'
+);
 
 const { QUESTIONS, CHARACTERS, SAMPLE_RESULTS, TALK_STARTERS, LOVE_MAP_QUESTIONS } = globalThis.__d;
 const { encodeResult, decodeResult, resultFromCode, encodeInvite, decodeInvite, resultFromLink, isoWeekKey } = window.__mateon;
@@ -75,18 +103,33 @@ function click(action, dataset) {
     disabled: false,
     classList: { add() {}, remove() {} },
   };
-  listeners['app:click']({ target: { closest: (sel) => sel === '[data-action]' ? el : null } });
+  listeners['app:click']({ target: { closest: (sel) => (sel === '[data-action]' ? el : null) } });
 }
 function reloadApp(search, hash) {
   hashListeners.length = 0;
-  location.search = search; _hash = hash;
-  eval(fs.readFileSync('js/config.js', 'utf8') + '\n' + fs.readFileSync('js/data.js', 'utf8') + '\n' + fs.readFileSync('js/lifetools.js', 'utf8') + '\n' + fs.readFileSync('js/mateon.js', 'utf8'));
+  location.search = search;
+  _hash = hash;
+  eval(
+    fs.readFileSync('js/config.js', 'utf8') +
+      '\n' +
+      fs.readFileSync('js/data.js', 'utf8') +
+      '\n' +
+      fs.readFileSync('js/lifetools.js', 'utf8') +
+      '\n' +
+      fs.readFileSync('js/mateon.js', 'utf8')
+  );
 }
 
-let pass = 0, fail = 0;
+let pass = 0,
+  fail = 0;
 function check(name, cond) {
-  if (cond) { pass++; console.log('  OK', name); }
-  else { fail++; console.log('  FAIL', name); }
+  if (cond) {
+    pass++;
+    console.log('  OK', name);
+  } else {
+    fail++;
+    console.log('  FAIL', name);
+  }
 }
 
 console.log('== 1. 홈 렌더 ==');
@@ -100,7 +143,7 @@ check('하단 네비게이션', lastHTML.includes('bottom-nav') && lastHTML.incl
 check('네비 홈 활성', /nav-item on[^>]*data-action="home"|data-action="home"[^>]*nav-item on/.test(lastHTML));
 const indexSrc = fs.readFileSync('index.html', 'utf8');
 check('스플래시 마크업', indexSrc.includes('id="splash"') && indexSrc.includes('splash-logo'));
-const mateonSrc = fs.readFileSync('js/mateon.js', 'utf8');
+const mateonSrc = fs.readFileSync('js/mateon.js', 'utf8') + '\n' + fs.readFileSync('js/appviews.js', 'utf8');
 check('스플래시 1초 타이밍', mateonSrc.includes('dismissSplash') && mateonSrc.includes('680'));
 const configSrc = fs.readFileSync('js/config.js', 'utf8');
 check('배포 웹 링크 설정', indexSrc.includes('js/config.js') && configSrc.includes('https://gyeongbin-38.github.io/mateon/'));
@@ -120,13 +163,13 @@ console.log('== 3. 20문항 응답 ==');
 async function answerAll() {
   for (let i = 0; i < QUESTIONS.length; i++) {
     click('answer', { idx: i % 4 });
-    await new Promise(r => setTimeout(r, 260));
+    await new Promise((r) => setTimeout(r, 260));
   }
 }
 (async () => {
   // 첫 문항 응답 후 draft 저장 확인
   click('answer', { idx: 0 });
-  await new Promise(r => setTimeout(r, 260));
+  await new Promise((r) => setTimeout(r, 260));
   check('설문 진행 draft 저장', !!store['mateon.draft.me']);
   check('다음 문항 슬라이드', lastHTML.includes('q-slide q-next'));
   click('prev');
@@ -137,10 +180,10 @@ async function answerAll() {
   click('resume-survey');
   check('설문 복귀', lastHTML.includes('1 / 20') && lastHTML.includes('selected'));
   click('answer', { idx: 0 });
-  await new Promise(r => setTimeout(r, 260));
+  await new Promise((r) => setTimeout(r, 260));
   for (let i = 1; i < QUESTIONS.length; i++) {
     click('answer', { idx: i % 4 });
-    await new Promise(r => setTimeout(r, 260));
+    await new Promise((r) => setTimeout(r, 260));
   }
   check('결과 화면 이동', lastHTML.includes('동거 캐릭터'));
   check('E/R 게이지 표시', lastHTML.includes('교류 활성도') && lastHTML.includes('자극 민감도'));
@@ -177,21 +220,34 @@ async function answerAll() {
   const enc1 = encodeInvite(me, 7);
   const dec1 = decodeInvite(enc1);
   check('v3 인코딩/디코딩', enc1[0] === 'z' && dec1 && dec1.result.charId === me.charId);
-  check('v3 만료 플래그', (function () {
-    const now = Date.now; Date.now = () => now() + 8 * 86400000;
-    const d = decodeInvite(enc1); Date.now = now;
-    return d && d.expired === true;
-  })());
+  check(
+    'v3 만료 플래그',
+    (function () {
+      const now = Date.now;
+      Date.now = () => now() + 8 * 86400000;
+      const d = decodeInvite(enc1);
+      Date.now = now;
+      return d && d.expired === true;
+    })()
+  );
   check('레거시 링크 호환', decodeInvite(encodeResult(me)) && decodeInvite(encodeResult(me)).result.name === me.name);
-  check('만료 링크 파싱', (function () {
-    const now = Date.now; Date.now = () => now() + 8 * 86400000;
-    const r = resultFromLink('https://x.example/?invite=' + enc1); Date.now = now;
-    return r && r.expired === true;
-  })());
-  check('정상 링크 파싱', (function () {
-    const r = resultFromLink('https://x.example/?invite=' + enc1);
-    return r && r.r && r.r.charId === me.charId;
-  })());
+  check(
+    '만료 링크 파싱',
+    (function () {
+      const now = Date.now;
+      Date.now = () => now() + 8 * 86400000;
+      const r = resultFromLink('https://x.example/?invite=' + enc1);
+      Date.now = now;
+      return r && r.expired === true;
+    })()
+  );
+  check(
+    '정상 링크 파싱',
+    (function () {
+      const r = resultFromLink('https://x.example/?invite=' + enc1);
+      return r && r.r && r.r.charId === me.charId;
+    })()
+  );
 
   console.log('== 5. 같은 기기 상대 진단 ==');
   click('partner-survey');
@@ -218,7 +274,7 @@ async function answerAll() {
   click('add-rule');
   check('커스텀 규칙 렌더', lastHTML.includes('화요일 저녁은 각자 자유시간'));
   check('직접 추가 배지', lastHTML.includes('직접 추가'));
-  check('커스텀 규칙 저장', (JSON.parse(store['mateon.customRules'] || '[]')).length === 1);
+  check('커스텀 규칙 저장', JSON.parse(store['mateon.customRules'] || '[]').length === 1);
 
   console.log('== 6-2. 대화 스타터 (샘플 상대로 차이 보장) ==');
   click('invite');
@@ -236,7 +292,10 @@ async function answerAll() {
   click('save-agree');
   check('합의서 저장됨', !!store['mateon.agreement']);
   const savedAgreement = JSON.parse(store['mateon.agreement']);
-  check('합의서 페어 식별자 저장', savedAgreement.meCharId === JSON.parse(store['mateon.me']).charId && savedAgreement.partnerCharId === JSON.parse(store['mateon.partner']).charId);
+  check(
+    '합의서 페어 식별자 저장',
+    savedAgreement.meCharId === JSON.parse(store['mateon.me']).charId && savedAgreement.partnerCharId === JSON.parse(store['mateon.partner']).charId
+  );
   check('비법적 문서 안내', lastHTML.includes('법적 효력은 없어요'));
   reloadApp('', '#/agreement');
   check('새로고침 후 저장 규칙 복원', lastHTML.includes('화요일 저녁은 각자 자유시간') && lastHTML.includes('저장된 규칙을 불러왔어요'));
@@ -266,7 +325,17 @@ async function answerAll() {
     check('v3 토큰 접두사', m[1][0] === 'z');
     const b64 = m[1].slice(1).replace(/-/g, '+').replace(/_/g, '/');
     const raw = Buffer.from(b64, 'base64').toString('utf8');
-    check('평문 JSON 아님(난독화)', (function () { try { JSON.parse(raw); return false; } catch (e) { return true; } })());
+    check(
+      '평문 JSON 아님(난독화)',
+      (function () {
+        try {
+          JSON.parse(raw);
+          return false;
+        } catch (e) {
+          return true;
+        }
+      })()
+    );
     const dec8 = decodeInvite(m[1]);
     check('난독화 해제 후 결과 복원', dec8 && dec8.result && dec8.result.charId >= 1 && dec8.result.charId <= 16);
     check('도메인 수치 복원', dec8 && dec8.result.domains && typeof dec8.result.domains.A.e === 'number');
@@ -296,7 +365,7 @@ async function answerAll() {
     check('실무 체크 렌더', lastHTML.includes('실무 성향'));
     for (let i = 0; i < 6; i++) {
       click('life-answer', { idx: i % 3 });
-      await new Promise(r => setTimeout(r, 260));
+      await new Promise((r) => setTimeout(r, 260));
     }
     const meData = JSON.parse(store['mateon.me']);
     check('실무 성향 저장', !!(meData.life && meData.life.length === 6));
@@ -318,11 +387,11 @@ async function answerAll() {
   check('코드 입력 UI', lastHTML.includes('code-connect-in'));
   fakeInput('code-connect-in', 'e3r2');
   click('code-connect');
-  const e3r2 = CHARACTERS.find(c => c.code === 'E3R2');
+  const e3r2 = CHARACTERS.find((c) => c.code === 'E3R2');
   check('코드로 연결된 파트너', JSON.parse(store['mateon.partner']).charId === e3r2.id);
   check('리포트 렌더', lastHTML.includes('우리 둘 궁합 리포트'));
   const byCode = resultFromCode('E4R1', '테스트');
-  check('resultFromCode 생성', byCode && byCode.charId === CHARACTERS.find(c => c.code === 'E4R1').id);
+  check('resultFromCode 생성', byCode && byCode.charId === CHARACTERS.find((c) => c.code === 'E4R1').id);
 
   console.log('== 14-1. 받은 초대 링크 연결 ==');
   click('invite');
@@ -355,7 +424,8 @@ async function answerAll() {
   const bad = JSON.parse(Buffer.from(encodeResult(SAMPLE_RESULTS.me).replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString());
   bad[5] = 999;
   check('알 수 없는 캐릭터 초대 거부', decodeResult(Buffer.from(JSON.stringify(bad)).toString('base64')) === null);
-  bad[5] = SAMPLE_RESULTS.me.charId; bad[3] = 99;
+  bad[5] = SAMPLE_RESULTS.me.charId;
+  bad[3] = 99;
   check('범위 밖 성향 초대 거부', decodeResult(Buffer.from(JSON.stringify(bad)).toString('base64')) === null);
 
   console.log('== 16. 상대 연결 해제 ==');
@@ -421,7 +491,7 @@ async function answerAll() {
   click('space');
   check('우리 공간 탭', lastHTML.includes('우리 공간') && lastHTML.includes('나의 대화 기록'));
   check('대화 기록 빈 상태', lastHTML.includes('아직 남긴 이야기가 없어요'));
-  store['mateon.talks'] = JSON.stringify({0:{text:'<script>alert(1)</script>',ts:Date.now()}});
+  store['mateon.talks'] = JSON.stringify({ 0: { text: '<script>alert(1)</script>', ts: Date.now() } });
   click('space');
   check('저장한 대화 렌더링과 이스케이프', lastHTML.includes('&lt;script&gt;') && !lastHTML.includes('<script>alert'));
   click('checklist');
@@ -444,15 +514,20 @@ async function answerAll() {
   console.log('== 19. 새로고침 후 상대 진단 복구 ==');
   const savedMe = JSON.stringify(SAMPLE_RESULTS.me);
   store['mateon.me'] = savedMe;
-  const resumedDraft = {q:19, answers:QUESTIONS.slice(0,19).map(q=>({qid:q.id,code:q.options[0].code})), profile:{name:'복구한 상대',relation:'친구',stage:''},invite:null};
+  const resumedDraft = {
+    q: 19,
+    answers: QUESTIONS.slice(0, 19).map((q) => ({ qid: q.id, code: q.options[0].code })),
+    profile: { name: '복구한 상대', relation: '친구', stage: '' },
+    invite: null,
+  };
   store['mateon.draft.partner'] = JSON.stringify(resumedDraft);
   store['mateon.activeDraft'] = JSON.stringify('partner');
   reloadApp('', '#/home');
   check('홈에 상대 진단 이어하기 표시', lastHTML.includes('복구한 상대님의 진단 이어하기'));
   click('resume-survey');
   check('상대 진단 문항 복구', lastHTML.includes('20 / 20'));
-  click('answer', {idx:0});
-  await new Promise(r=>setTimeout(r,260));
+  click('answer', { idx: 0 });
+  await new Promise((r) => setTimeout(r, 260));
   check('복구한 진단이 상대 결과로 저장', JSON.parse(store['mateon.partner']).name === '복구한 상대' && store['mateon.me'] === savedMe);
   check('완료한 상대 초안 정리', !store['mateon.draft.partner'] && !store['mateon.activeDraft']);
   resumedDraft.invite = encodeResult(SAMPLE_RESULTS.partner);
@@ -460,8 +535,8 @@ async function answerAll() {
   store['mateon.activeDraft'] = JSON.stringify('partner');
   reloadApp('?invite=' + resumedDraft.invite, '#/home');
   check('같은 초대 링크로 재방문하면 진단 복구', location.hash === '#/survey' && lastHTML.includes('20 / 20'));
-  click('answer', {idx:0});
-  await new Promise(r=>setTimeout(r,260));
+  click('answer', { idx: 0 });
+  await new Promise((r) => setTimeout(r, 260));
   check('초대 수신자의 이름 보존', JSON.parse(store['mateon.me']).name === '복구한 상대');
   check('초대한 메이트 연결 및 초안 정리', JSON.parse(store['mateon.partner']).name === SAMPLE_RESULTS.partner.name && !store['mateon.draft.partner']);
 
@@ -476,7 +551,7 @@ async function answerAll() {
   fakeInput('exp-memo', '마트 장보기');
   fakeInput('exp-amt', '30000');
   click('exp-add');
-  check('지출 저장됨', (JSON.parse(store['mateon.expenses'] || '[]')).length === 1);
+  check('지출 저장됨', JSON.parse(store['mateon.expenses'] || '[]').length === 1);
   check('지출 내역 표시', lastHTML.includes('마트 장보기') && lastHTML.includes('30,000원'));
   click('exp-payer', { v: 'me' });
   fakeInput('exp-memo', '전기세');
@@ -487,9 +562,9 @@ async function answerAll() {
   click('exp-del', { v: expId });
   check('지출 삭제 확인 단계', lastHTML.includes('확인'));
   click('exp-del', { v: expId });
-  check('지출 삭제됨', (JSON.parse(store['mateon.expenses'])).length === 1);
+  check('지출 삭제됨', JSON.parse(store['mateon.expenses']).length === 1);
   click('exp-settle');
-  check('정산 마감', (JSON.parse(store['mateon.expenses'])).length === 0 && (JSON.parse(store['mateon.settled'])).length === 1);
+  check('정산 마감', JSON.parse(store['mateon.expenses']).length === 0 && JSON.parse(store['mateon.settled']).length === 1);
   check('지난 정산 기록 표시', lastHTML.includes('지난 정산 기록'));
 
   console.log('== 21. 역할 분담 ==');
@@ -500,19 +575,31 @@ async function answerAll() {
   click('chore-preset', { v: '화장실 청소' });
   const choresNow = JSON.parse(store['mateon.chores']);
   check('분담 목록 저장', choresNow.items.length === 2 && choresNow.rot.length === 2);
-  check('담당 교차 배정', choresNow.items.map(function(it,i){return window.__mateon.choreOwner(i, Date.now());}).join(',') !== choresNow.items.map(function(it,i){return window.__mateon.choreOwner(i, Date.now() + 7*86400000);}).join(','));
+  check(
+    '담당 교차 배정',
+    choresNow.items
+      .map(function (it, i) {
+        return window.__mateon.choreOwner(i, Date.now());
+      })
+      .join(',') !==
+      choresNow.items
+        .map(function (it, i) {
+          return window.__mateon.choreOwner(i, Date.now() + 7 * 86400000);
+        })
+        .join(',')
+  );
   const cid0 = choresNow.items[0].id;
   click('chore-done', { v: cid0 });
   check('완료 체크', !!(JSON.parse(store['mateon.choreLog'])[isoWeekKey()] || {})[cid0]);
   check('완료 카운트 표시', lastHTML.includes('1 / 2 완료'));
   click('chore-done', { v: cid0 });
-  check('완료 취소', !((JSON.parse(store['mateon.choreLog'])[isoWeekKey()] || {})[cid0]));
+  check('완료 취소', !(JSON.parse(store['mateon.choreLog'])[isoWeekKey()] || {})[cid0]);
   fakeInput('chore-in', '분리수거');
   click('chore-add');
   check('직접 집안일 추가', lastHTML.includes('분리수거'));
   click('chore-del', { v: cid0 });
   click('chore-del', { v: cid0 });
-  check('집안일 삭제', (JSON.parse(store['mateon.chores'])).items.length === 2);
+  check('집안일 삭제', JSON.parse(store['mateon.chores']).items.length === 2);
   check('다음 주 미리보기', lastHTML.includes('다음 주 미리보기'));
 
   console.log('== 22. 우리 일정 ==');
@@ -523,23 +610,23 @@ async function answerAll() {
   fakeInput('ev-memo', '오후 2시 집주인 연락');
   click('ev-who', { v: 'both' });
   click('ev-add');
-  check('일정 저장됨', (JSON.parse(store['mateon.events'] || '[]')).length === 1);
+  check('일정 저장됨', JSON.parse(store['mateon.events'] || '[]').length === 1);
   check('일정 표시', lastHTML.includes('전세 만기일') && lastHTML.includes('집주인'));
   const evId = JSON.parse(store['mateon.events'])[0].id;
   check('ICS 버튼 표시', lastHTML.includes('data-action="ev-ics"'));
   click('ev-del', { v: evId });
   click('ev-del', { v: evId });
-  check('일정 삭제됨', (JSON.parse(store['mateon.events'])).length === 0);
+  check('일정 삭제됨', JSON.parse(store['mateon.events']).length === 0);
   check('일정 빈 상태', lastHTML.includes('예정된 일정이 없어요'));
 
   console.log('== 23. 주간 체크인 ==');
   nav('#/checkin');
   check('체크인 화면 렌더', lastHTML.includes('이번 주 체크인') && lastHTML.includes('mood-btn'));
   click('ci-mood', { v: '4' });
-  check('기분 선택 저장', (JSON.parse(store['mateon.checkins'] || '[]'))[0].mood === 4);
+  check('기분 선택 저장', JSON.parse(store['mateon.checkins'] || '[]')[0].mood === 4);
   fakeInput('ci-fix', '주말엔 같이 청소하기');
   click('ci-save');
-  check('체크인 저장됨', (JSON.parse(store['mateon.checkins']))[0].fix === '주말엔 같이 청소하기');
+  check('체크인 저장됨', JSON.parse(store['mateon.checkins'])[0].fix === '주말엔 같이 청소하기');
   check('체크인 상태 표시', lastHTML.includes('체크인 수정하기'));
   nav('#/home');
   check('체크인 배너 숨김', !lastHTML.includes('checkin-banner'));
@@ -556,14 +643,16 @@ async function answerAll() {
   check('합의 단계', lastHTML.includes('작은 약속 하나 정하기'));
   fakeInput('cg-note', '설거지는 자기 전까지');
   click('cg-save');
-  check('합의 기록됨', (JSON.parse(store['mateon.conflictLog'] || '[]'))[0].note === '설거지는 자기 전까지');
+  check('합의 기록됨', JSON.parse(store['mateon.conflictLog'] || '[]')[0].note === '설거지는 자기 전까지');
   check('합의 후 우리 공간으로', location.hash === '#/space');
   nav('#/conflict');
   click('cg-domain', { v: 'D' });
-  click('cg-next'); click('cg-next'); click('cg-next');
+  click('cg-next');
+  click('cg-next');
+  click('cg-next');
   fakeInput('cg-note', '밤 11시 이후 이어폰');
   click('cg-save-rule');
-  check('합의→규칙 연동', (JSON.parse(store['mateon.customRules'] || '[]')).includes('밤 11시 이후 이어폰'));
+  check('합의→규칙 연동', JSON.parse(store['mateon.customRules'] || '[]').includes('밤 11시 이후 이어폰'));
 
   console.log('== 25. 커스텀 체크리스트 ==');
   nav('#/checklist');
@@ -576,7 +665,7 @@ async function answerAll() {
   check('커스텀 항목 체크', JSON.parse(store['mateon.checklist'])['own:' + ownId] === true);
   click('cl-del', { v: ownId });
   click('cl-del', { v: ownId });
-  check('커스텀 항목 삭제', (JSON.parse(store['mateon.customChecklist'])).length === 0);
+  check('커스텀 항목 삭제', JSON.parse(store['mateon.customChecklist']).length === 0);
   check('체크 키도 정리', !JSON.parse(store['mateon.checklist'])['own:' + ownId]);
 
   console.log('== 26. 설정 확장 ==');
@@ -624,7 +713,8 @@ async function answerAll() {
 
   console.log('== 29. 분할 정산 · OCR 파서 · 쇼핑 · 러브맵 · CRDT 동기화 ==');
   /* --- 분할 정산 --- */
-  store['mateon.expenses'] = '[]'; store['mateon.settled'] = '[]';
+  store['mateon.expenses'] = '[]';
+  store['mateon.settled'] = '[]';
   reloadApp('', '#/settle');
   check('분할 모드 칩 표시', lastHTML.includes('나누는 방법') && lastHTML.includes('비율 %'));
   check('영수증 스캔 버튼', lastHTML.includes('영수증 스캔') && lastHTML.includes('exp-receipt'));
@@ -653,7 +743,9 @@ async function answerAll() {
   check('영수증 영문 합계', pr2.amount >= 15);
   check('빈 영수증 안전', window.__mateon.parseReceiptText('').amount === 0);
   /* 부가세·할인·날짜·전화번호는 총액으로 오인하면 안 됨 */
-  const pr3 = window.__mateon.parseReceiptText('[영수증] 2026-10-05 14:22\nGS25 강남점\n전화 02-1234-5678\n삼각김밥 1,200\n커피 4,500\n공급가 5,182\n부가세 518\n결제금액 5,700');
+  const pr3 = window.__mateon.parseReceiptText(
+    '[영수증] 2026-10-05 14:22\nGS25 강남점\n전화 02-1234-5678\n삼각김밥 1,200\n커피 4,500\n공급가 5,182\n부가세 518\n결제금액 5,700'
+  );
   check('영수증 결제금액 우선', pr3.amount === 5700);
   check('영수증 가게명 노이즈 스킵', pr3.store === 'GS25 강남점');
   const pr4 = window.__mateon.parseReceiptText('CU 역삼점\n라면 1,500\n할인 -500\n총액 1,000');
@@ -666,16 +758,19 @@ async function answerAll() {
   check('쇼핑 화면 렌더', lastHTML.includes('같이 살 것') && lastHTML.includes('필요한 것 추가'));
   fakeInput('shop-in', '휴지');
   click('shop-add');
-  check('쇼핑 항목 저장', (JSON.parse(store['mateon.shopping'] || '[]')).some(x => x.name === '휴지'));
+  check(
+    '쇼핑 항목 저장',
+    JSON.parse(store['mateon.shopping'] || '[]').some((x) => x.name === '휴지')
+  );
   click('shop-preset', { v: '세탁세제' });
-  check('프리셋 추가', (JSON.parse(store['mateon.shopping'])).length === 2);
+  check('프리셋 추가', JSON.parse(store['mateon.shopping']).length === 2);
   const shopId = JSON.parse(store['mateon.shopping'])[0].id;
   click('shop-done', { v: shopId });
   check('쇼핑 완료 체크', JSON.parse(store['mateon.shopping'])[0].done === true);
   check('산 것 섹션', lastHTML.includes('산 것'));
   click('shop-del', { v: shopId });
   click('shop-del', { v: shopId });
-  check('쇼핑 항목 삭제', !JSON.parse(store['mateon.shopping']).some(x => x.id === shopId));
+  check('쇼핑 항목 삭제', !JSON.parse(store['mateon.shopping']).some((x) => x.id === shopId));
   /* --- 러브맵 퀴즈 --- */
   nav('#/lovemap');
   check('러브맵 렌더', lastHTML.includes('러브맵 퀴즈') && lastHTML.includes('맞혔어요'));
@@ -701,7 +796,10 @@ async function answerAll() {
   check('TB 스냅샷 저장', Array.isArray(tbDump));
   const copy = TinyBase.createMergeableStore();
   copy.setMergeableContent(tbDump);
-  check('TB 항목 행 반영', copy.getRowIds('kv').some(r => r.indexOf('e:') === 0));
+  check(
+    'TB 항목 행 반영',
+    copy.getRowIds('kv').some((r) => r.indexOf('e:') === 0)
+  );
   check('TB 본인 me 셀', typeof copy.getCell('kv', 'me:a', 'd') === 'string');
   /* 원격 기기가 자기 지출을 추가 → 머지하면 로컬에도 반영 */
   const remote = TinyBase.createMergeableStore();
@@ -711,12 +809,18 @@ async function answerAll() {
   remote.setCell('kv', 'w:mateon.checklist', 'd', JSON.stringify({ '계약·서류:0': true }));
   const merged = window.__mateon.mergeRemoteContent(remote.getMergeableContent());
   check('CRDT 머지 수신', merged === true);
-  check('원격 지출 반영', JSON.parse(store['mateon.expenses']).some(x => x.id === 'remote1'));
-  check('원격 쇼핑 반영', JSON.parse(store['mateon.shopping']).some(x => x.id === 'rg1'));
+  check(
+    '원격 지출 반영',
+    JSON.parse(store['mateon.expenses']).some((x) => x.id === 'remote1')
+  );
+  check(
+    '원격 쇼핑 반영',
+    JSON.parse(store['mateon.shopping']).some((x) => x.id === 'rg1')
+  );
   check('원격 체크리스트 반영', JSON.parse(store['mateon.checklist'])['계약·서류:0'] === true);
-  check('상대 결과 머지', (JSON.parse(store['mateon.partner'] || '{}').name === SAMPLE_RESULTS.partner.name));
+  check('상대 결과 머지', JSON.parse(store['mateon.partner'] || '{}').name === SAMPLE_RESULTS.partner.name);
   /* 삭제 툼스톤: 로컬에서 지운 항목이 원격 잔존 데이터를 되살리지 않는지 */
-  store['mateon.expenses'] = JSON.stringify(JSON.parse(store['mateon.expenses']).filter(x => x.id !== 'remote1'));
+  store['mateon.expenses'] = JSON.stringify(JSON.parse(store['mateon.expenses']).filter((x) => x.id !== 'remote1'));
   window.__mateon.state.expenses = JSON.parse(store['mateon.expenses']);
   window.__mateon.tbIngest();
   const remote2 = TinyBase.createMergeableStore();
@@ -726,7 +830,7 @@ async function answerAll() {
   const remoteOld = TinyBase.createMergeableStore();
   remoteOld.setMergeableContent(remote.getMergeableContent());
   window.__mateon.mergeRemoteContent(remoteOld.getMergeableContent());
-  check('삭제 항목 부활 방지', !JSON.parse(store['mateon.expenses']).some(x => x.id === 'remote1'));
+  check('삭제 항목 부활 방지', !JSON.parse(store['mateon.expenses']).some((x) => x.id === 'remote1'));
 
   /* --- 30. 월별 요약 · 고정비 · 활동 피드 --- */
   /* reloadApp 이후엔 window.__mateon.state가 새 S를 가리키므로 매번 새로 읽는다 */
@@ -744,20 +848,30 @@ async function answerAll() {
   check('이전 달 이동', prevYm !== curYm && /^\d{4}-\d{2}$/.test(prevYm));
   /* 고정비 등록: 매월 반복 체크 후 지출 추가 */
   click('exp-month', { v: '1' });
-  fakeInput('exp-memo', '월세'); fakeInput('exp-amt', '500000');
-  fakeInput('exp-recur'); fakeInputs['exp-recur'].checked = true;
+  fakeInput('exp-memo', '월세');
+  fakeInput('exp-amt', '500000');
+  fakeInput('exp-recur');
+  fakeInputs['exp-recur'].checked = true;
   click('exp-add');
-  check('고정비 목록 등록', JSON.parse(store['mateon.fixedExpenses']).some(f => f.memo === '월세' && f.amount === 500000));
+  check(
+    '고정비 목록 등록',
+    JSON.parse(store['mateon.fixedExpenses']).some((f) => f.memo === '월세' && f.amount === 500000)
+  );
   check('고정비 카드 표시', lastHTML.includes('고정비 (1)'));
-  check('fx 태그 지출 생성', liveS().expenses.some(x => x.fx && x.fx.startsWith(JSON.parse(store['mateon.fixedExpenses'])[0].id)));
+  check(
+    'fx 태그 지출 생성',
+    liveS().expenses.some((x) => x.fx && x.fx.startsWith(JSON.parse(store['mateon.fixedExpenses'])[0].id))
+  );
   /* 재렌더해도 같은 달 고정비가 중복 생성되지 않는다 */
-  const fxCount = liveS().expenses.filter(x => x.fx).length;
-  nav('#/home'); nav('#/settle');
-  check('고정비 중복 방지', liveS().expenses.filter(x => x.fx).length === fxCount);
+  const fxCount = liveS().expenses.filter((x) => x.fx).length;
+  nav('#/home');
+  nav('#/settle');
+  check('고정비 중복 방지', liveS().expenses.filter((x) => x.fx).length === fxCount);
   check('월별 합계에 고정비 반영', window.MateLife.monthStats(liveS().expenses, curYm).total >= 500000);
   /* 고정비 삭제 */
   const fxId = JSON.parse(store['mateon.fixedExpenses'])[0].id;
-  click('fx-del', { v: fxId }); click('fx-del', { v: fxId });
+  click('fx-del', { v: fxId });
+  click('fx-del', { v: fxId });
   check('고정비 삭제', !JSON.parse(store['mateon.fixedExpenses']).length);
   /* 활동 피드: 지출·쇼핑 기록이 우리 공간에 표시된다 */
   nav('#/space');
@@ -773,16 +887,21 @@ async function answerAll() {
   check('캘린더 월 그리드', lastHTML.includes('cal-grid') && lastHTML.includes('cal-dow'));
   check('기념일 카드 표시', lastHTML.includes('우리 기념일') && lastHTML.includes('data-action="anniv-add"'));
   /* 기념일 등록 → 홈 D-day 배너 */
-  fakeInput('anniv-title', '만난 날'); fakeInput('anniv-date', '2025-01-01');
+  fakeInput('anniv-title', '만난 날');
+  fakeInput('anniv-date', '2025-01-01');
   click('anniv-add');
-  check('기념일 저장됨', JSON.parse(store['mateon.anniv']).some(a => a.title === '만난 날' && a.date === '2025-01-01'));
+  check(
+    '기념일 저장됨',
+    JSON.parse(store['mateon.anniv']).some((a) => a.title === '만난 날' && a.date === '2025-01-01')
+  );
   check('기념일 D-day 표시', lastHTML.includes('D-') || lastHTML.includes('D+'));
   nav('#/home');
   check('홈 D-day 배너', lastHTML.includes('dday-banner') && lastHTML.includes('만난 날'));
   /* 기념일 삭제 (2단계 확인) */
   nav('#/calendar');
   const aid = JSON.parse(store['mateon.anniv'])[0].id;
-  click('anniv-del', { v: aid }); click('anniv-del', { v: aid });
+  click('anniv-del', { v: aid });
+  click('anniv-del', { v: aid });
   check('기념일 삭제됨', !JSON.parse(store['mateon.anniv']).length);
   /* 월 이동 */
   const cm0 = liveS().calMonth;
@@ -790,14 +909,20 @@ async function answerAll() {
   check('이전 달 이동', liveS().calMonth !== cm0 && /^\d{4}-\d{2}$/.test(liveS().calMonth));
   click('cal-month', { v: '1' });
   /* 주간 반복 일정 */
-  fakeInput('ev-date', '2026-01-05'); fakeInput('ev-title', '청소의 날'); fakeInput('ev-memo', '');
+  fakeInput('ev-date', '2026-01-05');
+  fakeInput('ev-title', '청소의 날');
+  fakeInput('ev-memo', '');
   fakeInputs['ev-rpt'] = { checked: true };
   click('ev-add');
-  check('반복 일정 저장', JSON.parse(store['mateon.events']).some(e => e.rpt === 'w' && e.title === '청소의 날'));
+  check(
+    '반복 일정 저장',
+    JSON.parse(store['mateon.events']).some((e) => e.rpt === 'w' && e.title === '청소의 날')
+  );
   check('반복 표시', lastHTML.includes('매주'));
   /* 반복 일정이 달력에 점으로 표시 (2026-01 월에 월요일들) */
   liveS().calMonth = '2026-01';
-  nav('#/home'); nav('#/calendar');
+  nav('#/home');
+  nav('#/calendar');
   check('월 뷰에 반복 점 표시', (lastHTML.match(/cal-cell has/g) || []).length >= 4);
   /* 주간 미션 — 같은 주에는 같은 목록, 완료 토글 저장 */
   nav('#/checkin');
@@ -811,7 +936,8 @@ async function answerAll() {
   /* 기분 추이 차트 — 체크인 2주 이상이면 표시 */
   liveS().checkins.push({ week: '2099-W01', mood: 4, kept: [], ts: Date.now() });
   liveS().checkins.push({ week: '2099-W02', mood: 2, kept: [], ts: Date.now() });
-  nav('#/home'); nav('#/checkin');
+  nav('#/home');
+  nav('#/checkin');
   check('기분 추이 차트', lastHTML.includes('mood-chart') && lastHTML.includes('기분 추이'));
   /* 집안일 알림 토글 */
   nav('#/settings');
@@ -831,7 +957,12 @@ async function answerAll() {
   check('백업에 기념일·미션·예산 포함', 'mateon.anniv' in bk.data && 'mateon.missions' in bk.data && 'mateon.budgets' in bk.data);
   check('백업에 백업시각 포함', typeof bk.data['mateon.lastBackup'] === 'number');
   const bkOk = window.__mateon.parseBackup(JSON.stringify(bk));
-  if (!bkOk) Object.keys(bk.data).forEach(k => { const d2 = JSON.parse(JSON.stringify(bk)); delete d2.data[k]; if (window.__mateon.parseBackup(JSON.stringify(d2))) console.log('  [dbg] bad key:', k, JSON.stringify(bk.data[k]).slice(0, 150)); });
+  if (!bkOk)
+    Object.keys(bk.data).forEach((k) => {
+      const d2 = JSON.parse(JSON.stringify(bk));
+      delete d2.data[k];
+      if (window.__mateon.parseBackup(JSON.stringify(d2))) console.log('  [dbg] bad key:', k, JSON.stringify(bk.data[k]).slice(0, 150));
+    });
   check('반복 일정 백업 통과', !!bkOk);
   /* CSV 생성 순수 함수 — 쉼표·따옴표 이스케이프 */
   const csv = window.MateLife.expensesToCSV([{ ts: Date.now(), memo: '카페, "좋은곳"', amount: 1000, payer: 'me', cat: '카페', share: 0.5 }], () => '나');
@@ -842,56 +973,76 @@ async function answerAll() {
   liveS().settleMonth = null;
   nav('#/settle');
   check('목표 카드 표시', lastHTML.includes('공동 목표 저축'));
-  fakeInput('goal-name', '제주 여행'); fakeInput('goal-target', '100000');
+  fakeInput('goal-name', '제주 여행');
+  fakeInput('goal-target', '100000');
   click('goal-set');
   check('목표 생성', liveS().goal && liveS().goal.target === 100000 && liveS().goal.name === '제주 여행');
-  fakeInput('goal-amt', '30000'); click('goal-add');
+  fakeInput('goal-amt', '30000');
+  click('goal-add');
   check('저축 반영·진행률', liveS().goal.saves.reduce((a, s2) => a + s2.amt, 0) === 30000 && lastHTML.includes('30%'));
   /* 수입 — 정산 대상에서 제외 */
   const netBeforeInc = window.__mateon.settleNet();
   click('exp-kind', { v: '1' });
-  fakeInput('exp-memo', '용돈'); fakeInput('exp-amt', '50000');
+  fakeInput('exp-memo', '용돈');
+  fakeInput('exp-amt', '50000');
   click('exp-add');
-  check('수입 기록', liveS().expenses.some(x => x.income === 1 && x.memo === '용돈' && x.amount === 50000));
+  check(
+    '수입 기록',
+    liveS().expenses.some((x) => x.income === 1 && x.memo === '용돈' && x.amount === 50000)
+  );
   check('수입 정산 제외', window.__mateon.settleNet() === netBeforeInc);
   check('수입 합계 표기', lastHTML.includes('수입 +'));
   /* 태그 */
   click('exp-kind', { v: '0' });
   fakeInputs['exp-recur'] = { checked: false };
-  fakeInput('exp-memo', '기념일 꽃'); fakeInput('exp-amt', '30000'); fakeInput('exp-tags', '기념일 선물');
+  fakeInput('exp-memo', '기념일 꽃');
+  fakeInput('exp-amt', '30000');
+  fakeInput('exp-tags', '기념일 선물');
   click('exp-add');
-  check('태그 저장', liveS().expenses.some(x => (x.tags || []).indexOf('기념일') !== -1));
+  check(
+    '태그 저장',
+    liveS().expenses.some((x) => (x.tags || []).indexOf('기념일') !== -1)
+  );
   click('exp-tag', { v: '기념일' });
   check('태그 필터', liveS().expTag === '기념일' && lastHTML.includes('기념일 꽃') && !lastHTML.includes('용돈'));
   click('exp-tag', { v: '' });
   /* 부분 정산 */
   fakeInput('part-amt', '10000');
   click('settle-part', { v: 'y2m' });
-  check('부분 정산 기록', liveS().settlePaid.some(p2 => p2.dir === 'y2m' && p2.amt === 10000));
+  check(
+    '부분 정산 기록',
+    liveS().settlePaid.some((p2) => p2.dir === 'y2m' && p2.amt === 10000)
+  );
   check('부분 정산 카드 표시', lastHTML.includes('부분 정산') && lastHTML.includes('남은 금액'));
   fakeInput('part-amt', '0');
   click('settle-part', { v: 'm2y' });
-  check('부분 정산 0원 거부', liveS().settlePaid.filter(p2 => p2.dir === 'm2y').length === 0);
+  check('부분 정산 0원 거부', liveS().settlePaid.filter((p2) => p2.dir === 'm2y').length === 0);
 
   /* --- 33. 요일 집안일 · 일정 알림 · 주간 뷰 · 팬트리 · 돌봄 · 메모 --- */
   console.log('== 33. 요일 집안일 · 알림 · 주간 뷰 · 팬트리 · 돌봄 · 메모 ==');
   nav('#/chores');
-  click('chore-day-pick', { v: '2' }); click('chore-day-pick', { v: '6' });
+  click('chore-day-pick', { v: '2' });
+  click('chore-day-pick', { v: '6' });
   fakeInput('chore-in', '화목빨래');
   click('chore-add');
-  const dowChore = window.__mateon.choreState().items.find(i => i.name === '화목빨래');
+  const dowChore = window.__mateon.choreState().items.find((i) => i.name === '화목빨래');
   check('요일 지정 저장', !!dowChore && dowChore.days.join(',') === '2,6');
   check('요일 라벨 표시', lastHTML.includes('화·토요일'));
   click('chore-days', { v: dowChore.id });
-  check('매일로 해제', !window.__mateon.choreState().items.find(i => i.id === dowChore.id).days);
+  check('매일로 해제', !window.__mateon.choreState().items.find((i) => i.id === dowChore.id).days);
   /* 일정 알림 */
   nav('#/calendar');
   check('알림 선택 표시', lastHTML.includes('id="ev-rem"'));
-  fakeInput('ev-date', '2099-06-01'); fakeInput('ev-title', '알림 테스트'); fakeInput('ev-memo', '');
+  fakeInput('ev-date', '2099-06-01');
+  fakeInput('ev-title', '알림 테스트');
+  fakeInput('ev-memo', '');
   fakeInputs['ev-rpt'] = { checked: false };
   fakeInputs['ev-rem'] = { value: '60' };
   click('ev-add');
-  check('알림 일정 저장', liveS().events.some(e => e.rem === 60 && e.title === '알림 테스트'));
+  check(
+    '알림 일정 저장',
+    liveS().events.some((e) => e.rem === 60 && e.title === '알림 테스트')
+  );
   check('알림 배지 표시', lastHTML.includes('🔔'));
   fakeInputs['ev-rem'] = { value: '0' };
   /* 주간 뷰 */
@@ -907,25 +1058,37 @@ async function answerAll() {
   fakeInput('pantry-name', '두부');
   fakeInputs['pantry-exp'] = { value: new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10) };
   click('pantry-add');
-  check('팬트리 저장', liveS().pantry.some(x => x.name === '두부'));
+  check(
+    '팬트리 저장',
+    liveS().pantry.some((x) => x.name === '두부')
+  );
   check('임박 배지', lastHTML.includes('D-'));
   /* 돌봄 */
   nav('#/space');
   check('돌봄 카드 표시', lastHTML.includes('펫·식물 돌봄'));
   click('care-kind', { v: 'plant' });
-  fakeInput('care-name', '몬스테라'); fakeInput('care-days', '7');
+  fakeInput('care-name', '몬스테라');
+  fakeInput('care-days', '7');
   click('care-add');
-  check('돌봄 등록', liveS().care.some(c => c.name === '몬스테라' && c.days === 7 && c.kind === 'plant'));
+  check(
+    '돌봄 등록',
+    liveS().care.some((c) => c.name === '몬스테라' && c.days === 7 && c.kind === 'plant')
+  );
   const careLast = liveS().care[0].last;
   click('care-done', { v: liveS().care[0].id });
   check('돌봄 완료 갱신', liveS().care[0].last >= careLast);
   /* 공유 메모 */
   check('우리집 정보 카드', lastHTML.includes('우리집 정보'));
-  fakeInput('memo-title', '와이파이'); fakeInput('memo-text', 'pw1234');
+  fakeInput('memo-title', '와이파이');
+  fakeInput('memo-text', 'pw1234');
   click('memo-add');
-  check('메모 저장', liveS().memos.some(m => m.title === '와이파이' && m.text === 'pw1234'));
+  check(
+    '메모 저장',
+    liveS().memos.some((m) => m.title === '와이파이' && m.text === 'pw1234')
+  );
   const memoId = liveS().memos[0].id;
-  click('memo-del', { v: memoId }); click('memo-del', { v: memoId });
+  click('memo-del', { v: memoId });
+  click('memo-del', { v: memoId });
   check('메모 삭제', !liveS().memos.length);
 
   /* --- 34. 배지 · 애정 언어 · 연간 회고 --- */
@@ -941,27 +1104,32 @@ async function answerAll() {
   /* --- 35. 휴지통 · 스냅샷 · 충돌 UI · 생체 잠금 --- */
   console.log('== 35. 휴지통 · 스냅샷 · 충돌 · 생체 잠금 ==');
   nav('#/settle');
-  const delExp = liveS().expenses.find(x => x.memo === '기념일 꽃');
+  const delExp = liveS().expenses.find((x) => x.memo === '기념일 꽃');
   click('exp-del', { v: delExp.id });
   click('exp-del', { v: delExp.id });
-  check('삭제 → 휴지통 이동', !liveS().expenses.some(x => x.id === delExp.id) && liveS().trash.some(t => t.item && t.item.id === delExp.id));
+  check('삭제 → 휴지통 이동', !liveS().expenses.some((x) => x.id === delExp.id) && liveS().trash.some((t) => t.item && t.item.id === delExp.id));
   nav('#/settings');
   check('휴지통 카드 표시', lastHTML.includes('휴지통') && lastHTML.includes('data-action="trash-restore"'));
-  click('trash-restore', { v: liveS().trash.find(t => t.item.id === delExp.id).id });
-  check('휴지통 복원', liveS().expenses.some(x => x.id === delExp.id) && !liveS().trash.some(t => t.item && t.item.id === delExp.id));
+  click('trash-restore', { v: liveS().trash.find((t) => t.item.id === delExp.id).id });
+  check('휴지통 복원', liveS().expenses.some((x) => x.id === delExp.id) && !liveS().trash.some((t) => t.item && t.item.id === delExp.id));
   /* 영구 삭제 — 두 번 눌러 확정 */
   nav('#/settle');
-  click('exp-del', { v: delExp.id }); click('exp-del', { v: delExp.id });
+  click('exp-del', { v: delExp.id });
+  click('exp-del', { v: delExp.id });
   nav('#/settings');
-  const trashId = liveS().trash.find(t => t.item && t.item.id === delExp.id).id;
+  const trashId = liveS().trash.find((t) => t.item && t.item.id === delExp.id).id;
   click('trash-del', { v: trashId });
-  check('영구 삭제 1차 확인', liveS().trash.some(t => t.id === trashId));
+  check(
+    '영구 삭제 1차 확인',
+    liveS().trash.some((t) => t.id === trashId)
+  );
   click('trash-del', { v: trashId });
-  check('영구 삭제 완료', !liveS().trash.some(t => t.id === trashId));
+  check('영구 삭제 완료', !liveS().trash.some((t) => t.id === trashId));
   /* 스냅샷 카드·복원 — 스냅샷 데이터는 백업 형식 */
   liveS().snapshots = [{ ts: Date.now(), data: window.__mateon.buildBackup().data }];
   delete liveS().snapshots[0].data['mateon.snapshots'];
-  nav('#/home'); nav('#/settings');
+  nav('#/home');
+  nav('#/settings');
   check('스냅샷 카드 표시', lastHTML.includes('자동 스냅샷') && lastHTML.includes('data-action="snap-restore"'));
   click('snap-restore', { v: String(liveS().snapshots[0].ts) });
   check('스냅샷 복원 1차 확인', liveS().delArm2 && liveS().delArm2.indexOf('snap-restore') === 0);
@@ -971,12 +1139,17 @@ async function answerAll() {
   liveS().syncCfg = { endpoint: 'https://x.example', room: 'rc', slot: 'a', token: '' };
   {
     const localEv = liveS().events.slice();
-    globalThis.fetch = () => Promise.resolve({ ok: true, json: () => Promise.resolve({ events: [{ id: 'rx1', date: '2099-01-01', title: '원격 일정', memo: '', who: 'both' }] }) });
+    globalThis.fetch = () =>
+      Promise.resolve({ ok: true, json: () => Promise.resolve({ events: [{ id: 'rx1', date: '2099-01-01', title: '원격 일정', memo: '', who: 'both' }] }) });
     await window.__mateon.syncPull();
     nav('#/settings');
     check('충돌 감지 배너', lastHTML.includes('conflict-banner'));
-    check('원격 일정 반영', liveS().events.some(e => e.id === 'rx1'));
-    liveS().events = localEv; store['mateon.events'] = JSON.stringify(localEv);
+    check(
+      '원격 일정 반영',
+      liveS().events.some((e) => e.id === 'rx1')
+    );
+    liveS().events = localEv;
+    store['mateon.events'] = JSON.stringify(localEv);
     globalThis.fetch = undefined;
   }
   /* 생체 잠금 — WebAuthn 스텁이 없으면 등록 버튼이 안 보여야 한다 */

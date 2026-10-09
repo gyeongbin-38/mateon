@@ -13,15 +13,10 @@ window.__captureSvgPage = async function (forceFull) {
   var rootRect = shell.getBoundingClientRect();
   var screenWidth = Math.round(rootRect.width);
   var isFull = forceFull === true || new URLSearchParams(location.search).get('svg') === 'full';
-  var documentHeight = Math.max(
-    shell.scrollHeight,
-    document.documentElement.scrollHeight,
-    document.body.scrollHeight
-  );
+  var documentHeight = Math.max(shell.scrollHeight, document.documentElement.scrollHeight, document.body.scrollHeight);
   var screenHeight = isFull ? Math.ceil(documentHeight) : window.innerHeight;
-  var title = document.querySelector('.app-screen-title')?.textContent?.trim()
-    || document.querySelector('.mobile-title')?.textContent?.trim()
-    || document.title;
+  var title =
+    document.querySelector('.app-screen-title')?.textContent?.trim() || document.querySelector('.mobile-title')?.textContent?.trim() || document.title;
   var svgNS = 'http://www.w3.org/2000/svg';
   var defs = [];
   var parts = [];
@@ -30,11 +25,13 @@ window.__captureSvgPage = async function (forceFull) {
 
   function escapeXml(value) {
     return String(value).replace(/[&<>"']/g, function (c) {
-      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[c];
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c];
     });
   }
 
-  function attr(value) { return escapeXml(value); }
+  function attr(value) {
+    return escapeXml(value);
+  }
 
   function px(value) {
     var n = parseFloat(value);
@@ -65,21 +62,37 @@ window.__captureSvgPage = async function (forceFull) {
     var color = colorMatch[0];
     var opacityMatch = color.match(/rgba\([^)]*,\s*([\d.]+)\s*\)/i);
     var opacity = opacityMatch ? +opacityMatch[1] : 0.16;
-    var id = 'f' + (++serial);
+    var id = 'f' + ++serial;
     var blur = Math.max(0, nums[2] || 0) / 2;
-    defs.push('<filter id="' + id + '" x="-35%" y="-35%" width="170%" height="190%"><feDropShadow dx="' + (nums[0] || 0) + '" dy="' + (nums[1] || 0) + '" stdDeviation="' + blur + '" flood-color="' + attr(color) + '" flood-opacity="' + opacity + '"/></filter>');
+    defs.push(
+      '<filter id="' +
+        id +
+        '" x="-35%" y="-35%" width="170%" height="190%"><feDropShadow dx="' +
+        (nums[0] || 0) +
+        '" dy="' +
+        (nums[1] || 0) +
+        '" stdDeviation="' +
+        blur +
+        '" flood-color="' +
+        attr(color) +
+        '" flood-opacity="' +
+        opacity +
+        '"/></filter>'
+    );
     return id;
   }
 
   function gradientFill(image) {
     if (!image || image === 'none' || image.indexOf('gradient(') < 0) return '';
-    var colors = image.match(/rgba?\([^)]*\)|#[0-9a-f]{3,8}/ig) || [];
+    var colors = image.match(/rgba?\([^)]*\)|#[0-9a-f]{3,8}/gi) || [];
     if (colors.length < 2) return '';
-    var id = 'g' + (++serial);
-    var stops = colors.map(function (c, i) {
-      var pct = Math.round(i * 100 / (colors.length - 1));
-      return '<stop offset="' + pct + '%" stop-color="' + attr(c) + '"/>';
-    }).join('');
+    var id = 'g' + ++serial;
+    var stops = colors
+      .map(function (c, i) {
+        var pct = Math.round((i * 100) / (colors.length - 1));
+        return '<stop offset="' + pct + '%" stop-color="' + attr(c) + '"/>';
+      })
+      .join('');
     var tag = image.indexOf('radial-gradient') >= 0 ? 'radialGradient' : 'linearGradient';
     var direction = tag === 'radialGradient' ? ' cx="50%" cy="50%" r="72%"' : ' x1="0%" y1="0%" x2="100%" y2="100%"';
     defs.push('<' + tag + ' id="' + id + '"' + direction + '>' + stops + '</' + tag + '>');
@@ -87,8 +100,9 @@ window.__captureSvgPage = async function (forceFull) {
   }
 
   function roundedRadius(style) {
-    var values = [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius]
-      .map(function (v) { return Math.max(0, px(v)); });
+    var values = [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius].map(function (v) {
+      return Math.max(0, px(v));
+    });
     return Math.min.apply(null, values);
   }
 
@@ -106,7 +120,29 @@ window.__captureSvgPage = async function (forceFull) {
     var rx = roundedRadius(st);
     var styleOpacity = parseFloat(st.opacity);
     var opacity = Number.isFinite(styleOpacity) ? styleOpacity : 1;
-    return '<rect x="' + box.x.toFixed(2) + '" y="' + box.y.toFixed(2) + '" width="' + box.w.toFixed(2) + '" height="' + box.h.toFixed(2) + '" rx="' + rx.toFixed(2) + '" fill="' + attr(fill) + '" stroke="' + attr(stroke) + '" stroke-width="' + borderWidth.toFixed(2) + '" opacity="' + opacity + '"' + (shadow ? ' filter="url(#' + shadow + ')"' : '') + '/>';
+    return (
+      '<rect x="' +
+      box.x.toFixed(2) +
+      '" y="' +
+      box.y.toFixed(2) +
+      '" width="' +
+      box.w.toFixed(2) +
+      '" height="' +
+      box.h.toFixed(2) +
+      '" rx="' +
+      rx.toFixed(2) +
+      '" fill="' +
+      attr(fill) +
+      '" stroke="' +
+      attr(stroke) +
+      '" stroke-width="' +
+      borderWidth.toFixed(2) +
+      '" opacity="' +
+      opacity +
+      '"' +
+      (shadow ? ' filter="url(#' + shadow + ')"' : '') +
+      '/>'
+    );
   }
 
   function textStyle(parent) {
@@ -121,7 +157,7 @@ window.__captureSvgPage = async function (forceFull) {
       letterSpacing: st.letterSpacing === 'normal' ? '0px' : st.letterSpacing,
       textDecoration: st.textDecorationLine && st.textDecorationLine !== 'none' ? st.textDecorationLine : '',
       textTransform: st.textTransform || 'none',
-      opacity: st.opacity || '1'
+      opacity: st.opacity || '1',
     };
   }
 
@@ -143,7 +179,10 @@ window.__captureSvgPage = async function (forceFull) {
       try {
         range.setStart(node, offset);
         range.setEnd(node, offset + length);
-      } catch (_) { offset += length; continue; }
+      } catch (_) {
+        offset += length;
+        continue;
+      }
       var r = range.getBoundingClientRect();
       var x = r.left - rootRect.left;
       var yTop = r.top + (isFull ? window.scrollY : 0);
@@ -161,7 +200,22 @@ window.__captureSvgPage = async function (forceFull) {
       if (!line.chars.length) return;
       var top = line.top;
       var baseline = top + st.fontSize * 0.84;
-      var t = '<text fill="' + attr(baseColor) + '" font-size="' + st.fontSize + '" font-family="' + attr(st.fontFamily) + '" font-weight="' + attr(st.fontWeight) + '" font-style="' + attr(st.fontStyle) + '" letter-spacing="' + attr(st.letterSpacing) + '" xml:space="preserve" opacity="' + attr(st.opacity) + '"';
+      var t =
+        '<text fill="' +
+        attr(baseColor) +
+        '" font-size="' +
+        st.fontSize +
+        '" font-family="' +
+        attr(st.fontFamily) +
+        '" font-weight="' +
+        attr(st.fontWeight) +
+        '" font-style="' +
+        attr(st.fontStyle) +
+        '" letter-spacing="' +
+        attr(st.letterSpacing) +
+        '" xml:space="preserve" opacity="' +
+        attr(st.opacity) +
+        '"';
       if (st.textDecoration) t += ' text-decoration="' + attr(st.textDecoration) + '"';
       t += '>';
       line.chars.forEach(function (item) {
@@ -175,8 +229,22 @@ window.__captureSvgPage = async function (forceFull) {
 
   function makeClip(box, radius) {
     if (radius <= 0.5) return '';
-    var id = 'c' + (++serial);
-    defs.push('<clipPath id="' + id + '"><rect x="' + box.x.toFixed(2) + '" y="' + box.y.toFixed(2) + '" width="' + box.w.toFixed(2) + '" height="' + box.h.toFixed(2) + '" rx="' + radius.toFixed(2) + '"/></clipPath>');
+    var id = 'c' + ++serial;
+    defs.push(
+      '<clipPath id="' +
+        id +
+        '"><rect x="' +
+        box.x.toFixed(2) +
+        '" y="' +
+        box.y.toFixed(2) +
+        '" width="' +
+        box.w.toFixed(2) +
+        '" height="' +
+        box.h.toFixed(2) +
+        '" rx="' +
+        radius.toFixed(2) +
+        '"/></clipPath>'
+    );
     return id;
   }
 
@@ -185,10 +253,34 @@ window.__captureSvgPage = async function (forceFull) {
       var doc = new DOMParser().parseFromString(svgText, 'image/svg+xml');
       var root = doc.documentElement;
       if (!root || root.nodeName.toLowerCase() !== 'svg') return '';
-      var viewBox = root.getAttribute('viewBox') || ('0 0 ' + (px(root.getAttribute('width')) || box.w) + ' ' + (px(root.getAttribute('height')) || box.h));
-      var content = Array.from(root.childNodes).map(function (n) { return new XMLSerializer().serializeToString(n); }).join('');
-      return '<svg xmlns="' + svgNS + '" x="' + box.x.toFixed(2) + '" y="' + box.y.toFixed(2) + '" width="' + box.w.toFixed(2) + '" height="' + box.h.toFixed(2) + '" viewBox="' + attr(viewBox) + '" preserveAspectRatio="xMidYMid meet" color="' + attr(color) + '">' + content + '</svg>';
-    } catch (_) { return ''; }
+      var viewBox = root.getAttribute('viewBox') || '0 0 ' + (px(root.getAttribute('width')) || box.w) + ' ' + (px(root.getAttribute('height')) || box.h);
+      var content = Array.from(root.childNodes)
+        .map(function (n) {
+          return new XMLSerializer().serializeToString(n);
+        })
+        .join('');
+      return (
+        '<svg xmlns="' +
+        svgNS +
+        '" x="' +
+        box.x.toFixed(2) +
+        '" y="' +
+        box.y.toFixed(2) +
+        '" width="' +
+        box.w.toFixed(2) +
+        '" height="' +
+        box.h.toFixed(2) +
+        '" viewBox="' +
+        attr(viewBox) +
+        '" preserveAspectRatio="xMidYMid meet" color="' +
+        attr(color) +
+        '">' +
+        content +
+        '</svg>'
+      );
+    } catch (_) {
+      return '';
+    }
   }
 
   async function imageMarkup(el, box) {
@@ -208,12 +300,30 @@ window.__captureSvgPage = async function (forceFull) {
       }
       var data = await new Promise(function (resolve, reject) {
         var reader = new FileReader();
-        reader.onload = function () { resolve(reader.result); };
+        reader.onload = function () {
+          resolve(reader.result);
+        };
         reader.onerror = reject;
         reader.readAsDataURL(blob);
       });
       var fit = st.objectFit === 'cover' ? 'xMidYMid slice' : 'xMidYMid meet';
-      return '<image x="' + box.x.toFixed(2) + '" y="' + box.y.toFixed(2) + '" width="' + box.w.toFixed(2) + '" height="' + box.h.toFixed(2) + '" href="' + attr(data) + '" preserveAspectRatio="' + fit + '"' + clipAttr + '/>';
+      return (
+        '<image x="' +
+        box.x.toFixed(2) +
+        '" y="' +
+        box.y.toFixed(2) +
+        '" width="' +
+        box.w.toFixed(2) +
+        '" height="' +
+        box.h.toFixed(2) +
+        '" href="' +
+        attr(data) +
+        '" preserveAspectRatio="' +
+        fit +
+        '"' +
+        clipAttr +
+        '/>'
+      );
     } catch (_) {
       return '';
     }
@@ -235,12 +345,28 @@ window.__captureSvgPage = async function (forceFull) {
     if (!value) return '';
     var parentStyle = textStyle(el);
     var st = box.st;
-    var color = el.value ? parentStyle.fill : (st.color || '#8b8d93');
+    var color = el.value ? parentStyle.fill : st.color || '#8b8d93';
     var x = box.x + px(st.paddingLeft) + 1;
     var fs = parentStyle.fontSize;
     var h = box.h;
     var y = box.y + Math.max(fs, (h - fs) / 2 + fs * 0.84);
-    return '<text x="' + x.toFixed(2) + '" y="' + y.toFixed(2) + '" fill="' + attr(color) + '" font-size="' + fs + '" font-family="' + attr(parentStyle.fontFamily) + '" font-weight="' + attr(parentStyle.fontWeight) + '" xml:space="preserve">' + escapeXml(value) + '</text>';
+    return (
+      '<text x="' +
+      x.toFixed(2) +
+      '" y="' +
+      y.toFixed(2) +
+      '" fill="' +
+      attr(color) +
+      '" font-size="' +
+      fs +
+      '" font-family="' +
+      attr(parentStyle.fontFamily) +
+      '" font-weight="' +
+      attr(parentStyle.fontWeight) +
+      '" xml:space="preserve">' +
+      escapeXml(value) +
+      '</text>'
+    );
   }
 
   async function visit(el) {
@@ -255,7 +381,8 @@ window.__captureSvgPage = async function (forceFull) {
     if (box.w <= 0 || box.h <= 0) return;
     if (tag === 'dialog' && el.open) {
       var backdrop = getComputedStyle(el, '::backdrop').backgroundColor;
-      if (colorVisible(backdrop)) parts.push('<rect x="0" y="0" width="' + screenWidth + '" height="' + window.innerHeight + '" fill="' + attr(backdrop) + '"/>');
+      if (colorVisible(backdrop))
+        parts.push('<rect x="0" y="0" width="' + screenWidth + '" height="' + window.innerHeight + '" fill="' + attr(backdrop) + '"/>');
     }
     parts.push(shapeMarkup(el, box));
 
@@ -283,6 +410,25 @@ window.__captureSvgPage = async function (forceFull) {
   var pageBg = getComputedStyle(shell).backgroundColor;
   if (!colorVisible(pageBg)) pageBg = getComputedStyle(document.body).backgroundColor;
   if (!colorVisible(pageBg)) pageBg = '#ffffff';
-  var output = '<svg xmlns="' + svgNS + '" xmlns:xlink="http://www.w3.org/1999/xlink" width="' + screenWidth + '" height="' + screenHeight + '" viewBox="0 0 ' + screenWidth + ' ' + screenHeight + '"><title>' + escapedTitle + '</title><defs>' + defs.join('') + '</defs><rect width="100%" height="100%" fill="' + attr(pageBg) + '"/>' + parts.join('') + '</svg>';
+  var output =
+    '<svg xmlns="' +
+    svgNS +
+    '" xmlns:xlink="http://www.w3.org/1999/xlink" width="' +
+    screenWidth +
+    '" height="' +
+    screenHeight +
+    '" viewBox="0 0 ' +
+    screenWidth +
+    ' ' +
+    screenHeight +
+    '"><title>' +
+    escapedTitle +
+    '</title><defs>' +
+    defs.join('') +
+    '</defs><rect width="100%" height="100%" fill="' +
+    attr(pageBg) +
+    '"/>' +
+    parts.join('') +
+    '</svg>';
   return btoa(unescape(encodeURIComponent(output)));
 };
