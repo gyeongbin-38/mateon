@@ -15,7 +15,7 @@ async function main() {
   fs.mkdirSync(output, {recursive:true});
   for(const dir of ['css','assets','fonts']) copyTree(path.join(root,dir),path.join(output,dir));
   fs.mkdirSync(path.join(output,'js'),{recursive:true});
-  for(const file of ['config.js','data.js','card.js','lifetools.js','secure.js','i18n.js','mateon.js']) fs.copyFileSync(path.join(root,'js',file),path.join(output,'js',file));
+  for(const file of ['config.js','data.js','card.js','lifetools.js','secure.js','i18n.js','household.js','mateon.js']) fs.copyFileSync(path.join(root,'js',file),path.join(output,'js',file));
   copyTree(path.join(root,'js','vendor'),path.join(output,'js','vendor'));
   let html=fs.readFileSync(path.join(root,'index.html'),'utf8');
   // Native assets are bundled; no CDN/font request is needed to launch offline.

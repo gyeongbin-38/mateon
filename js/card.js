@@ -2,7 +2,7 @@
    MATE:ON — 공유용 이미지 카드 생성 (Canvas)
    결과 카드(1080x1350) / 합의서 카드(1080x1350)
    ============================================================ */
-var MateCard = (function () {
+window.MateCard = (function () {
   'use strict';
 
   var FONT = "'Pretendard Variable', Pretendard, -apple-system, 'Segoe UI', 'Malgun Gothic', sans-serif";
@@ -144,7 +144,7 @@ var MateCard = (function () {
     ctx.fill();
     ctx.restore();
 
-    var bw = badge(ctx, W / 2 - 60, cy + 30, o.code, '#FFF0F1', CORAL_D, 26);
+    badge(ctx, W / 2 - 60, cy + 30, o.code, '#FFF0F1', CORAL_D, 26);
     ctx.textAlign = 'center';
     ctx.fillStyle = INK;
     ctx.font = '800 68px ' + FONT;

@@ -23,7 +23,6 @@ window.__captureSvgPage = async function (forceFull) {
     || document.querySelector('.mobile-title')?.textContent?.trim()
     || document.title;
   var svgNS = 'http://www.w3.org/2000/svg';
-  var xmlNS = 'http://www.w3.org/XML/1998/namespace';
   var defs = [];
   var parts = [];
   var serial = 0;
@@ -133,7 +132,6 @@ window.__captureSvgPage = async function (forceFull) {
     var chars = Array.from(raw);
     var lines = new Map();
     var offset = 0;
-    var parentEl = parent;
     var baseColor = st.fill;
     if (st.textTransform === 'uppercase') raw = raw.toLocaleUpperCase();
     else if (st.textTransform === 'lowercase') raw = raw.toLocaleLowerCase();

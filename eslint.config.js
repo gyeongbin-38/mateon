@@ -16,7 +16,10 @@ const appGlobals = {
   CONFLICT_DOMAINS: 'readonly', CONFLICT_STEP_TIPS: 'readonly',
   COUPON_PRESETS: 'readonly', ROULETTE_PRESETS: 'readonly', PANTRY_LOCS: 'readonly',
   LOVE_MAP_CATS: 'readonly', LIFE_INSIGHTS: 'readonly',
-  MateLife: 'readonly', MateSecure: 'readonly', MateNative: 'readonly',
+  RECIPE_MAP: 'readonly', CARE_PRESETS: 'readonly', CARE_KINDS: 'readonly',
+  LOVE_LANGS: 'readonly', LOVE_LANG_Q: 'readonly', LOVE_LANG_COUPON: 'readonly',
+  BADGE_DEFS: 'readonly', SPLIT_MODES: 'readonly',
+  MateLife: 'readonly', MateSecure: 'readonly', MateNative: 'readonly', MateHouse: 'readonly',
   MateCard: 'readonly', MateScreenshot: 'readonly',
   Tesseract: 'readonly', QRCode: 'readonly', qrcode: 'readonly',
   TinyBase: 'readonly', tinybase: 'readonly', createMergeableStore: 'readonly',
@@ -27,7 +30,7 @@ const appGlobals = {
 module.exports = [
   { ignores: ['node_modules/**', 'dist/**', 'android/**', 'ios/**', 'js/vendor/**', 'ota/**', 'tmp-*.js', 'release/**', '.devin/**'] },
   {
-    files: ['js/mateon.js', 'js/secure.js', 'js/lifetools.js', 'sw.js', 'js/config.js'],
+    files: ['js/mateon.js', 'js/secure.js', 'js/lifetools.js', 'js/household.js', 'sw.js', 'js/config.js'],
     languageOptions: {
       ecmaVersion: 2020,
       sourceType: 'script',

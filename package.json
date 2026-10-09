@@ -18,6 +18,8 @@
     "android:debug": "npm run build && cap sync android && node scripts/build-android.js",
     "android:release": "npm run build && cap sync android && node scripts/build-android.js bundleRelease && node scripts/verify-aab.js android/app/build/outputs/bundle/release/app-release.aab",
     "verify:aab": "node scripts/verify-aab.js android/app/build/outputs/bundle/release/app-release.aab",
+    "shots": "node scripts/screenshots.js",
+    "graphic": "node scripts/feature-graphic.js",
     "release:check": "npm test && npm run size && npm run build && node scripts/release-check.js --strict"
   },
   "engines": {

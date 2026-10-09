@@ -303,6 +303,138 @@ try {
   check('오프라인 배너/콘텐츠', /오프라인|우리 공간|생활 도구/.test(offText));
   await page2.context().setOffline(false);
 
+  console.log('== 목표 저축·수입·태그·부분정산 ==');
+  await page2.goto(`${BASE}/#/settle`, { waitUntil: 'networkidle' });
+  const goalName = page2.locator('#goal-name');
+  if (await goalName.count()) {
+    await goalName.fill('제주 여행');
+    await page2.locator('#goal-target').fill('100000');
+    await page2.locator('[data-action="goal-set"]').click();
+    check('목표 생성', await page2.evaluate(() => window.__mateon.state.goal && window.__mateon.state.goal.target === 100000));
+    await page2.locator('#goal-amt').fill('30000');
+    await page2.locator('[data-action="goal-add"]').click();
+    check('저축 진행률 표시', (await page2.locator('body').innerText()).includes('30%'));
+  }
+  const kindBtn = page2.locator('[data-action="exp-kind"][data-v="1"]');
+  if (await kindBtn.count()) {
+    await kindBtn.click();
+    await page2.locator('#exp-memo').fill('용돈');
+    await page2.locator('#exp-amt').fill('50000');
+    await page2.locator('[data-action="exp-add"]').click();
+    check('수입 기록', await page2.evaluate(() =>
+      (JSON.parse(localStorage.getItem('mateon.expenses') || '[]')).some(x => x.income === 1 && x.memo === '용돈')));
+    await page2.locator('[data-action="exp-kind"][data-v="0"]').click();
+    await page2.locator('#exp-memo').fill('꽃다발');
+    await page2.locator('#exp-amt').fill('20000');
+    const tagIn = page2.locator('#exp-tags');
+    if (await tagIn.count()) await tagIn.fill('기념일');
+    const recur = page2.locator('#exp-recur');
+    if (await recur.count() && await recur.isChecked()) await recur.uncheck();
+    await page2.locator('[data-action="exp-add"]').click();
+    check('태그 저장', await page2.evaluate(() =>
+      (JSON.parse(localStorage.getItem('mateon.expenses') || '[]')).some(x => (x.tags || []).includes('기념일'))));
+  }
+  const partAmt = page2.locator('#part-amt');
+  if (await partAmt.count()) {
+    await partAmt.fill('5000');
+    await page2.locator('[data-action="settle-part"][data-v="y2m"]').click();
+    check('부분 정산 기록', await page2.evaluate(() =>
+      (JSON.parse(localStorage.getItem('mateon.settlePaid') || '[]')).some(p => p.dir === 'y2m' && p.amt === 5000)));
+  }
+
+  console.log('== 요일 집안일·주간 뷰·일정 알림·팬트리 ==');
+  await page2.goto(`${BASE}/#/chores`, { waitUntil: 'networkidle' });
+  const dayPick = page2.locator('[data-action="chore-day-pick"][data-v="2"]');
+  if (await dayPick.count()) {
+    await dayPick.click();
+    await page2.locator('[data-action="chore-day-pick"][data-v="6"]').click();
+    await page2.locator('#chore-in').fill('화토청소');
+    await page2.locator('[data-action="chore-add"]').click();
+    check('요일 지정 집안일', await page2.evaluate(() =>
+      (window.__mateon.state.chores.items || []).some(i => i.name === '화토청소' && i.days && i.days.join(',') === '2,6')));
+  }
+  await page2.goto(`${BASE}/#/calendar`, { waitUntil: 'networkidle' });
+  const remSel = page2.locator('#ev-rem');
+  if (await remSel.count()) {
+    await remSel.selectOption('60');
+    await page2.locator('#ev-title').fill('관리비 납부');
+    await page2.locator('[data-action="ev-add"]').click();
+    check('일정 알림 저장', await page2.evaluate(() =>
+      (JSON.parse(localStorage.getItem('mateon.events') || '[]')).some(e => e.rem === 60 && e.title === '관리비 납부')));
+  }
+  const wkBtn = page2.locator('[data-action="cal-view"][data-v="w"]');
+  if (await wkBtn.count()) {
+    await wkBtn.click();
+    check('주간 뷰 렌더', await page2.locator('.cal-week').isVisible());
+    await page2.locator('[data-action="cal-view"][data-v="m"]').click();
+  }
+  await page2.goto(`${BASE}/#/shopping`, { waitUntil: 'networkidle' });
+  const pName = page2.locator('#pantry-name');
+  if (await pName.count()) {
+    await pName.fill('두부');
+    await page2.locator('#pantry-exp').fill('2099-01-02');
+    await page2.locator('[data-action="pantry-add"]').click();
+    check('팬트리 저장', await page2.evaluate(() =>
+      (JSON.parse(localStorage.getItem('mateon.pantry') || '[]')).some(x => x.name === '두부')));
+  }
+
+  console.log('== 메모·돌봄·애정언어·휴지통 ==');
+  await page2.goto(`${BASE}/#/space`, { waitUntil: 'networkidle' });
+  const memoT = page2.locator('#memo-title');
+  if (await memoT.count()) {
+    await memoT.fill('와이파이');
+    await page2.locator('#memo-text').fill('pw1234');
+    await page2.locator('[data-action="memo-add"]').click();
+    check('공유 메모 저장', await page2.evaluate(() =>
+      (JSON.parse(localStorage.getItem('mateon.memos') || '[]')).some(m => m.title === '와이파이')));
+  }
+  const careName = page2.locator('#care-name');
+  if (await careName.count()) {
+    await careName.fill('몬스테라');
+    await page2.locator('#care-days').fill('7');
+    await page2.locator('[data-action="care-add"]').click();
+    check('돌봄 등록', await page2.evaluate(() =>
+      (JSON.parse(localStorage.getItem('mateon.care') || '[]')).some(c => c.name === '몬스테라' && c.days === 7)));
+  }
+  const llBtn = page2.locator('[data-action="ll-ans"]').first();
+  if (await llBtn.count()) {
+    for (let i = 0; i < 7; i++) {
+      const done = await page2.evaluate(() => !!window.__mateon.state.loveLang);
+      if (done) break;
+      await page2.locator('[data-action="ll-ans"]').first().click();
+      await page2.waitForTimeout(100);
+    }
+    check('애정 언어 결과', await page2.evaluate(() => !!window.__mateon.state.loveLang));
+  }
+  check('배지 그리드', (await page2.locator('.badge-grid').count()) > 0);
+  /* 휴지통 — 지출 삭제 후 복원 */
+  await page2.goto(`${BASE}/#/settle`, { waitUntil: 'networkidle' });
+  const expDel = page2.locator('.settle-row:has-text("꽃다발") [data-action="exp-del"]').first();
+  if (await expDel.count()) {
+    await expDel.click(); await page2.waitForTimeout(150);
+    const confirmBtn = page2.locator('.settle-row:has-text("꽃다발") [data-action="exp-del"]').first();
+    if (await confirmBtn.count()) await confirmBtn.click();
+    check('삭제 → 휴지통', await page2.evaluate(() =>
+      (JSON.parse(localStorage.getItem('mateon.trash') || '[]')).some(t => t.item && t.item.memo === '꽃다발')));
+    await page2.goto(`${BASE}/#/settings`, { waitUntil: 'networkidle' });
+    const restore = page2.locator('[data-action="trash-restore"]').first();
+    if (await restore.count()) {
+      await restore.click();
+      check('휴지통 복원', await page2.evaluate(() =>
+        (JSON.parse(localStorage.getItem('mateon.expenses') || '[]')).some(x => x.memo === '꽃다발')));
+    }
+  }
+
+  console.log('== 태블릿 레이아웃 ==');
+  await page2.setViewportSize({ width: 900, height: 800 });
+  await page2.goto(`${BASE}/#/types`, { waitUntil: 'networkidle' });
+  check('태블릿 3단 유형 그리드', await page2.evaluate(() => {
+    const g = document.querySelector('.type-grid');
+    return g && getComputedStyle(g).gridTemplateColumns.split(' ').length >= 3;
+  }));
+  check('태블릿 넓은 본문', await page2.evaluate(() => document.body.clientWidth > 480));
+  await page2.setViewportSize({ width: 390, height: 844 });
+
   console.log('== 콘솔/페이지 에러 ==');
   const fatal = errors.filter(e => !/favicon|manifest|service.?worker|sw\.js|pretendard|cdn\.jsdelivr|net::|Failed to load resource/i.test(e));
   check('페이지 에러 없음', fatal.length === 0);

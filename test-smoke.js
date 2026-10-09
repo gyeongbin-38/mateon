@@ -27,7 +27,7 @@ global.document = {
   title: '',
 };
 function fakeInput(id, value) {
-  fakeInputs[id] = { id, value: value || '', classList: { add() {}, remove() {} }, focus() {} };
+  fakeInputs[id] = { id, value: value || '', classList: { add() {}, remove() {} }, setAttribute() {}, removeAttribute() {}, focus() {} };
   return fakeInputs[id];
 }
 const hashListeners = [];
@@ -57,11 +57,12 @@ eval(fs.readFileSync('js/config.js', 'utf8') + '\n' +
   fs.readFileSync('js/lifetools.js', 'utf8') + '\n' +
   fs.readFileSync('js/secure.js', 'utf8') + '\n' +
   fs.readFileSync('js/i18n.js', 'utf8') + '\n' +
+  fs.readFileSync('js/household.js', 'utf8') + '\n' +
   fs.readFileSync('js/mateon.js', 'utf8') +
   '\n;globalThis.__d={QUESTIONS,CHARACTERS,DOMAINS,SAMPLE_RESULTS,TALK_STARTERS,LIFE_QUESTIONS,LOVE_MAP_QUESTIONS};');
 
 const { QUESTIONS, CHARACTERS, SAMPLE_RESULTS, TALK_STARTERS, LOVE_MAP_QUESTIONS } = globalThis.__d;
-const { encodeResult, decodeResult, resultFromCode, encodeInvite, decodeInvite, resultFromLink, qrSVG, isoWeekKey, state: appState } = window.__mateon;
+const { encodeResult, decodeResult, resultFromCode, encodeInvite, decodeInvite, resultFromLink, isoWeekKey } = window.__mateon;
 
 function nav(hash) {
   location.hash = hash;
@@ -515,7 +516,6 @@ async function answerAll() {
   console.log('== 22. 우리 일정 ==');
   nav('#/calendar');
   check('일정 화면 렌더', lastHTML.includes('우리 일정'));
-  const todayStr = new Date().toISOString().slice(0, 10);
   fakeInput('ev-date', '2099-12-31');
   fakeInput('ev-title', '전세 만기일');
   fakeInput('ev-memo', '오후 2시 집주인 연락');
@@ -834,6 +834,151 @@ async function answerAll() {
   /* CSV 생성 순수 함수 — 쉼표·따옴표 이스케이프 */
   const csv = window.MateLife.expensesToCSV([{ ts: Date.now(), memo: '카페, "좋은곳"', amount: 1000, payer: 'me', cat: '카페', share: 0.5 }], () => '나');
   check('CSV 이스케이프', csv.includes('"카페, ""좋은곳"""'));
+
+  /* --- 32. 공동 목표 저축 · 수입 · 태그 · 부분 정산 --- */
+  console.log('== 32. 목표저축 · 수입·태그 · 부분정산 ==');
+  liveS().settleMonth = null;
+  nav('#/settle');
+  check('목표 카드 표시', lastHTML.includes('공동 목표 저축'));
+  fakeInput('goal-name', '제주 여행'); fakeInput('goal-target', '100000');
+  click('goal-set');
+  check('목표 생성', liveS().goal && liveS().goal.target === 100000 && liveS().goal.name === '제주 여행');
+  fakeInput('goal-amt', '30000'); click('goal-add');
+  check('저축 반영·진행률', liveS().goal.saves.reduce((a, s2) => a + s2.amt, 0) === 30000 && lastHTML.includes('30%'));
+  /* 수입 — 정산 대상에서 제외 */
+  const netBeforeInc = window.__mateon.settleNet();
+  click('exp-kind', { v: '1' });
+  fakeInput('exp-memo', '용돈'); fakeInput('exp-amt', '50000');
+  click('exp-add');
+  check('수입 기록', liveS().expenses.some(x => x.income === 1 && x.memo === '용돈' && x.amount === 50000));
+  check('수입 정산 제외', window.__mateon.settleNet() === netBeforeInc);
+  check('수입 합계 표기', lastHTML.includes('수입 +'));
+  /* 태그 */
+  click('exp-kind', { v: '0' });
+  fakeInputs['exp-recur'] = { checked: false };
+  fakeInput('exp-memo', '기념일 꽃'); fakeInput('exp-amt', '30000'); fakeInput('exp-tags', '기념일 선물');
+  click('exp-add');
+  check('태그 저장', liveS().expenses.some(x => (x.tags || []).indexOf('기념일') !== -1));
+  click('exp-tag', { v: '기념일' });
+  check('태그 필터', liveS().expTag === '기념일' && lastHTML.includes('기념일 꽃') && !lastHTML.includes('용돈'));
+  click('exp-tag', { v: '' });
+  /* 부분 정산 */
+  fakeInput('part-amt', '10000');
+  click('settle-part', { v: 'y2m' });
+  check('부분 정산 기록', liveS().settlePaid.some(p2 => p2.dir === 'y2m' && p2.amt === 10000));
+  check('부분 정산 카드 표시', lastHTML.includes('부분 정산') && lastHTML.includes('남은 금액'));
+  fakeInput('part-amt', '0');
+  click('settle-part', { v: 'm2y' });
+  check('부분 정산 0원 거부', liveS().settlePaid.filter(p2 => p2.dir === 'm2y').length === 0);
+
+  /* --- 33. 요일 집안일 · 일정 알림 · 주간 뷰 · 팬트리 · 돌봄 · 메모 --- */
+  console.log('== 33. 요일 집안일 · 알림 · 주간 뷰 · 팬트리 · 돌봄 · 메모 ==');
+  nav('#/chores');
+  click('chore-day-pick', { v: '2' }); click('chore-day-pick', { v: '6' });
+  fakeInput('chore-in', '화목빨래');
+  click('chore-add');
+  const dowChore = window.__mateon.choreState().items.find(i => i.name === '화목빨래');
+  check('요일 지정 저장', !!dowChore && dowChore.days.join(',') === '2,6');
+  check('요일 라벨 표시', lastHTML.includes('화·토요일'));
+  click('chore-days', { v: dowChore.id });
+  check('매일로 해제', !window.__mateon.choreState().items.find(i => i.id === dowChore.id).days);
+  /* 일정 알림 */
+  nav('#/calendar');
+  check('알림 선택 표시', lastHTML.includes('id="ev-rem"'));
+  fakeInput('ev-date', '2099-06-01'); fakeInput('ev-title', '알림 테스트'); fakeInput('ev-memo', '');
+  fakeInputs['ev-rpt'] = { checked: false };
+  fakeInputs['ev-rem'] = { value: '60' };
+  click('ev-add');
+  check('알림 일정 저장', liveS().events.some(e => e.rem === 60 && e.title === '알림 테스트'));
+  check('알림 배지 표시', lastHTML.includes('🔔'));
+  fakeInputs['ev-rem'] = { value: '0' };
+  /* 주간 뷰 */
+  click('cal-view', { v: 'w' });
+  check('주간 뷰 전환', liveS().calView === 'w' && lastHTML.includes('cal-week'));
+  const wkDay = liveS().calDay;
+  click('cal-week', { v: '1' });
+  check('다음 주 이동', liveS().calDay !== wkDay);
+  click('cal-view', { v: 'm' });
+  check('월간 복귀', liveS().calView === 'm' && lastHTML.includes('cal-grid'));
+  /* 팬트리 + 레시피 제안 */
+  nav('#/shopping');
+  fakeInput('pantry-name', '두부');
+  fakeInputs['pantry-exp'] = { value: new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10) };
+  click('pantry-add');
+  check('팬트리 저장', liveS().pantry.some(x => x.name === '두부'));
+  check('임박 배지', lastHTML.includes('D-'));
+  /* 돌봄 */
+  nav('#/space');
+  check('돌봄 카드 표시', lastHTML.includes('펫·식물 돌봄'));
+  click('care-kind', { v: 'plant' });
+  fakeInput('care-name', '몬스테라'); fakeInput('care-days', '7');
+  click('care-add');
+  check('돌봄 등록', liveS().care.some(c => c.name === '몬스테라' && c.days === 7 && c.kind === 'plant'));
+  const careLast = liveS().care[0].last;
+  click('care-done', { v: liveS().care[0].id });
+  check('돌봄 완료 갱신', liveS().care[0].last >= careLast);
+  /* 공유 메모 */
+  check('우리집 정보 카드', lastHTML.includes('우리집 정보'));
+  fakeInput('memo-title', '와이파이'); fakeInput('memo-text', 'pw1234');
+  click('memo-add');
+  check('메모 저장', liveS().memos.some(m => m.title === '와이파이' && m.text === 'pw1234'));
+  const memoId = liveS().memos[0].id;
+  click('memo-del', { v: memoId }); click('memo-del', { v: memoId });
+  check('메모 삭제', !liveS().memos.length);
+
+  /* --- 34. 배지 · 애정 언어 · 연간 회고 --- */
+  console.log('== 34. 배지 · 애정 언어 · 연간 회고 ==');
+  check('배지 그리드 표시', lastHTML.includes('badge-grid'));
+  check('배지 자동 획득', liveS().badges.length >= 1);
+  check('애정 언어 카드', lastHTML.includes('애정 언어'));
+  for (let qi = 0; qi < 8 && !liveS().loveLang; qi++) click('ll-ans', { v: qi % 2 ? 'b' : 'a' });
+  check('애정 언어 결과 저장', !!liveS().loveLang && typeof liveS().loveLang.type === 'string' && !!store['mateon.loveLang']);
+  check('애정 언어 결과 카드', lastHTML.includes('ll-result'));
+  check('연간 회고 카드', lastHTML.includes('년 회고') && lastHTML.includes('함께 쓴 돈'));
+
+  /* --- 35. 휴지통 · 스냅샷 · 충돌 UI · 생체 잠금 --- */
+  console.log('== 35. 휴지통 · 스냅샷 · 충돌 · 생체 잠금 ==');
+  nav('#/settle');
+  const delExp = liveS().expenses.find(x => x.memo === '기념일 꽃');
+  click('exp-del', { v: delExp.id });
+  click('exp-del', { v: delExp.id });
+  check('삭제 → 휴지통 이동', !liveS().expenses.some(x => x.id === delExp.id) && liveS().trash.some(t => t.item && t.item.id === delExp.id));
+  nav('#/settings');
+  check('휴지통 카드 표시', lastHTML.includes('휴지통') && lastHTML.includes('data-action="trash-restore"'));
+  click('trash-restore', { v: liveS().trash.find(t => t.item.id === delExp.id).id });
+  check('휴지통 복원', liveS().expenses.some(x => x.id === delExp.id) && !liveS().trash.some(t => t.item && t.item.id === delExp.id));
+  /* 영구 삭제 — 두 번 눌러 확정 */
+  nav('#/settle');
+  click('exp-del', { v: delExp.id }); click('exp-del', { v: delExp.id });
+  nav('#/settings');
+  const trashId = liveS().trash.find(t => t.item && t.item.id === delExp.id).id;
+  click('trash-del', { v: trashId });
+  check('영구 삭제 1차 확인', liveS().trash.some(t => t.id === trashId));
+  click('trash-del', { v: trashId });
+  check('영구 삭제 완료', !liveS().trash.some(t => t.id === trashId));
+  /* 스냅샷 카드·복원 — 스냅샷 데이터는 백업 형식 */
+  liveS().snapshots = [{ ts: Date.now(), data: window.__mateon.buildBackup().data }];
+  delete liveS().snapshots[0].data['mateon.snapshots'];
+  nav('#/home'); nav('#/settings');
+  check('스냅샷 카드 표시', lastHTML.includes('자동 스냅샷') && lastHTML.includes('data-action="snap-restore"'));
+  click('snap-restore', { v: String(liveS().snapshots[0].ts) });
+  check('스냅샷 복원 1차 확인', liveS().delArm2 && liveS().delArm2.indexOf('snap-restore') === 0);
+  click('snap-restore', { v: String(liveS().snapshots[0].ts) });
+  check('스냅샷 복원 실행', !!store['mateon.me'] && !!liveS().me);
+  /* 동기화 충돌 — v1 폴백 경로, fetch 스텁 */
+  liveS().syncCfg = { endpoint: 'https://x.example', room: 'rc', slot: 'a', token: '' };
+  {
+    const localEv = liveS().events.slice();
+    globalThis.fetch = () => Promise.resolve({ ok: true, json: () => Promise.resolve({ events: [{ id: 'rx1', date: '2099-01-01', title: '원격 일정', memo: '', who: 'both' }] }) });
+    await window.__mateon.syncPull();
+    nav('#/settings');
+    check('충돌 감지 배너', lastHTML.includes('conflict-banner'));
+    check('원격 일정 반영', liveS().events.some(e => e.id === 'rx1'));
+    liveS().events = localEv; store['mateon.events'] = JSON.stringify(localEv);
+    globalThis.fetch = undefined;
+  }
+  /* 생체 잠금 — WebAuthn 스텁이 없으면 등록 버튼이 안 보여야 한다 */
+  check('PIN 잠금 설정 표시', lastHTML.includes('data-action="lock-set"') || lastHTML.includes('앱 잠금'));
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

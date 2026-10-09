@@ -35,12 +35,30 @@ if (Capacitor.isNativePlatform()) {
       if (list.length) await LocalNotifications.schedule({notifications:list});
       return true;
     },
+    /* ---- 일정별 알림 — id 9100~ 해시, 앞에서 예약 전량 재등록 ---- */
+    async scheduleEventReminders(items) {
+      const pending = await LocalNotifications.getPending();
+      const ours = pending.notifications.filter(n => n.id >= 9100 && n.id < 9200);
+      if (ours.length) await LocalNotifications.cancel({notifications:ours});
+      if (!items || !items.length) return true;
+      const perm = await LocalNotifications.checkPermissions();
+      if (perm.display !== 'granted') return false;
+      const hash = s => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) & 0xffff; return h; };
+      const list = items.map(it => ({
+        id: 9100 + hash(String(it.id)) % 100,
+        title: 'MATE:ON 일정',
+        body: it.title + (it.rem >= 1440 ? ' — ' + Math.round(it.rem / 1440) + '일 전이에요' : ' — ' + it.rem + '분 전이에요'),
+        schedule: {at: new Date(it.at)},
+      }));
+      await LocalNotifications.schedule({notifications:list});
+      return true;
+    },
     /* ---- 앱 아이콘 배지: 미완료 항목 수 ---- */
     async setBadge(n) {
       try {
         if (n > 0) await Badge.set({count: Math.min(n, 99)});
         else await Badge.clear();
-      } catch (e) { /* 배지 미지원 런처는 무시 */ }
+      } catch { /* 배지 미지원 런처는 무시 */ }
     },
     /* ---- 암호화 저장소 (Android Keystore / iOS Keychain) ---- */
     async secureSet(key, value) {
@@ -49,10 +67,10 @@ if (Capacitor.isNativePlatform()) {
     },
     async secureGet(key) {
       try { const r = await SecureStoragePlugin.get({key:'mateon.' + key}); return r.value || null; }
-      catch (e) { return null; }
+      catch { return null; }
     },
     async secureRemove(key) {
-      try { await SecureStoragePlugin.remove({key:'mateon.' + key}); } catch (e) { }
+      try { await SecureStoragePlugin.remove({key:'mateon.' + key}); } catch { }
     },
     /* ---- OTA 업데이트 (수동 모드: 설정에서 "앱 업데이트 확인") ----
        webBaseUrl/ota/latest.json 을 읽어 버전이 다르면 번들을 내려받아 교체한다.
@@ -71,7 +89,7 @@ if (Capacitor.isNativePlatform()) {
         const bundle = await CapacitorUpdater.download({url, version: String(meta.version)});
         await CapacitorUpdater.next({id: bundle.id});
         return '업데이트 완료 — 앱을 다시 시작하면 적용돼요';
-      } catch (e) {
+      } catch {
         return '업데이트를 확인하지 못했어요. 나중에 다시 시도해 주세요';
       }
     },
@@ -84,7 +102,7 @@ if (Capacitor.isNativePlatform()) {
       ];
       try {
         await AppShortcuts.set({shortcuts});
-      } catch (e) { /* 시뮬레이터·구형 OS는 무시 */ }
+      } catch { /* 시뮬레이터·구형 OS는 무시 */ }
       await AppShortcuts.addListener('click', e => {
         const routes = {checkin:'checkin', space:'space', settle:'settle'};
         const route = routes[e.shortcutId];
@@ -106,7 +124,7 @@ if (Capacitor.isNativePlatform()) {
         if (window.__mateon && window.__mateon.navigate) window.__mateon.navigate(route);
         else location.hash = '#/' + route;
       });
-    } catch (e) { /* 구형 OS 무시 */ }
+    } catch { /* 구형 OS 무시 */ }
     await App.addListener('backButton', () => {
       if (!window.__mateon?.handleBack()) App.minimizeApp();
     });

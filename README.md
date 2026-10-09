@@ -100,10 +100,10 @@ iOS는 macOS/Xcode에서 `npm run ios`로 연 뒤 Signing & Capabilities에서 T
 ## 검증 결과와 제한
 
 - `node test-score.js`: 채점 테스트 통과.
-- `node test-smoke.js`: 299개 검증 통과. 진단·초대·리포트·합의서·생활도구(분할·OCR 파서·쇼핑·러브맵·월별 요약·고정비·활동 피드·지출 수정/검색/예산·기념일 D-day·캘린더 월 뷰·주간 반복·주간 미션·집안일 알림), 저장 데이터 보존, HTTPS/사용자 정의 앱 링크 검증·뒤로가기, JSON 백업 복원(미리보기·부분 복원), 초대 링크 v3 난독화·만료, TinyBase 머지·삭제 툼스톤, 오프라인 배너 포함.
+- `node test-smoke.js`: 344개 검증 통과. 진단·초대·리포트·합의서·생활도구(분할·OCR 파서·쇼핑·러브맵·월별 요약·고정비·활동 피드·지출 수정/검색/예산·기념일 D-day·캘린더 월/주간 뷰·주간 반복·주간 미션·집안일 알림·목표 저축·수입/태그·부분 정산·요일 집안일·일정 알림·팬트리·돌봄·공유 메모·배지·애정 언어·연간 회고·휴지통·자동 스냅샷·동기화 충돌·PIN 잠금), 저장 데이터 보존, HTTPS/사용자 정의 앱 링크 검증·뒤로가기, JSON 백업 복원(미리보기·부분 복원), 초대 링크 v3 난독화·만료, TinyBase 머지·삭제 툼스톤, 오프라인 배너 포함.
 - `node test-lifetools.js`: 34개 순수 함수 검증 통과. 날짜·상대시간·금액 포맷, ISO 주 스트릭, 월별 추이·예산 단계·고정비 다음 발생일, ICS(RRULE·UNTIL·시간), 기념일 마일스톤·일별 일정 계산, 주간 미션 결정적 선택.
-- `npm run e2e`: Playwright 실브라우저 47개 검증 통과. 설문→초대 링크 왕복→리포트→합의서, 생활도구 전 화면, 정산 분할·고정비·월 이동·지출 수정/검색/예산, 기념일·주간 반복·달력 그리드, 주간 미션·집안일 알림, 만료 초대, 백업 미리보기·부분 복원, driver.js 투어, 다크 테마, 오프라인 동작.
-- `npm run size`: 번들 크기 예산 검사(js 500KB·css 160KB·html 20KB·벤더 1.2MB 이하).
+- `npm run e2e`: Playwright 실브라우저 64개 검증 통과. 설문→초대 링크 왕복→리포트→합의서, 생활도구 전 화면, 정산 분할·고정비·월 이동·지출 수정/검색/예산, 기념일·주간 반복·달력 그리드, 주간 미션·집안일 알림, 만료 초대, 백업 미리보기·부분 복원, driver.js 투어, 다크 테마, 오프라인 동작, 목표 저축·수입·태그·부분 정산, 요일 집안일·주간 뷰·일정 알림·팬트리, 공유 메모·돌봄·애정 언어·휴지통 복원, 태블릿 레이아웃.
+- `npm run size`: 번들 크기 예산 검사(js 560KB·css 220KB·html 20KB·벤더 1.2MB 이하).
 - E2E 브라우저는 `npx playwright install chromium`이 필요하며 `PLAYWRIGHT_BROWSERS_PATH`가 비어 있으면 `C:\tools\ms-playwright`를 사용합니다.
 - `npm run verify:aab`: 서명된 `app-release.aab` (~14.5MB) 검증 통과 — JAR 서명 `META-INF/MATEON-U.SF`+`.RSA`, `jarsigner -verify` 확인 완료. 업로드 키 SHA-256: `00:96:CF:6B:…:83:7A:A3` (전체 지문은 `keytool -list -v`).
 - `node scripts/release-check.js`: 구조 검증 통과. strict 모드는 지원 이메일, 앱 링크 도메인, Android 서명, iOS 팀 설정이 없어 차단됩니다.

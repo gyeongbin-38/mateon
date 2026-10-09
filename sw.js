@@ -1,6 +1,6 @@
-const CACHE = 'mateon-v25';
-const VERSION = '20261008-02';
-const ASSETS = ['.','index.html','brand.html','css/tokens.css','css/styles.css','css/mateon.css','css/home.css','css/pretendard.css','js/config.js','js/data.js','js/card.js','js/vendor/qrcode.js','js/vendor/driver.js','js/vendor/driver.css','js/vendor/tinybase.js','js/vendor/modern-screenshot.js','js/vendor/tesseract.min.js','js/lifetools.js','js/secure.js','js/i18n.js','js/mateon.js','assets/icon-192.png','assets/icon-512.png','assets/og-image.png','assets/logo-symbol.svg','assets/logo-lockup.svg','assets/app-icon.svg','assets/together-home.svg','manifest.webmanifest'];
+const CACHE = 'mateon-v26';
+const VERSION = '20261008-03';
+const ASSETS = ['.','index.html','brand.html','css/tokens.css','css/styles.css','css/mateon.css','css/home.css','css/pretendard.css','js/config.js','js/data.js','js/card.js','js/vendor/qrcode.js','js/vendor/driver.js','js/vendor/driver.css','js/vendor/tinybase.js','js/vendor/modern-screenshot.js','js/vendor/tesseract.min.js','js/lifetools.js','js/secure.js','js/i18n.js','js/household.js','js/mateon.js','assets/icon-192.png','assets/icon-512.png','assets/og-image.png','assets/logo-symbol.svg','assets/logo-lockup.svg','assets/app-icon.svg','assets/together-home.svg','manifest.webmanifest'];
 ASSETS.push('assets/character-sheet.png','assets/character-sheet-cutout-v2.png','assets/character-sheet.webp','assets/character-sheet-cutout-v2.webp');
 for (let fi = 0; fi < 92; fi++) ASSETS.push('fonts/pretendard/PretendardVariable.subset.' + fi + '.woff2');
 const SHELL = ASSETS.map(p => /\.(js|css)$/.test(p) ? p + '?v=' + VERSION : p);
