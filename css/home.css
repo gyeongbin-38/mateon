@@ -4,12 +4,14 @@
   --app-paper: #faf9f7;
   --app-surface: #fff;
   --app-ink: #303943;
-  --app-muted: #717782;
+  /* WCAG AA: #717782 → 본문 대비 4.28 → #5a6270 (5.84) */
+  --app-muted: #5a6270;
   --app-line: #eeece9;
-  --app-coral: #d94b62;
+  /* WCAG AA: 흰 글자 대비 4.09 → #c23a52 (5.22) */
+  --app-coral: #c23a52;
   --app-soft: #fff0ef;
   --app-mint: #eff5ee;
-  --app-pink-ink: #a84255;
+  --app-pink-ink: #8f3346;
 }
 [data-theme='dark'] {
   --app-paper: #181b20;
@@ -338,7 +340,7 @@ a:focus-visible {
   min-height: 54px;
   border: 0;
   border-radius: 15px;
-  background: #d94b62;
+  background: var(--app-coral);
   color: white;
   font-size: 15px;
   font-weight: 700;
@@ -2802,7 +2804,7 @@ body {
   color: var(--app-muted);
 }
 .warn-tag {
-  color: #d94b62;
+  color: var(--app-coral);
   font-weight: 750;
 }
 .warn-tag.warn {
@@ -4320,11 +4322,107 @@ button:focus:not(:focus-visible) {
   background: var(--brand, #6366f1);
   flex: none;
 }
+.notif-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 0 14px 10px;
+  border-bottom: 1px solid var(--line);
+}
+.notif-tab {
+  border: 0;
+  background: var(--bg-soft, #f5f4f2);
+  color: var(--tx-2);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.notif-tab i {
+  font-style: normal;
+  opacity: 0.65;
+  font-size: 11px;
+}
+.notif-tab.on {
+  background: var(--brand, #7c6ff0);
+  color: #fff;
+}
+.notif-tab.on i {
+  opacity: 0.85;
+}
 .notif-empty {
   text-align: center;
   color: var(--muted, #8a8f98);
   font-size: 13px;
   padding: 28px 12px;
+}
+/* 롱프레스 컨텍스트 메뉴 — 하단 바텀시트 */
+.ctx-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 75;
+  background: rgba(10, 10, 14, 0.4);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: fadeIn 0.14s ease;
+}
+.ctx-sheet {
+  width: 100%;
+  max-width: 430px;
+  background: var(--card, #fff);
+  border-radius: 20px 20px 0 0;
+  padding: 8px 14px calc(16px + env(safe-area-inset-bottom, 0px));
+  animation: sheetUp 0.18s ease;
+}
+@keyframes sheetUp {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.ctx-grip {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line, #e5e2de);
+  margin: 4px auto 10px;
+}
+.ctx-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  border: 0;
+  background: none;
+  padding: 13px 10px;
+  border-radius: 12px;
+  font-size: 15px;
+  color: var(--tx);
+  cursor: pointer;
+  text-align: left;
+}
+.ctx-item small {
+  margin-left: auto;
+  color: var(--muted, #8a8f98);
+  font-size: 11px;
+}
+.ctx-item:active {
+  background: var(--bg-soft, #f5f4f2);
+}
+.ctx-item .ctx-ic {
+  width: 22px;
+  text-align: center;
+  flex: none;
+}
+.ctx-item.danger {
+  color: var(--danger, #dc4a4a);
+}
+.notif-empty {
   line-height: 1.7;
 }
 .notif-empty small {

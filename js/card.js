@@ -154,7 +154,7 @@ window.MateCard = (function () {
     var W = 1080,
       H = 1350;
     var c = makeCanvas(W, H),
-      ctx = c.getContext('2d');
+      ctx = /** @type {CanvasRenderingContext2D} */ (c.getContext('2d'));
     gradient(ctx, W, H, '#FFF5F6', '#F0F5FF');
     glow(ctx, W * 0.5, H * 0.1, W * 0.6, '#FFC2C8', 0.5);
     glow(ctx, W * 0.1, H, W * 0.4, '#C2D7FF', 0.45);
@@ -228,7 +228,7 @@ window.MateCard = (function () {
     var W = 1080,
       H = 1350;
     var c = makeCanvas(W, H),
-      ctx = c.getContext('2d');
+      ctx = /** @type {CanvasRenderingContext2D} */ (c.getContext('2d'));
     gradient(ctx, W, H, '#FFF5F6', '#F0F5FF');
 
     drawLogo(ctx, W / 2 - 48, 70, 0.75);

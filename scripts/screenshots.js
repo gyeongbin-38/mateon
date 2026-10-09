@@ -1,6 +1,7 @@
 /* 스토어용 스크린샷 자동화 — dist/를 로컬 서빙하고 주요 화면을 캡처한다.
    사용: node scripts/screenshots.js          (dist 기준, release/screenshots/에 저장)
         node scripts/screenshots.js --dev    (server.js 개발 서버 포트 8787 사용)
+        node scripts/screenshots.js --lang=en (영문 로케일 — release/screenshots-en/ 에 저장)
    Playwright 필요: npm i -D playwright / 브라우저 캐시 C:\tools\ms-playwright */
 const path = require('path');
 const fs = require('fs');
@@ -9,7 +10,12 @@ const LOCAL_BROWSERS = 'C:\\tools\\ms-playwright';
 if (fs.existsSync(LOCAL_BROWSERS)) process.env.PLAYWRIGHT_BROWSERS_PATH = LOCAL_BROWSERS;
 const ROOT = path.join(__dirname, '..');
 const DIST = path.join(ROOT, 'dist');
-const OUT = path.join(ROOT, 'release', 'screenshots');
+const LANG = (
+  process.argv.find(function (a) {
+    return a.startsWith('--lang=');
+  }) || '--lang=ko'
+).split('=')[1];
+const OUT = path.join(ROOT, 'release', LANG === 'en' ? 'screenshots-en' : 'screenshots');
 const MIME = {
   '.html': 'text/html',
   '.js': 'text/javascript',
@@ -107,7 +113,11 @@ async function main() {
   fs.mkdirSync(OUT, { recursive: true });
   const { chromium } = require('playwright');
   const browser = await chromium.launch();
-  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+  const page = await browser.newPage({
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 2,
+    locale: LANG === 'en' ? 'en-US' : 'ko-KR',
+  });
   await page.addInitScript(SEED);
   for (const s of SHOTS) {
     await page.goto(base + '/' + s.hash, { waitUntil: 'networkidle' });

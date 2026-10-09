@@ -9,10 +9,12 @@
     "size": "node scripts/bundle-size.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit --checkJs",
+    "typecheck:strict": "tsc -p tsconfig.strict.json",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "e2e": "node scripts/e2e.mjs",
     "e2e:webkit": "node scripts/e2e.mjs webkit",
+    "a11y": "node scripts/a11y-scan.mjs",
     "ota": "node scripts/make-ota.js",
     "build": "node scripts/build-app.js",
     "export:svg": "node scripts/export-faithful-svg.mjs && node scripts/assemble-svg-deliverables.mjs && node scripts/build-svg-review.mjs",
@@ -24,6 +26,7 @@
     "verify:aab": "node scripts/verify-aab.js android/app/build/outputs/bundle/release/app-release.aab",
     "play:sim": "node scripts/play-submission.js",
     "shots": "node scripts/screenshots.js",
+    "shots:en": "node scripts/screenshots.js --lang=en",
     "graphic": "node scripts/feature-graphic.js",
     "release:check": "npm test && npm run size && npm run build && node scripts/release-check.js --strict"
   },
@@ -52,6 +55,7 @@
   },
   "devDependencies": {
     "@capacitor/cli": "8.4.3",
+    "axe-core": "^4.14.0",
     "esbuild": "^0.28.2",
     "eslint": "^10.12.0",
     "globals": "^17.13.0",

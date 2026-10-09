@@ -414,6 +414,8 @@
     lmCustom: load('mateon.lmCustom') || [],
     notifs: load('mateon.notifs') || [],
     notifOpen: false,
+    notifTab: 'all',
+    ctxMenu: null,
     notifReadTs: load('mateon.notifRead') || 0,
     photos: load('mateon.photos') || [],
     rate: load('mateon.rate') || null,
@@ -810,6 +812,10 @@
       '|' +
       (S.notifOpen ? 1 : 0) +
       '|' +
+      (S.notifOpen ? S.notifTab || 'all' : '') +
+      '|' +
+      (S.ctxMenu ? 1 : 0) +
+      '|' +
       unreadNotifs();
     if (sameRoute && sig === lastShellContent) return;
     app.innerHTML =
@@ -830,6 +836,7 @@
       lockScreenHTML() +
       searchOverlayHTML() +
       notifOverlayHTML() +
+      ctxMenuHTML() +
       '</div>';
     if (sameRoute) window.scrollTo(0, lastShellScroll);
     else window.scrollTo(0, 0);
@@ -1226,6 +1233,8 @@
         )
       : 0;
     var settleDue = S.expenses.length > 0 && (new Date().getDate() >= 25 || (oldestExp && Date.now() - oldestExp > 35 * 86400000));
+    /* 정산 리마인드는 알림 센터에도 남긴다 — pushNotif 중복방지가 하루 1회로 제한 */
+    if (settleDue && netNow !== 0) pushNotif('💸', '정산할 금액 ' + fmtWon(Math.abs(netNow)) + ' — 월말 마감 시기예요', 'settle', 'rem');
     var backupStale = !S.lastBackup || Date.now() - S.lastBackup > 30 * 86400000;
     var banners =
       (annivNext
@@ -1866,7 +1875,18 @@
   var MH = window.MateHouse;
   MH.bind({ S: S, esc: esc, fmtWon: fmtWon, payerName: payerName, armBtn: armBtn, dateStr: dateStr, isoWeekMonday: isoWeekMonday });
   var MV = window.MateViews;
-  MV.bind({ S: S, esc: esc, shell: shell, docShell: docShell });
+  MV.bind({
+    S: S,
+    esc: esc,
+    shell: shell,
+    docShell: docShell,
+    charById: charById,
+    codeDist: codeDist,
+    characterArt: characterArt,
+    matrixHTML: matrixHTML,
+    T: T,
+    go: go,
+  });
   function monthReportHTML() {
     return MH.monthReportHTML();
   }
@@ -1901,7 +1921,7 @@
     if (def) {
       showToast('배지 획득! ' + def.icon + ' ' + def.name, { type: 'good' });
       buzz(60);
-      pushNotif(def.icon, '배지 획득: ' + def.name, 'space');
+      pushNotif(def.icon, '배지 획득: ' + def.name, 'space', 'act');
     }
   }
   function badgesHTML() {
@@ -3273,144 +3293,12 @@
   }
 
   function vTypes() {
-    var myC = S.me ? charById(S.me.charId) : null;
-    var cells = CHARACTERS.map(function (c, i) {
-      var cls = 'type-card';
-      if (S.me && S.me.charId === c.id) cls += ' mine';
-      else if (S.partner && S.partner.charId === c.id) cls += ' partner';
-      var dist = '';
-      if (myC) {
-        var d = codeDist(myC, c);
-        var lbl = d === 0 ? '나와 같음' : d <= 2 ? '비슷한 편' : d <= 4 ? '다른 편' : '많이 다름';
-        dist = '<span class="tc-dist">' + lbl + '</span>';
-      }
-      return (
-        '<button class="' +
-        cls +
-        '" data-action="type" data-id="' +
-        c.id +
-        '" type="button" style="--i:' +
-        i +
-        '">' +
-        characterArt(c, true) +
-        '<span class="tc-code">' +
-        c.code +
-        '</span><span class="tc-name">' +
-        esc(c.name) +
-        '</span>' +
-        dist +
-        '</button>'
-      );
-    }).join('');
-
-    var legend = '';
-    if (S.me) legend += '<span class="badge badge-brand">' + esc(S.me.name || '나') + '</span>';
-    if (S.partner) legend += '<span class="badge badge-info">' + esc(S.partner.name || '상대') + '</span>';
-
-    shell(
-      '' +
-        '<p class="eyebrow caption">Type Book</p>' +
-        '<h2 class="view-title">' +
-        esc(T('view.types.title')) +
-        '</h2>' +
-        '<p class="view-desc body-md">' +
-        esc(T('view.types.desc')) +
-        '</p>' +
-        (legend ? '<div class="hero-meta" style="justify-content:flex-start;margin-top:16px">' + legend + '</div>' : '') +
-        '<div style="margin-top:20px">' +
-        matrixHTML(S.me ? S.me.charId : null, S.partner ? S.partner.charId : null, S.me ? S.me.name : null, S.partner ? S.partner.name : null) +
-        '</div>' +
-        '<div class="type-grid" style="margin-top:24px">' +
-        cells +
-        '</div>' +
-        '<div class="cta-col"><button class="btn btn-tertiary btn-md" data-action="home" type="button">홈으로</button></div>'
-    );
+    MV.vTypes();
   }
 
   /* ================= View: 유형 상세 ================= */
   function vTypeDetail() {
-    var c = charById(S.typeId);
-    if (!c) {
-      go('types');
-      return;
-    }
-    var seq = c.conflictSeq
-      .map(function (s, i) {
-        return (
-          '<div class="seq-step"><span class="seq-dot">' +
-          (i + 1) +
-          '</span><span class="body-sm">' +
-          esc(s) +
-          '</span></div>' +
-          (i < c.conflictSeq.length - 1 ? '<div class="seq-line"></div>' : '')
-        );
-      })
-      .join('');
-    var noteIcon =
-      '<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>';
-
-    shell(
-      '' +
-        '<div class="survey-top"><button class="back-btn" data-action="types" type="button" aria-label="도감으로">' +
-        '<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>' +
-        '<span class="progress-num">유형 도감</span></div>' +
-        '<div class="card char-hero result-hero">' +
-        '<span class="char-code">' +
-        c.code +
-        '</span>' +
-        '<h2 class="char-name">' +
-        esc(c.name) +
-        '</h2>' +
-        characterArt(c, false) +
-        '<p class="char-quote">' +
-        esc(c.quote) +
-        '</p></div>' +
-        '<div class="card" style="margin-top:16px"><h4 class="card-title">같이 살면 이런 사람</h4>' +
-        '<ul class="trait-list">' +
-        c.traits
-          .map(function (t) {
-            return '<li>' + esc(t) + '</li>';
-          })
-          .join('') +
-        '</ul>' +
-        '<div class="note-box ' +
-        (c.note.type === 'warn' ? 'warn' : c.note.type === 'good' ? 'good' : 'info') +
-        '" style="margin-top:16px">' +
-        noteIcon +
-        '<span>' +
-        esc(c.note.text) +
-        '</span></div></div>' +
-        '<div class="card" style="margin-top:16px"><h4 class="card-title">동거인이 보게 되는 모습</h4>' +
-        '<div class="view-vs">' +
-        '<div class="vs-side"><span class="vs-label">본인 생각</span>' +
-        esc(c.selfView) +
-        '</div>' +
-        '<span class="vs-mark">↔</span>' +
-        '<div class="vs-side"><span class="vs-label">동거인에게는</span>' +
-        esc(c.partnerView) +
-        '</div></div></div>' +
-        '<div class="card" style="margin-top:16px"><h4 class="card-title">갈등 시퀀스</h4><div class="seq">' +
-        seq +
-        '</div></div>' +
-        '<div class="card" style="margin-top:16px"><h4 class="card-title">사용설명서</h4>' +
-        '<div class="do-grid">' +
-        '<div class="do-col do"><h5>DO</h5><ul>' +
-        c.dos
-          .map(function (t) {
-            return '<li>· ' + esc(t) + '</li>';
-          })
-          .join('') +
-        '</ul></div>' +
-        '<div class="do-col dont"><h5>DON&#39;T</h5><ul>' +
-        c.donts
-          .map(function (t) {
-            return '<li>· ' + esc(t) + '</li>';
-          })
-          .join('') +
-        '</ul></div>' +
-        '</div></div>' +
-        '<div class="cta-col"><button class="btn btn-tertiary btn-md" data-action="types" type="button">도감으로 돌아가기</button></div>'
-    );
+    MV.vTypeDetail();
   }
 
   /* ================= View: 실무 성향 체크 ================= */
@@ -4416,6 +4304,10 @@
         '" max="' +
         dateStr(Date.now()) +
         '" aria-label="지출 날짜"></div>' +
+        '<div class="chip-row date-chips" role="group" aria-label="날짜 빠른 선택">' +
+        '<button class="chip chip-sm" data-action="date-quick" data-for="exp-date" data-v="0" type="button">오늘</button>' +
+        '<button class="chip chip-sm" data-action="date-quick" data-for="exp-date" data-v="-1" type="button">어제</button>' +
+        '<button class="chip chip-sm" data-action="date-quick" data-for="exp-date" data-v="-7" type="button">일주일 전</button></div>' +
         '<div class="field-group"><label class="field-label" for="exp-tags">태그 (선택)</label><input id="exp-tags" class="input" maxlength="40" placeholder="예: 여행 기념일 (띄어쓰기로 구분)" autocomplete="off" value="' +
         esc(S.expTags || '') +
         '"></div>' +
@@ -5206,12 +5098,12 @@
         '" type="button" data-action="cal-day" data-v="' +
         iso +
         '" aria-label="' +
-        my[1] +
-        '월 ' +
         day +
-        '일 ' +
+        ' ' +
         dows +
-        '요일' +
+        '요일 · ' +
+        my[1] +
+        '월' +
         (has[iso] ? ', 일정 있음' : '') +
         '">' +
         day +
@@ -5283,7 +5175,7 @@
         '<span><button class="chip chip-sm" type="button" data-action="cal-view" data-v="w">주간</button><button class="chip chip-sm selected" type="button" data-action="cal-view" data-v="m">월간</button>' +
         '<button class="chip chip-sm" type="button" data-action="cal-today">오늘</button>' +
         '<button class="chip" type="button" data-action="cal-month" data-v="1" aria-label="다음 달">›</button></span></div>' +
-        '<div class="cal-grid" role="grid"><span class="cal-dow">월</span><span class="cal-dow">화</span><span class="cal-dow">수</span><span class="cal-dow">목</span><span class="cal-dow">금</span><span class="cal-dow sat">토</span><span class="cal-dow sun">일</span>' +
+        '<div class="cal-grid"><span class="cal-dow">월</span><span class="cal-dow">화</span><span class="cal-dow">수</span><span class="cal-dow">목</span><span class="cal-dow">금</span><span class="cal-dow sat">토</span><span class="cal-dow sun">일</span>' +
         cells +
         '</div>' +
         (Object.keys(wkMood).length
@@ -5377,6 +5269,11 @@
         '<div class="field-group"><label class="field-label" for="ev-date">날짜</label><input id="ev-date" class="input" type="date" value="' +
         esc(evEditing ? evEditing.date : S.calDay || today) +
         '"></div>' +
+        '<div class="chip-row date-chips" role="group" aria-label="날짜 빠른 선택">' +
+        '<button class="chip chip-sm" data-action="date-quick" data-for="ev-date" data-v="0" type="button">오늘</button>' +
+        '<button class="chip chip-sm" data-action="date-quick" data-for="ev-date" data-v="1" type="button">내일</button>' +
+        '<button class="chip chip-sm" data-action="date-quick" data-for="ev-date" data-v="7" type="button">다음 주</button>' +
+        '<button class="chip chip-sm" data-action="date-quick" data-for="ev-date" data-v="sat" type="button">이번 주말</button></div>' +
         '<div class="field-group"><label class="field-label" for="ev-time">시간 (선택)</label><input id="ev-time" class="input" type="time" value="' +
         esc(evEditing && evEditing.time ? evEditing.time : '') +
         '"></div>' +
@@ -6635,7 +6532,8 @@
             x.text.length > 0 &&
             x.text.length <= 80 &&
             typeof x.ts === 'number' &&
-            (!x.route || (typeof x.route === 'string' && x.route.length <= 16))
+            (!x.route || (typeof x.route === 'string' && x.route.length <= 16)) &&
+            (!x.kind || (typeof x.kind === 'string' && x.kind.length <= 8))
           );
         })
       );
@@ -7809,13 +7707,19 @@
     var el = E_LEVELS[eLevel(r.eAvg)],
       rl = R_LEVELS[rLevel(r.rAvg)];
     showToast('캐릭터 카드를 만들고 있어요');
-    if (window.MateScreenshot && document.createElement) {
+    var MS = null;
+    try {
+      MS = await loadVendor('js/vendor/modern-screenshot.js', 'MateScreenshot');
+    } catch (eLoad) {
+      /* 로드 실패 시 캔버스 경로로 폴백 */
+    }
+    if (MS && document.createElement) {
       try {
         var node = buildResultCardDom(r, c, el, rl);
         document.body.appendChild(node);
         try {
           if (document.fonts && document.fonts.ready) await document.fonts.ready;
-          var dataUrl = await MateScreenshot.domToPng(node, { scale: 2 });
+          var dataUrl = await MS.domToPng(node, { scale: 2 });
           exportDataUrl(dataUrl, 'mateon-' + c.code + '-result.png');
           return;
         } finally {
@@ -7931,6 +7835,32 @@
     }
   }
 
+  /* ICS 내보내기 공통 — 네이티브는 공유 시트(캘린더 앱으로 바로 전송),
+     웹은 .ics 파일 다운로드 */
+  function sendICS(ics, filename, okMsg) {
+    if (window.MateNative && window.MateNative.shareFile) {
+      window.MateNative.shareFile(filename, ics, true)
+        .then(function () {
+          showToast(okMsg || '캘린더 앱으로 보낼 수 있어요', { type: 'good' });
+        })
+        .catch(function () {
+          webICS(ics, filename);
+        });
+      return;
+    }
+    webICS(ics, filename);
+  }
+  function webICS(ics, filename) {
+    var blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    setTimeout(function () {
+      URL.revokeObjectURL(a.href);
+    }, 1000);
+    showToast('캘린더 파일이 다운로드됐어요');
+  }
   function downloadICS() {
     var d = new Date();
     d.setMonth(d.getMonth() + 1);
@@ -7950,43 +7880,35 @@
       'END:VEVENT',
       'END:VCALENDAR',
     ].join('\r\n');
-    if (window.MateNative) {
-      window.MateNative.shareFile('mateon-rule-check.ics', ics, true).catch(function () {
-        showToast('캘린더 파일 공유가 완료되지 않았어요');
-      });
-      return;
-    }
-    var blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
-    var a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'mateon-rule-check.ics';
-    a.click();
-    setTimeout(function () {
-      URL.revokeObjectURL(a.href);
-    }, 1000);
-    showToast('캘린더 파일이 다운로드됐어요');
+    sendICS(ics, 'mateon-rule-check.ics', '점검일을 캘린더 앱으로 보낼 수 있어요');
   }
 
-  /* ================= 영수증 OCR (tesseract.js, 온디바이스) =================
-     tesseract.min.js는 첫 사용 시에만 로드하고, 코어·언어 데이터는
-     assets/ocr/ 아래에 벤더링해 두었다(오프라인 동작, 외부 전송 없음). */
-  var tessLoading = null;
-  function loadTesseract() {
-    if (window.Tesseract) return Promise.resolve(window.Tesseract);
-    if (tessLoading) return tessLoading;
-    tessLoading = new Promise(function (resolve, reject) {
+  /* ================= 지연 로딩 벤더 =================
+     무거운 라이브러리는 첫 사용 시에만 로드한다(부팅 경량화).
+     코어·언어 데이터는 assets/ocr/ 아래에 벤더링해 두었다(오프라인 동작). */
+  var vendorLoads = {};
+  function loadVendor(src, globalName) {
+    var g = /** @type {any} */ (window)[globalName];
+    if (g) return Promise.resolve(g);
+    if (vendorLoads[src]) return vendorLoads[src];
+    vendorLoads[src] = new Promise(function (resolve, reject) {
       var s = document.createElement('script');
-      s.src = 'js/vendor/tesseract.min.js';
+      var av = (window.MATEON_CONFIG && window.MATEON_CONFIG.assetVersion) || '';
+      s.src = src + (av ? '?v=' + av : '');
       s.onload = function () {
-        window.Tesseract ? resolve(window.Tesseract) : reject(new Error('tesseract missing'));
+        var gg = /** @type {any} */ (window)[globalName];
+        gg ? resolve(gg) : reject(new Error(globalName + ' missing'));
       };
       s.onerror = function () {
-        tessLoading = null;
+        delete vendorLoads[src];
         reject(new Error('load failed'));
       };
       document.head.appendChild(s);
     });
-    return tessLoading;
+    return vendorLoads[src];
+  }
+  function loadTesseract() {
+    return loadVendor('js/vendor/tesseract.min.js', 'Tesseract');
   }
 
   var ocrBusy = false;
@@ -8453,7 +8375,7 @@
                 .slice(0, 2)
                 .join('·')
             : '생활 데이터';
-          pushNotif('🔄', '메이트가 ' + mk + '를 업데이트했어요', 'space');
+          pushNotif('🔄', '메이트가 ' + mk + '를 업데이트했어요', 'space', 'sync');
         }
         return changed;
       })
@@ -8611,38 +8533,37 @@
   function searchAll(q) {
     var rows = [];
     if (!q || q.length < 1) return rows;
-    var low = q.toLowerCase();
+    /* 초성 검색 포함 — ML.koMatch는 'ㅅㄱㅈ' → '설거지' 매칭도 처리한다 */
     S.expenses.forEach(function (x) {
-      if ((x.memo || '').toLowerCase().indexOf(low) >= 0 || (x.cat || '').indexOf(low) >= 0)
+      if (ML.koMatch(x.memo || '', q) || ML.koMatch(x.cat || '', q))
         rows.push({ route: 'settle', icon: '💸', label: x.memo || '지출', sub: ML.fmtWon(x.amount) + (x.date ? ' · ' + x.date : '') });
     });
     S.shopping.forEach(function (x) {
-      if (x.name.toLowerCase().indexOf(low) >= 0) rows.push({ route: 'shopping', icon: x.done ? '☑' : '□', label: x.name, sub: '같이 살 것 · ' + x.cat });
+      if (ML.koMatch(x.name, q)) rows.push({ route: 'shopping', icon: x.done ? '☑' : '□', label: x.name, sub: '같이 살 것 · ' + x.cat });
     });
     S.events.forEach(function (e) {
-      if (e.title.toLowerCase().indexOf(low) >= 0 || (e.memo || '').toLowerCase().indexOf(low) >= 0)
+      if (ML.koMatch(e.title, q) || ML.koMatch(e.memo || '', q))
         rows.push({ route: 'calendar', icon: '📅', label: e.title, sub: e.date + (e.time ? ' ' + e.time : '') });
     });
     S.anniv.forEach(function (a) {
-      if (a.title.toLowerCase().indexOf(low) >= 0) rows.push({ route: 'calendar', icon: '🎉', label: a.title, sub: '기념일 · ' + a.date });
+      if (ML.koMatch(a.title, q)) rows.push({ route: 'calendar', icon: '🎉', label: a.title, sub: '기념일 · ' + a.date });
     });
     S.pantry.forEach(function (p) {
-      if (p.name.toLowerCase().indexOf(low) >= 0) rows.push({ route: 'shopping', icon: '🥫', label: p.name, sub: '유통기한 ' + p.exp + ' · ' + p.loc });
+      if (ML.koMatch(p.name, q)) rows.push({ route: 'shopping', icon: '🥫', label: p.name, sub: '유통기한 ' + p.exp + ' · ' + p.loc });
     });
     CHECKLIST.forEach(function (g) {
       g.items.forEach(function (t) {
-        if (t.toLowerCase().indexOf(low) >= 0) rows.push({ route: 'checklist', icon: '✅', label: t, sub: '입주 체크리스트 · ' + g.cat });
+        if (ML.koMatch(t, q)) rows.push({ route: 'checklist', icon: '✅', label: t, sub: '입주 체크리스트 · ' + g.cat });
       });
     });
     HOME_TALKS.forEach(function (t, i) {
-      if (t[0].indexOf(low) >= 0 || t[1].toLowerCase().indexOf(low) >= 0)
-        rows.push({ route: 'home', icon: '💬', label: t[1].slice(0, 40), sub: '오늘의 대화 · ' + t[0] });
+      if (ML.koMatch(t[0], q) || ML.koMatch(t[1], q)) rows.push({ route: 'home', icon: '💬', label: t[1].slice(0, 40), sub: '오늘의 대화 · ' + t[0] });
     });
     return rows.slice(0, 30);
   }
   function searchResultsHTML(q) {
     var rows = searchAll(q);
-    if (!q) return '<p class="gs-hint">지출 메모, 살 것, 일정, 체크리스트를 찾아요</p>';
+    if (!q) return '<p class="gs-hint">지출 메모, 살 것, 일정, 체크리스트를 찾아요<br><small>초성 검색도 돼요 — ㅅㄱㅈ → 설거지</small></p>';
     if (!rows.length) return '<p class="gs-hint">"' + esc(q) + '"에 맞는 결과가 없어요</p>';
     return rows
       .map(function (r) {
@@ -8670,7 +8591,7 @@
       '<button class="icon-button" data-action="search-close" type="button" aria-label="검색 닫기">' +
       mobileIcon('close') +
       '</button></div>' +
-      '<div id="gs-results" class="gs-results">' +
+      '<div id="gs-results" class="gs-results" aria-live="polite">' +
       searchResultsHTML('') +
       '</div></div></div>'
     );
@@ -8684,20 +8605,63 @@
     });
     return c;
   }
-  function pushNotif(icon, text, route) {
+  /* kind: 'act'(상대 활동) | 'rem'(리마인드) | 'sync' | 기본 'etc' — 알림 탭 분류용 */
+  function pushNotif(icon, text, route, kind) {
     /* 중복 방지 — 같은 텍스트가 최근 24시간 내 있으면 스킵 */
     var recent = (S.notifs || []).some(function (n) {
       return n.text === text && n.ts > Date.now() - 86400000;
     });
     if (recent) return;
     S.notifs = S.notifs || [];
-    S.notifs.unshift({ id: 'n' + Date.now().toString(36) + Math.floor(Math.random() * 99), icon: icon, text: text, ts: Date.now(), route: route || '' });
+    S.notifs.unshift({
+      id: 'n' + Date.now().toString(36) + Math.floor(Math.random() * 99),
+      icon: icon,
+      text: text,
+      ts: Date.now(),
+      route: route || '',
+      kind: kind || 'etc',
+    });
     if (S.notifs.length > 50) S.notifs = S.notifs.slice(0, 50);
     save('mateon.notifs', S.notifs);
   }
+  var NOTIF_TABS = [
+    { k: 'all', t: '전체' },
+    { k: 'act', t: '활동' },
+    { k: 'rem', t: '리마인드' },
+    { k: 'sync', t: '동기화' },
+  ];
   function notifOverlayHTML() {
     if (!S.notifOpen) return '';
-    var items = (S.notifs || []).slice(0, 30);
+    var tab = S.notifTab || 'all';
+    var all = S.notifs || [];
+    var items = all
+      .filter(function (n) {
+        return tab === 'all' || (n.kind || 'etc') === tab;
+      })
+      .slice(0, 30);
+    var tabsHTML =
+      '<div class="notif-tabs" role="tablist" aria-label="알림 분류">' +
+      NOTIF_TABS.map(function (t) {
+        var n =
+          t.k === 'all'
+            ? all.length
+            : all.filter(function (x) {
+                return (x.kind || 'etc') === t.k;
+              }).length;
+        return (
+          '<button class="notif-tab' +
+          (tab === t.k ? ' on' : '') +
+          '" role="tab" aria-selected="' +
+          (tab === t.k ? 'true' : 'false') +
+          '" data-action="notif-tab" data-v="' +
+          t.k +
+          '" type="button">' +
+          t.t +
+          (n ? ' <i>' + n + '</i>' : '') +
+          '</button>'
+        );
+      }).join('') +
+      '</div>';
     var rows = items.length
       ? items
           .map(function (n) {
@@ -8724,19 +8688,81 @@
             );
           })
           .join('')
-      : '<p class="notif-empty">알림이 없어요<br><small>리마인드·상대 활동·배지 소식이 여기 모여요</small></p>';
+      : '<p class="notif-empty">' +
+        (tab === 'all' ? '알림이 없어요<br><small>리마인드·상대 활동·배지 소식이 여기 모여요</small>' : '이 분류의 알림이 없어요') +
+        '</p>';
     return (
       '<div class="gs-overlay notif-overlay" role="dialog" aria-modal="true" aria-label="알림 센터">' +
       '<div class="gs-card"><div class="gs-head"><b class="gs-title">🔔 알림</b>' +
-      (items.length ? '<button class="btn btn-tertiary btn-sm" data-action="notif-clear" type="button">모두 지우기</button>' : '') +
+      (all.length ? '<button class="btn btn-tertiary btn-sm" data-action="notif-clear" type="button">모두 지우기</button>' : '') +
       '<button class="icon-button" data-action="notif-close" type="button" aria-label="알림 닫기">' +
       mobileIcon('close') +
       '</button></div>' +
+      tabsHTML +
       '<div class="gs-results notif-list">' +
       rows +
       '</div></div></div>'
     );
   }
+  /* ---- 롱프레스 컨텍스트 메뉴 — 행을 꾹 누르면 그 행의 동작을 모아 보여준다 ---- */
+  var CTX_ROWS = '.settle-row, .event-row, .chore-row';
+  function ctxMenuHTML() {
+    if (!S.ctxMenu) return '';
+    var m = S.ctxMenu;
+    return (
+      '<div class="ctx-overlay" data-action="ctx-close" role="presentation">' +
+      '<div class="ctx-sheet" role="menu" aria-label="항목 메뉴">' +
+      '<div class="ctx-grip" aria-hidden="true"></div>' +
+      m.items
+        .map(function (it, i) {
+          var armed = m.armed === i;
+          return (
+            '<button class="ctx-item' +
+            (it.danger ? ' danger' : '') +
+            '" role="menuitem" data-action="ctx-run" data-v="' +
+            i +
+            '" type="button">' +
+            '<span class="ctx-ic" aria-hidden="true">' +
+            (it.icon || '') +
+            '</span><span>' +
+            (armed ? '정말 ' + esc(it.label) + '?' : esc(it.label)) +
+            '</span>' +
+            (it.danger && !armed ? '<small>한 번 더 누르면 실행</small>' : '') +
+            '</button>'
+          );
+        })
+        .join('') +
+      '</div></div>'
+    );
+  }
+  function openCtxMenu(row) {
+    var btns = row.querySelectorAll('button[data-action]');
+    var items = [];
+    btns.forEach(function (b) {
+      var act = b.dataset.action;
+      var label = (b.getAttribute('aria-label') || b.textContent || '').trim();
+      if (!label) return;
+      if (
+        items.some(function (i) {
+          return i.action === act && i.v === (b.dataset.v || '');
+        })
+      )
+        return;
+      var icon = '';
+      if (/edit/.test(act)) icon = '✏️';
+      else if (/-del$/.test(act)) icon = '🗑';
+      else if (/ics/.test(act)) icon = '📅';
+      else if (/rcpt/.test(act)) icon = '🧾';
+      else if (/done|check/.test(act)) icon = '☑';
+      items.push({ action: act, v: b.dataset.v || '', label: label, danger: /-del$/.test(act), icon: icon });
+    });
+    if (items.length) {
+      S.ctxMenu = { items: items, armed: -1, t: Date.now() };
+      buzz(18);
+      render();
+    }
+  }
+
   function maybeTutorial() {
     if (!document.querySelector) return;
     var overlay = document.querySelector('.tutorial-overlay');
@@ -8747,7 +8773,12 @@
 
   /* ---- 기능 둘러보기: driver.js 스포트라이트 투어 ----
      현재 화면에 존재하는 요소만 스텝으로 잡아 해시 라우팅 SPA에서도 동작 */
-  function startTour() {
+  async function startTour() {
+    try {
+      await loadVendor('js/vendor/driver.js', 'driver');
+    } catch (eLoad) {
+      /* 아래에서 부재 안내 */
+    }
     if (!window.driver || !window.driver.js || !window.driver.js.driver) {
       showToast('투어 기능을 불러오지 못했어요');
       return;
@@ -10123,7 +10154,7 @@
       save('mateon.coupons', S.coupons);
       render();
       scheduleSyncPush();
-      pushNotif('💝', '쿠폰 사용을 요청했어요 — 메이트 확인 대기', 'space');
+      pushNotif('💝', '쿠폰 사용을 요청했어요 — 메이트 확인 대기', 'space', 'act');
       showToast('사용 요청했어요 — 메이트가 확인하면 완료돼요');
     } else if (act === 'coupon-ok') {
       var coId = el.dataset.v;
@@ -10136,7 +10167,7 @@
       save('mateon.coupons', S.coupons);
       render();
       scheduleSyncPush();
-      pushNotif('💝', '쿠폰 사용을 확인했어요', 'space');
+      pushNotif('💝', '쿠폰 사용을 확인했어요', 'space', 'act');
       buzz(40);
       showToast('쿠폰을 사용했어요 💝', { type: 'good' });
     } else if (act === 'coupon-no') {
@@ -10711,6 +10742,45 @@
       S.notifReadTs = Date.now();
       save('mateon.notifRead', S.notifReadTs);
       render();
+    } else if (act === 'notif-tab') {
+      S.notifTab = el.dataset.v || 'all';
+      render();
+    }
+    /* ---- 롱프레스 컨텍스트 메뉴 ---- */
+    else if (act === 'ctx-close') {
+      /* 시트 자체 클릭은 무시 — 바깥 배경만 닫기 */
+      if (el.classList && el.classList.contains('ctx-overlay') && e.target !== el) return;
+      /* 롱프레스로 막 열린 상태에서 손떼기 클릭이 배경에 닿으면 바로 닫히므로 무시 */
+      if (S.ctxMenu && Date.now() - S.ctxMenu.t < 420) return;
+      S.ctxMenu = null;
+      render();
+    } else if (act === 'ctx-run') {
+      var ci = +el.dataset.v;
+      var cm = S.ctxMenu;
+      if (!cm || !cm.items[ci]) {
+        S.ctxMenu = null;
+        render();
+        return;
+      }
+      var cItem = cm.items[ci];
+      /* 위험 동작은 메뉴 안에서 한 번 더 확인 */
+      if (cItem.danger && cm.armed !== ci) {
+        cm.armed = ci;
+        render();
+        return;
+      }
+      S.ctxMenu = null;
+      render();
+      /* 실제 행 버튼을 프로그래밍으로 클릭 — 기존 핸들러/확인 흐름 그대로 재사용 */
+      var realBtn = document.querySelector('[data-action="' + cItem.action + '"][data-v="' + cItem.v + '"]');
+      if (realBtn) {
+        realBtn.click();
+        /* 위험 동작은 2단계 확인 버튼이라 두 번 눌러야 실행된다 */
+        if (cItem.danger) {
+          var again = document.querySelector('[data-action="' + cItem.action + '"][data-v="' + cItem.v + '"]');
+          if (again && /확인|한 번 더/.test(again.textContent || '')) again.click();
+        }
+      }
     } else if (act === 'notif-go' || act === 'notif-read') {
       var nf = (S.notifs || []).find(function (n) {
         return n.id === el.dataset.v;
@@ -10953,7 +11023,7 @@
       if (midHit && midHit.done) buzz(30);
       if (allDone) {
         showToast('🎉 이번 주 미션 전부 완료!', { type: 'good' });
-        pushNotif('🎉', '이번 주 미션을 전부 완료했어요', 'space');
+        pushNotif('🎉', '이번 주 미션을 전부 완료했어요', 'space', 'act');
       } else if (midHit && midHit.done) showToast('미션 완료!');
     }
     /* ---- 역할 분담 ---- */
@@ -11095,6 +11165,21 @@
       S.calMonth = t0.slice(0, 7);
       S.calDay = t0;
       render();
+    } else if (act === 'date-quick') {
+      /* 날짜 빠른 선택 — 리렌더 없이 input 값만 바꿔 폼 상태를 보존한다 */
+      var dqEl = document.getElementById(el.dataset.for || '');
+      if (!dqEl) return;
+      var dq = new Date();
+      var off = el.dataset.v;
+      if (off === 'sat') {
+        /* 이번 주말 = 가장 가까운 토요일 (토요일이면 오늘) */
+        dq.setDate(dq.getDate() + ((6 - dq.getDay() + 7) % 7));
+      } else {
+        dq.setDate(dq.getDate() + (+off || 0));
+      }
+      dqEl.value = dateStr(dq.getTime());
+      if (dqEl.id === 'exp-date') S.expDate = dqEl.value;
+      else if (dqEl.id === 'ev-date') S.calDay = dqEl.value;
     } else if (act === 'cal-add-day') {
       /* 선택한 날짜로 폼을 채우고 폼으로 스크롤 */
       render();
@@ -11206,9 +11291,9 @@
       scheduleSyncPush();
       syncEventReminders();
     } else if (act === 'cal-month') {
-      var off = parseInt(el.dataset.v, 10) || 0;
-      var cm = (S.calMonth || dateStr(Date.now()).slice(0, 7)).split('-').map(Number);
-      var nd = new Date(cm[0], cm[1] - 1 + off, 1);
+      var cmoff = parseInt(el.dataset.v, 10) || 0;
+      var cmm = (S.calMonth || dateStr(Date.now()).slice(0, 7)).split('-').map(Number);
+      var nd = new Date(cmm[0], cmm[1] - 1 + cmoff, 1);
       S.calMonth = nd.getFullYear() + '-' + p2(nd.getMonth() + 1);
       render();
     } else if (act === 'anniv-add') {
@@ -11288,30 +11373,14 @@
       });
       if (!anv) return;
       var aics = ML.buildICS({ id: 'anniv-' + anv.id, date: anv.date, title: anv.title + ' (기념일)' }, { yearly: true });
-      var ablob = new Blob([aics], { type: 'text/calendar;charset=utf-8' });
-      var aa = document.createElement('a');
-      aa.href = URL.createObjectURL(ablob);
-      aa.download = 'mateon-anniv.ics';
-      aa.click();
-      setTimeout(function () {
-        URL.revokeObjectURL(aa.href);
-      }, 1000);
-      showToast('기념일 캘린더 파일을 내려받았어요');
+      sendICS(aics, 'mateon-anniv.ics', '기념일을 캘린더 앱으로 보낼 수 있어요');
     } else if (act === 'ev-ics') {
       var ev = S.events.find(function (x) {
         return x.id === el.dataset.v;
       });
       if (!ev) return;
       var ics = ML.buildICS({ id: 'ev-' + ev.id, date: ev.date, title: ev.title + ' (MATE:ON)', memo: ev.memo, rpt: ev.rpt });
-      var blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
-      var a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'mateon-event.ics';
-      a.click();
-      setTimeout(function () {
-        URL.revokeObjectURL(a.href);
-      }, 1000);
-      showToast('캘린더 파일이 다운로드됐어요');
+      sendICS(ics, 'mateon-event.ics', '일정을 캘린더 앱으로 보낼 수 있어요');
     }
     /* ---- 주간 체크인 ---- */
     else if (act === 'ci-mood') {
@@ -11713,9 +11782,103 @@
     }
   });
 
-  /* ---- 키보드 단축키: 설문 1~4/A~D, 실무체크 1~3 ---- */
+  /* ---- 키보드 단축키: 설문 1~4/A~D, 실무체크 1~3 ----
+     공통: Esc는 열린 오버레이를 닫고, Tab은 열린 다이얼로그 안에 포커스를 가둔다.
+     '/'는 검색, 'n'은 새 항목, '?'는 단축키 도움말. */
+  function activeDialog() {
+    /* 열린 모달 중 가장 위에 있는 것을 포커스 트랩 대상으로 잡는다 */
+    var sel = '.tutorial-overlay, .ctx-sheet, .notif-overlay .gs-card, .gs-overlay:not(.notif-overlay) .gs-card, .lock-screen';
+    return document.querySelector ? document.querySelector(sel) : null;
+  }
   document.addEventListener('keydown', function (e) {
-    if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+    if (e.key === 'Escape') {
+      if (S.ctxMenu) {
+        S.ctxMenu = null;
+        render();
+        e.preventDefault();
+        return;
+      }
+      if (S.searchOpen) {
+        S.searchOpen = false;
+        render();
+        e.preventDefault();
+        return;
+      }
+      if (S.notifOpen) {
+        S.notifOpen = false;
+        S.notifReadTs = Date.now();
+        save('mateon.notifRead', S.notifReadTs);
+        render();
+        e.preventDefault();
+        return;
+      }
+      if (S.fabOpen) {
+        S.fabOpen = false;
+        render();
+        e.preventDefault();
+        return;
+      }
+      return;
+    }
+    /* 포커스 트랩 — 모달이 열려 있을 때 Tab이 배경으로 새지 않게 */
+    if (e.key === 'Tab' && document.querySelector) {
+      var dlg = activeDialog();
+      if (dlg) {
+        var f = dlg.querySelectorAll('button, input, [href], select, textarea, [tabindex]:not([tabindex="-1"])');
+        var focusables = [];
+        f.forEach(function (x) {
+          var hx = /** @type {HTMLElement} */ (x);
+          if (!hx.disabled && hx.offsetParent !== null) focusables.push(hx);
+        });
+        if (focusables.length) {
+          var first = focusables[0],
+            last = focusables[focusables.length - 1],
+            cur = document.activeElement;
+          if (e.shiftKey && (cur === first || !dlg.contains(cur))) {
+            last.focus();
+            e.preventDefault();
+          } else if (!e.shiftKey && (cur === last || !dlg.contains(cur))) {
+            first.focus();
+            e.preventDefault();
+          }
+        }
+      }
+      return;
+    }
+    var kt = /** @type {HTMLElement} */ (e.target);
+    if (kt && /^(INPUT|TEXTAREA|SELECT)$/.test(kt.tagName)) return;
+    if (kt && kt.isContentEditable) return;
+    /* 전역 단축키 — 입력 중이 아닐 때만 */
+    if (e.key === '/' && !S.searchOpen) {
+      S.searchOpen = true;
+      render();
+      var gq = document.getElementById('gs-q');
+      if (gq) gq.focus();
+      e.preventDefault();
+      return;
+    }
+    if (e.key === '?') {
+      showToast('단축키 — / : 검색 · n : 새 항목 · Esc : 닫기 · 1~4 : 설문 선택', { type: 'info' });
+      e.preventDefault();
+      return;
+    }
+    if ((e.key === 'n' || e.key === 'N') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      /* 현재 뷰의 주 입력창으로 바로 이동 */
+      var route2 = currentRoute();
+      var target =
+        route2 === 'settle'
+          ? document.getElementById('exp-amt')
+          : route2 === 'shopping'
+            ? document.getElementById('shop-in')
+            : route2 === 'calendar'
+              ? document.getElementById('ev-title')
+              : null;
+      if (target) {
+        target.focus();
+        e.preventDefault();
+        return;
+      }
+    }
     var route = currentRoute();
     var n = -1;
     if (/^[1-4]$/.test(e.key)) n = +e.key - 1;
@@ -12222,6 +12385,65 @@
     );
   })();
 
+  /* ---- 롱프레스 → 컨텍스트 메뉴 — 목록 행을 꾹 누르면 그 행의 동작을 바텀시트로 ---- */
+  (function initLongPress() {
+    if (typeof document === 'undefined' || !document.addEventListener) return;
+    var timer = null,
+      startX = 0,
+      startY = 0,
+      target = null;
+    function cancel() {
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      target = null;
+    }
+    document.addEventListener(
+      'touchstart',
+      function (e) {
+        if (!e.touches || e.touches.length !== 1) {
+          cancel();
+          return;
+        }
+        var t = e.touches[0];
+        target = /** @type {HTMLElement|null} */ (e.target && e.target.closest ? e.target.closest(CTX_ROWS) : null);
+        if (!target) {
+          cancel();
+          return;
+        }
+        startX = t.clientX;
+        startY = t.clientY;
+        timer = setTimeout(function () {
+          timer = null;
+          if (target) openCtxMenu(target);
+          target = null;
+        }, 520);
+      },
+      { passive: true }
+    );
+    document.addEventListener(
+      'touchmove',
+      function (e) {
+        if (!timer || !e.touches || !e.touches.length) return;
+        var t = e.touches[0];
+        /* 12px 이상 움직이면 스크롤로 간주해 롱프레스 취소 */
+        if (Math.abs(t.clientX - startX) > 12 || Math.abs(t.clientY - startY) > 12) cancel();
+      },
+      { passive: true }
+    );
+    ['touchend', 'touchcancel'].forEach(function (ev) {
+      document.addEventListener(ev, cancel, { passive: true });
+    });
+    /* 데스크톱 우클릭도 같은 메뉴로 */
+    document.addEventListener('contextmenu', function (e) {
+      var t = /** @type {HTMLElement|null} */ (e.target && e.target.closest ? e.target.closest(CTX_ROWS) : null);
+      if (!t) return;
+      e.preventDefault();
+      openCtxMenu(t);
+    });
+  })();
+
   /* ================= 스플래시 (총 ~1초: 선명해지기 620ms + 페이드 320ms) ================= */
   (function dismissSplash() {
     var sp = document.getElementById('splash');
@@ -12255,25 +12477,30 @@
       render();
     });
   }
-  /* 고아 영수증 정리 — 지출이 삭제된 사진을 IndexedDB에서 제거 */
+  /* 고아 영수증 정리 — 지출이 삭제된 사진을 IndexedDB에서 제거.
+     첫 페인트를 막지 않도록 유휴 시간에만 실행해 IDB 오픈을 지연시킨다 */
   (function cleanOrphanReceipts() {
     if (!window.indexedDB) return;
-    rcptDB()
-      .then(function (db) {
-        var tx = db.transaction('receipts', 'readwrite');
-        var store = tx.objectStore('receipts');
-        var keep = {};
-        S.expenses.forEach(function (x) {
-          if (x.rcpt) keep[x.id] = true;
-        });
-        var rq = store.getAllKeys();
-        rq.onsuccess = function () {
-          (rq.result || []).forEach(function (k) {
-            if (!keep[k]) store.delete(k);
+    var run = function () {
+      rcptDB()
+        .then(function (db) {
+          var tx = db.transaction('receipts', 'readwrite');
+          var store = tx.objectStore('receipts');
+          var keep = {};
+          S.expenses.forEach(function (x) {
+            if (x.rcpt) keep[x.id] = true;
           });
-        };
-      })
-      .catch(function () {});
+          var rq = store.getAllKeys();
+          rq.onsuccess = function () {
+            (rq.result || []).forEach(function (k) {
+              if (!keep[k]) store.delete(k);
+            });
+          };
+        })
+        .catch(function () {});
+    };
+    if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(run, { timeout: 8000 });
+    else setTimeout(run, 3000);
   })();
   /* 오래된 기록 정리 — 집안일 로그 26주, 정산 이력 200개, 갈등 기록 100개 유지 */
   (function retentionSweep() {
@@ -12491,7 +12718,7 @@
             S.photos.unshift({ id: id, ts: Date.now(), label: '공유받은 사진' });
             if (S.photos.length > 100) S.photos = S.photos.slice(0, 100);
             save('mateon.photos', S.photos);
-            pushNotif('🖼️', '공유받은 사진을 앨범에 저장했어요', 'space');
+            pushNotif('🖼️', '공유받은 사진을 앨범에 저장했어요', 'space', 'act');
             showToast('사진을 앨범에 저장했어요 🖼️', { type: 'good' });
             go('space');
             render();

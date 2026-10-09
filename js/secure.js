@@ -6,17 +6,16 @@
   'use strict';
 
   function encSubtle() {
-    return typeof crypto !== 'undefined' && crypto.subtle && crypto.subtle.importKey && typeof TextEncoder !== 'undefined' ? crypto.subtle : null;
+    return typeof crypto !== 'undefined' && crypto.subtle && typeof TextEncoder !== 'undefined' ? crypto.subtle : null;
   }
   function encKey(pw, saltB) {
-    return encSubtle()
-      .importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey'])
-      .then(function (km) {
-        return encSubtle().deriveKey({ name: 'PBKDF2', salt: saltB, iterations: 100000, hash: 'SHA-256' }, km, { name: 'AES-GCM', length: 256 }, false, [
-          'encrypt',
-          'decrypt',
-        ]);
-      });
+    var s = /** @type {SubtleCrypto} */ (encSubtle());
+    return s.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']).then(function (km) {
+      return s.deriveKey({ name: 'PBKDF2', salt: saltB, iterations: 100000, hash: 'SHA-256' }, km, { name: 'AES-GCM', length: 256 }, false, [
+        'encrypt',
+        'decrypt',
+      ]);
+    });
   }
   function b64enc(buf) {
     return btoa(String.fromCharCode.apply(null, new Uint8Array(buf)));
@@ -34,7 +33,7 @@
       iv = crypto.getRandomValues(new Uint8Array(12));
     return encKey(pw, salt)
       .then(function (k) {
-        return encSubtle().encrypt({ name: 'AES-GCM', iv: iv }, k, new TextEncoder().encode(text));
+        return /** @type {SubtleCrypto} */ (encSubtle()).encrypt({ name: 'AES-GCM', iv: iv }, k, new TextEncoder().encode(text));
       })
       .then(function (ct) {
         return JSON.stringify({ app: 'mateon-enc', v: 1, salt: b64enc(salt), iv: b64enc(iv), data: b64enc(ct) });
@@ -43,7 +42,7 @@
   function decryptBackupText(obj, pw) {
     return encKey(pw, b64dec(obj.salt))
       .then(function (k) {
-        return encSubtle().decrypt({ name: 'AES-GCM', iv: b64dec(obj.iv) }, k, b64dec(obj.data));
+        return /** @type {SubtleCrypto} */ (encSubtle()).decrypt({ name: 'AES-GCM', iv: b64dec(obj.iv) }, k, b64dec(obj.data));
       })
       .then(function (pt) {
         return new TextDecoder().decode(pt);

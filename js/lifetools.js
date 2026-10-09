@@ -50,7 +50,7 @@
 
   /* 월별 요약: ym = 'YYYY-MM'. {total, me, you, byCat:[{cat,sum}] desc} */
   function monthStats(expenses, ym) {
-    var st = { total: 0, me: 0, you: 0, byCat: [] };
+    var st = { total: 0, me: 0, you: 0, byCat: /** @type {{cat:string,sum:number}[]} */ ([]) };
     var cats = {};
     (expenses || []).forEach(function (x) {
       if (ym && dateStr(x.ts).slice(0, 7) !== ym) return;
@@ -60,13 +60,15 @@
       var c = x.cat || '기타';
       cats[c] = (cats[c] || 0) + x.amount;
     });
-    st.byCat = Object.keys(cats)
-      .map(function (c) {
-        return { cat: c, sum: cats[c] };
-      })
-      .sort(function (a, b) {
-        return b.sum - a.sum;
-      });
+    st.byCat = /** @type {{cat:string,sum:number}[]} */ (
+      Object.keys(cats)
+        .map(function (c) {
+          return { cat: c, sum: cats[c] };
+        })
+        .sort(function (a, b) {
+          return b.sum - a.sum;
+        })
+    );
     return st;
   }
   /* 고정비 자동생성용 결정적 id — 두 기기가 각각 만들어도 같은 id로 머지됨 */
@@ -387,6 +389,32 @@
     return lines.join('\r\n');
   }
 
+  /* ---- 한글 초성 추출/검색 ----
+     choseong('설거지') → 'ㅅㄱㅈ'. query가 초성만이면 초성열과 비교,
+     아니면 일반 부분문자열 검색. */
+  var CHO = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
+  function choseong(s) {
+    var out = '';
+    for (var i = 0; i < s.length; i++) {
+      var c = s.charCodeAt(i);
+      if (c >= 0xac00 && c <= 0xd7a3) out += CHO[((c - 0xac00) / 588) | 0];
+      else out += s[i];
+    }
+    return out;
+  }
+  function isChoseongQuery(q) {
+    return /^[ㄱ-ㅎ]+$/.test(q);
+  }
+  function koMatch(text, query) {
+    if (!text || !query) return false;
+    var t = String(text).toLowerCase();
+    var q = String(query).toLowerCase().trim();
+    if (!q) return false;
+    if (t.indexOf(q) >= 0) return true;
+    if (isChoseongQuery(q)) return choseong(String(text)).indexOf(q) >= 0;
+    return false;
+  }
+
   /* 활동 로그 타임스탬프 수집 — 주간 리포트/스트릭 공용 */
   function recentCount(list, sinceTs) {
     var n = 0;
@@ -426,5 +454,7 @@
     icsEsc: icsEsc,
     buildICS: buildICS,
     recentCount: recentCount,
+    choseong: choseong,
+    koMatch: koMatch,
   };
 })();

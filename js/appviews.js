@@ -125,5 +125,149 @@ window.MateViews = (function () {
     );
   }
 
-  return { bind: bind, vOnboarding: vOnboarding, vPrivacy: vPrivacy, vTerms: vTerms };
+  /* ---- 유형 도감 ---- */
+  function vTypes() {
+    var S = X.S;
+    var myC = S.me ? X.charById(S.me.charId) : null;
+    var cells = CHARACTERS.map(function (c, i) {
+      var cls = 'type-card';
+      if (S.me && S.me.charId === c.id) cls += ' mine';
+      else if (S.partner && S.partner.charId === c.id) cls += ' partner';
+      var dist = '';
+      if (myC) {
+        var d = X.codeDist(myC, c);
+        var lbl = d === 0 ? '나와 같음' : d <= 2 ? '비슷한 편' : d <= 4 ? '다른 편' : '많이 다름';
+        dist = '<span class="tc-dist">' + lbl + '</span>';
+      }
+      return (
+        '<button class="' +
+        cls +
+        '" data-action="type" data-id="' +
+        c.id +
+        '" type="button" style="--i:' +
+        i +
+        '">' +
+        X.characterArt(c, true) +
+        '<span class="tc-code">' +
+        c.code +
+        '</span><span class="tc-name">' +
+        esc(c.name) +
+        '</span>' +
+        dist +
+        '</button>'
+      );
+    }).join('');
+
+    var legend = '';
+    if (S.me) legend += '<span class="badge badge-brand">' + esc(S.me.name || '나') + '</span>';
+    if (S.partner) legend += '<span class="badge badge-info">' + esc(S.partner.name || '상대') + '</span>';
+
+    X.shell(
+      '' +
+        '<p class="eyebrow caption">Type Book</p>' +
+        '<h2 class="view-title">' +
+        esc(X.T('view.types.title')) +
+        '</h2>' +
+        '<p class="view-desc body-md">' +
+        esc(X.T('view.types.desc')) +
+        '</p>' +
+        (legend ? '<div class="hero-meta" style="justify-content:flex-start;margin-top:16px">' + legend + '</div>' : '') +
+        '<div style="margin-top:20px">' +
+        X.matrixHTML(S.me ? S.me.charId : null, S.partner ? S.partner.charId : null, S.me ? S.me.name : null, S.partner ? S.partner.name : null) +
+        '</div>' +
+        '<div class="type-grid" style="margin-top:24px">' +
+        cells +
+        '</div>' +
+        '<div class="cta-col"><button class="btn btn-tertiary btn-md" data-action="home" type="button">홈으로</button></div>'
+    );
+  }
+
+  /* ---- 유형 상세 ---- */
+  function vTypeDetail() {
+    var S = X.S;
+    var c = X.charById(S.typeId);
+    if (!c) {
+      X.go('types');
+      return;
+    }
+    var seq = c.conflictSeq
+      .map(function (s, i) {
+        return (
+          '<div class="seq-step"><span class="seq-dot">' +
+          (i + 1) +
+          '</span><span class="body-sm">' +
+          esc(s) +
+          '</span></div>' +
+          (i < c.conflictSeq.length - 1 ? '<div class="seq-line"></div>' : '')
+        );
+      })
+      .join('');
+    var noteIcon =
+      '<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>';
+
+    X.shell(
+      '' +
+        '<div class="survey-top"><button class="back-btn" data-action="types" type="button" aria-label="도감으로">' +
+        '<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>' +
+        '<span class="progress-num">유형 도감</span></div>' +
+        '<div class="card char-hero result-hero">' +
+        '<span class="char-code">' +
+        c.code +
+        '</span>' +
+        '<h2 class="char-name">' +
+        esc(c.name) +
+        '</h2>' +
+        X.characterArt(c, false) +
+        '<p class="char-quote">' +
+        esc(c.quote) +
+        '</p></div>' +
+        '<div class="card" style="margin-top:16px"><h4 class="card-title">같이 살면 이런 사람</h4>' +
+        '<ul class="trait-list">' +
+        c.traits
+          .map(function (t) {
+            return '<li>' + esc(t) + '</li>';
+          })
+          .join('') +
+        '</ul>' +
+        '<div class="note-box ' +
+        (c.note.type === 'warn' ? 'warn' : c.note.type === 'good' ? 'good' : 'info') +
+        '" style="margin-top:16px">' +
+        noteIcon +
+        '<span>' +
+        esc(c.note.text) +
+        '</span></div></div>' +
+        '<div class="card" style="margin-top:16px"><h4 class="card-title">동거인이 보게 되는 모습</h4>' +
+        '<div class="view-vs">' +
+        '<div class="vs-side"><span class="vs-label">본인 생각</span>' +
+        esc(c.selfView) +
+        '</div>' +
+        '<span class="vs-mark">↔</span>' +
+        '<div class="vs-side"><span class="vs-label">동거인에게는</span>' +
+        esc(c.partnerView) +
+        '</div></div></div>' +
+        '<div class="card" style="margin-top:16px"><h4 class="card-title">갈등 시퀀스</h4><div class="seq">' +
+        seq +
+        '</div></div>' +
+        '<div class="card" style="margin-top:16px"><h4 class="card-title">사용설명서</h4>' +
+        '<div class="do-grid">' +
+        '<div class="do-col do"><h5>DO</h5><ul>' +
+        c.dos
+          .map(function (t) {
+            return '<li>· ' + esc(t) + '</li>';
+          })
+          .join('') +
+        '</ul></div>' +
+        '<div class="do-col dont"><h5>DON&#39;T</h5><ul>' +
+        c.donts
+          .map(function (t) {
+            return '<li>· ' + esc(t) + '</li>';
+          })
+          .join('') +
+        '</ul></div>' +
+        '</div></div>' +
+        '<div class="cta-col"><button class="btn btn-tertiary btn-md" data-action="types" type="button">도감으로 돌아가기</button></div>'
+    );
+  }
+
+  return { bind: bind, vOnboarding: vOnboarding, vPrivacy: vPrivacy, vTerms: vTerms, vTypes: vTypes, vTypeDetail: vTypeDetail };
 })();

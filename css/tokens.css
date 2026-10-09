@@ -49,7 +49,7 @@
   --error-50: #f9b8b3;
   --error-400: #f25a50;
   --error-500: #f04438;
-  --error-600: #ed2012;
+  --error-600: #d91507;
   --error-700: #c31a0f;
   --error-950: #2b0603;
 
@@ -140,9 +140,10 @@
   --bg-surface: var(--neutral-50);
   --bg-subtle: var(--neutral-100);
   --bg-disabled: var(--neutral-200);
-  --bg-brand: var(--brand-500);
-  --bg-brand-hover: var(--brand-600);
-  --bg-brand-pressed: var(--brand-700);
+  /* WCAG AA — 흰 글자 대비 ≥4.5:1 (기존 #ff6b7a는 2.9로 실패) */
+  --bg-brand: #c23a52;
+  --bg-brand-hover: #a52f43;
+  --bg-brand-pressed: #8e2436;
   --bg-brand-subtle: var(--brand-50);
   --bg-danger: var(--error-500);
   --bg-danger-hover: var(--error-600);
@@ -157,7 +158,8 @@
   --text-secondary: var(--neutral-700);
   --text-muted: var(--neutral-500);
   --text-disabled: var(--neutral-400);
-  --text-brand: var(--brand-600);
+  /* WCAG AA — 밝은 배경 위 본문 대비 ≥4.5:1 (기존 #ff4255는 3.26으로 실패) */
+  --text-brand: #b82f44;
   --text-on-brand: var(--neutral-0);
   --text-link: var(--secondary-600);
   --text-error: var(--error-600);

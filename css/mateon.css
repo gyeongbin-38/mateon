@@ -63,7 +63,8 @@
   color: var(--neutral-50);
 }
 .wordmark .wm-on {
-  color: var(--brand-500);
+  /* WCAG AA — 대형 텍스트 ≥3:1 (기존 brand-500은 2.61로 실패) */
+  color: var(--text-brand);
 }
 
 .app-main {
@@ -2331,10 +2332,15 @@
   border-radius: 12px;
   background: var(--app-surface);
   border: 1px solid var(--app-line);
+}
+/* WCAG AA — 잠금 표시는 아이콘만 흐리게 (셀 전체 opacity는 라벨 대비를 깎음) */
+.badge-cell:not(.on) span {
   opacity: 0.35;
 }
+.badge-cell:not(.on) small {
+  color: var(--app-muted);
+}
 .badge-cell.on {
-  opacity: 1;
   border-color: var(--app-coral);
   background: var(--app-soft);
 }

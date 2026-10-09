@@ -17,6 +17,7 @@ jobs:
       - run: npm ci
       - run: npx eslint .
       - run: npm run typecheck
+      - run: npm run typecheck:strict
       - run: npm run format:check
       - run: npm run build
       - run: npm test
@@ -34,3 +35,4 @@ jobs:
       - run: npx playwright install chromium webkit --with-deps
       - run: npm run e2e
       - run: npm run e2e:webkit
+      - run: npm run a11y
