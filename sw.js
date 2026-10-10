@@ -1,5 +1,5 @@
 const CACHE = 'mateon-v26';
-const VERSION = '20261009-02';
+const VERSION = '20261010-01';
 const ASSETS = [
   '.',
   'index.html',
