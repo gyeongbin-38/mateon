@@ -6,8 +6,9 @@
 (function () {
   'use strict';
 
-  var app = document.getElementById('app');
-  var toastEl = document.getElementById('toast');
+  /* index.html에 항상 존재하는 셸 요소 — non-null로 캐스트 */
+  var app = /** @type {HTMLElement} */ (document.getElementById('app'));
+  var toastEl = /** @type {HTMLElement} */ (document.getElementById('toast'));
   var toastTimer = null;
 
   /* js/lifetools.js 의 순수 유틸 — 본 파일에 남은 호출부는 그대로 둔다 */
@@ -126,6 +127,7 @@
   function save(key, val) {
     try {
       localStorage.setItem(key, JSON.stringify(val));
+      if (key === 'mateon.notifRead' || key === 'mateon.notifs') syncAppBadge();
     } catch (e) {
       /* ignore */
     }
@@ -160,6 +162,7 @@
     return fmtDate(ts);
   }
 
+  /** @param {any} id @returns {any} 캐릭터 정의 또는 undefined — 호출부는 유효 id를 가정 */
   function charById(id) {
     return CHARACTERS.find(function (c) {
       return c.id === id;
@@ -305,6 +308,8 @@
   }
 
   /* ================= State ================= */
+  /* 동적 상태 백 — 뷰별 임시 필드(voiceOn·ctxMenu 등)가 실행 중 추가되므로 any로 둔다 */
+  /** @type {any} */
   var S = {
     me: load('mateon.me'),
     partner: load('mateon.partner'),
@@ -843,7 +848,7 @@
     lastShellContent = sig;
     /* 라우트가 바뀌면 제목으로 포커스 이동 — 스크린리더가 새 화면을 알린다 */
     if (!sameRoute) {
-      var h = typeof app.querySelector === 'function' ? app.querySelector('h1') : null;
+      var h = /** @type {HTMLElement|null} */ (typeof app.querySelector === 'function' ? app.querySelector('h1') : null);
       if (h) {
         try {
           h.setAttribute('tabindex', '-1');
@@ -1021,6 +1026,7 @@
       plus: '<path d="M12 5v14M5 12h14"/>',
       refresh: '<path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 7a7 7 0 0 1 12-1l2 6M4 12l2 6a7 7 0 0 0 12-1"/>',
       back: '<path d="m15 5-7 7 7 7"/>',
+      mic: '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 19v3"/>',
     };
     return (
       '<svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
@@ -1085,14 +1091,15 @@
   }
   var homeCarouselObserver = null;
   function bindHomeCarousel(startId) {
-    var track = document.getElementById('home-carousel');
+    var track = /** @type {HTMLElement} */ (document.getElementById('home-carousel'));
     if (!track) return;
     var slides = Array.from(track.children);
     var width = track.clientWidth;
     var index = 0;
-    var previous = document.getElementById('character-previous');
-    var next = document.getElementById('character-next');
-    var status = document.getElementById('character-position');
+    /* 같은 템플릿에서 렌더된 요소 — track이 있으면 함께 존재 */
+    var previous = /** @type {HTMLButtonElement} */ (document.getElementById('character-previous'));
+    var next = /** @type {HTMLButtonElement} */ (document.getElementById('character-next'));
+    var status = /** @type {HTMLElement} */ (document.getElementById('character-position'));
     var dots = track.parentElement ? Array.from(track.parentElement.querySelectorAll('.carousel-dot')) : [];
     function update() {
       if (track.clientWidth !== width) return;
@@ -1960,7 +1967,8 @@
         mobileIcon('close') +
         '</button></div><div class="album-grid"></div>';
       albumDialog.addEventListener('click', function (e) {
-        if (e.target.closest('[data-album-close]')) albumDialog.close();
+        var t = /** @type {HTMLElement} */ (e.target);
+        if (t && t.closest && t.closest('[data-album-close]')) albumDialog.close();
       });
       albumDialog.addEventListener('close', function () {
         albumDialog.querySelectorAll('img').forEach(function (i) {
@@ -2042,8 +2050,10 @@
       if (talkOpener && talkOpener.isConnected) talkOpener.focus();
     });
     talkDialog.addEventListener('click', function (e) {
-      if (e.target.closest('[data-sheet-close]')) talkDialog.close();
-      else if (e.target.closest('[data-sheet-fav]')) {
+      var et = /** @type {HTMLElement} */ (e.target);
+      if (!et || !et.closest) return;
+      if (et.closest('[data-sheet-close]')) talkDialog.close();
+      else if (et.closest('[data-sheet-fav]')) {
         var fi = S.talkFavs.indexOf(talkIndex);
         if (fi >= 0) S.talkFavs.splice(fi, 1);
         else S.talkFavs.push(talkIndex);
@@ -2053,10 +2063,11 @@
           fb.textContent = fi >= 0 ? '☆' : '★';
           fb.setAttribute('aria-pressed', String(fi < 0));
         }
-      } else if (e.target.closest('[data-sheet-delete]')) {
+      } else if (et.closest('[data-sheet-delete]')) {
         if (!deleteArmed) {
           deleteArmed = true;
-          e.target.closest('[data-sheet-delete]').textContent = '한 번 더 눌러 삭제';
+          var delBtn = et.closest('[data-sheet-delete]');
+          if (delBtn) delBtn.textContent = '한 번 더 눌러 삭제';
           return;
         }
         delete notes[talkIndex];
@@ -2071,10 +2082,11 @@
         var deleteFocus = document.querySelectorAll('[data-action="talk-open"]')[0];
         if (deleteFocus) deleteFocus.focus({ preventScroll: true });
         showToast('대화 기록을 삭제했어요');
-      } else if (e.target.closest('[data-sheet-save]')) {
-        var value = document.getElementById('talk-note').value.trim();
+      } else if (et.closest('[data-sheet-save]')) {
+        var tnEl = /** @type {HTMLTextAreaElement|null} */ (document.getElementById('talk-note'));
+        var value = tnEl ? tnEl.value.trim() : '';
         if (!value) {
-          document.getElementById('talk-note').focus();
+          if (tnEl) tnEl.focus();
           showToast('생각을 한 줄 남겨주세요');
           return;
         }
@@ -2109,9 +2121,11 @@
   function vSurvey() {
     var i = S.q;
     var q = QUESTIONS[i];
-    var dom = DOMAINS.find(function (d) {
-      return d.id === q.domain;
-    });
+    var dom = /** @type {any} */ (
+      DOMAINS.find(function (d) {
+        return d.id === q.domain;
+      })
+    );
     var keys = ['A', 'B', 'C', 'D'];
     var prev = S.answers.find(function (a) {
       return a.qid === q.id;
@@ -3397,10 +3411,10 @@
         esc(ML.dateLabel(new Date(S.moveDate + 'T00:00:00').getTime())) +
         '</span>' +
         '<strong>' +
-        (dLeft > 0 ? 'D-' + dLeft : dLeft === 0 ? '오늘 입주!' : '입주 완료') +
+        (dLeft !== null && dLeft > 0 ? 'D-' + dLeft : dLeft === 0 ? '오늘 입주!' : '입주 완료') +
         '</strong>' +
         '<p>' +
-        (dLeft > 0 ? '각 카테고리 옆에 권장 시기를 표시해 뒀어요.' : '늦은 항목부터 하나씩 해봐요.') +
+        (dLeft !== null && dLeft > 0 ? '각 카테고리 옆에 권장 시기를 표시해 뒀어요.' : '늦은 항목부터 하나씩 해봐요.') +
         '</p></div>'
       : '';
 
@@ -3529,6 +3543,71 @@
   function listPageHead(over, title, desc) {
     return '<p class="app-overline">' + esc(over) + '</p><h1 class="mobile-title">' + esc(title) + '</h1><p class="mobile-subtitle">' + esc(desc) + '</p>';
   }
+  /* 음성 입력 마이크 — SpeechRecognition 지원 시에만 렌더 */
+  function micBtnHTML(forId) {
+    var SR = /** @type {any} */ (window).SpeechRecognition || /** @type {any} */ (window).webkitSpeechRecognition;
+    if (!SR) return '';
+    return (
+      '<button class="mic-btn' +
+      (S.voiceOn === forId ? ' on' : '') +
+      '" type="button" data-action="voice-in" data-for="' +
+      esc(forId) +
+      '" aria-label="음성으로 입력" aria-pressed="' +
+      (S.voiceOn === forId ? 'true' : 'false') +
+      '">' +
+      mobileIcon('mic') +
+      '</button>'
+    );
+  }
+  var _voiceRec = null;
+  function startVoice(forId) {
+    var SR = /** @type {any} */ (window).SpeechRecognition || /** @type {any} */ (window).webkitSpeechRecognition;
+    if (!SR) return;
+    if (_voiceRec) {
+      try {
+        _voiceRec.stop();
+      } catch (e) {}
+      _voiceRec = null;
+    }
+    var rec = new SR();
+    rec.lang = (navigator.language || 'ko-KR').indexOf('ko') === 0 ? 'ko-KR' : 'en-US';
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    _voiceRec = rec;
+    S.voiceOn = forId;
+    render();
+    rec.onresult = function (ev) {
+      var txt = ev.results && ev.results[0] && ev.results[0][0] ? ev.results[0][0].transcript : '';
+      var input = /** @type {HTMLInputElement|null} */ (document.getElementById(forId));
+      if (input && txt) {
+        input.value = txt.slice(0, +(input.getAttribute('maxlength') || 60));
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.focus();
+      }
+    };
+    rec.onend = function () {
+      _voiceRec = null;
+      if (S.voiceOn) {
+        S.voiceOn = null;
+        render();
+      }
+    };
+    rec.onerror = function () {
+      _voiceRec = null;
+      if (S.voiceOn) {
+        S.voiceOn = null;
+        render();
+      }
+      showToast('음성을 알아듣지 못했어요. 다시 말해 주세요');
+    };
+    try {
+      rec.start();
+      showToast('말씀해 주세요…');
+    } catch (e) {
+      _voiceRec = null;
+      S.voiceOn = null;
+    }
+  }
   function armBtn(act, v, label, armLabel) {
     var armed = S.delArm2 === act + ':' + v;
     return (
@@ -3578,7 +3657,7 @@
   }
   function rcptPut(id, blob) {
     return rcptDB().then(function (db) {
-      return new Promise(function (res, rej) {
+      return new Promise(function (/** @type {(v?: any) => void} */ res, rej) {
         var tx = db.transaction('receipts', 'readwrite');
         tx.objectStore('receipts').put(blob, id);
         tx.oncomplete = function () {
@@ -3606,7 +3685,7 @@
   function rcptDel(id) {
     return rcptDB()
       .then(function (db) {
-        return new Promise(function (res) {
+        return new Promise(function (/** @type {(v?: any) => void} */ res) {
           var tx = db.transaction('receipts', 'readwrite');
           tx.objectStore('receipts').delete(id);
           tx.oncomplete = function () {
@@ -3636,7 +3715,8 @@
             mobileIcon('close') +
             '</button></div><img class="rcpt-img" alt="영수증 사진">';
           rcptDialog.addEventListener('click', function (e) {
-            if (e.target.closest('[data-rcpt-close]')) rcptDialog.close();
+            var t = /** @type {HTMLElement} */ (e.target);
+            if (t && t.closest && t.closest('[data-rcpt-close]')) rcptDialog.close();
           });
           rcptDialog.addEventListener('close', function () {
             var i = rcptDialog.querySelector('img');
@@ -4291,11 +4371,13 @@
         '</div>' +
         (S.expIncome ? '<p class="field-hint" style="margin-top:6px">수입은 정산 계산에 포함되지 않고 잔액 참고용으로만 기록돼요.</p>' : '') +
         '</div>' +
-        '<div class="field-group"><label class="field-label" for="exp-memo">내용</label><input id="exp-memo" class="input" maxlength="30" placeholder="' +
+        '<div class="field-group"><label class="field-label" for="exp-memo">내용</label><span class="input-mic"><input id="exp-memo" class="input" maxlength="30" placeholder="' +
         (S.expIncome ? '예: 용돈·환급·이자' : '예: 쓰레기봉투·세탁세제') +
         '" autocomplete="off" value="' +
         esc(S.expMemo || '') +
-        '"></div>' +
+        '">' +
+        micBtnHTML('exp-memo') +
+        '</span></div>' +
         '<div class="field-group"><label class="field-label" for="exp-amt">금액</label><input id="exp-amt" class="input" type="number" inputmode="numeric" min="1" max="100000000" placeholder="0" autocomplete="off" value="' +
         esc(S.expAmt || '') +
         '"><span class="field-unit">원</span><small id="exp-amt-hint" class="field-hint amt-hint" aria-live="polite"></small></div>' +
@@ -4518,8 +4600,9 @@
         '</strong>' +
         '<p>메이트와 동기화가 켜져 있으면 목록이 함께 업데이트돼요</p></div>' +
         '<div class="card" style="margin-top:16px"><h4 class="card-title">필요한 것 추가</h4>' +
-        '<div class="custom-rule"><input id="shop-in" class="input" maxlength="30" placeholder="예: 휴지, 라면, 행주" autocomplete="off">' +
-        '<input id="shop-qty" class="input shop-qty" type="number" inputmode="numeric" min="1" max="99" placeholder="1" aria-label="수량">' +
+        '<div class="custom-rule"><span class="input-mic" style="flex:1"><input id="shop-in" class="input" maxlength="30" placeholder="예: 휴지, 라면, 행주" autocomplete="off">' +
+        micBtnHTML('shop-in') +
+        '</span><input id="shop-qty" class="input shop-qty" type="number" inputmode="numeric" min="1" max="99" placeholder="1" aria-label="수량">' +
         '<button class="btn btn-secondary btn-md" data-action="shop-add" type="button">추가</button></div>' +
         '<div class="chip-row" style="margin-top:10px">' +
         SHOP_CATS.map(function (c) {
@@ -4730,7 +4813,7 @@
   }
   /* 항목별 마지막 완료 정보: 로그값 {ts,by} 또는 구버전 true */
   function choreLastDone(id) {
-    var best = null;
+    var best = /** @type {{ts:number, by:any, week:string}|null} */ (null);
     Object.keys(S.choreLog).forEach(function (wk) {
       var v = S.choreLog[wk][id];
       if (!v) return;
@@ -5251,7 +5334,25 @@
       '<input id="anniv-date" class="input" type="date" value="' +
       today +
       '" aria-label="기념일 날짜">' +
-      '<button class="btn btn-secondary btn-md" data-action="anniv-add" type="button">추가</button></div></div>';
+      '<button class="btn btn-secondary btn-md" data-action="anniv-add" type="button">추가</button></div>' +
+      (S.annivSuggest && S.annivSuggest.length
+        ? '<div class="anniv-suggest"><p class="field-hint">함께 등록할까요?</p><div class="chip-row">' +
+          S.annivSuggest
+            .map(function (s, i) {
+              return (
+                '<button class="chip chip-sm" data-action="anniv-suggest" data-v="' +
+                i +
+                '" type="button">' +
+                esc(s.title) +
+                ' · ' +
+                esc(s.date.slice(5)) +
+                '</button>'
+              );
+            })
+            .join('') +
+          '<button class="chip chip-sm" data-action="anniv-suggest-skip" type="button">괜찮아요</button></div></div>'
+        : '') +
+      '</div>';
 
     shell(
       listPageHead('LIFE TOOLS', T('view.calendar.title'), T('view.calendar.desc')) +
@@ -6693,7 +6794,7 @@
       '<div class="sheet-handle" aria-hidden="true"></div><div class="sheet-heading"><span>동기화 충돌 확인</span><button class="icon-button" type="button" aria-label="닫기" data-conflict-close>' +
       mobileIcon('close') +
       '</button></div>' +
-      '<p class="body-sm text-muted">이 기기와 메이트 기기가 같은 항목을 다르게 바꿨어요. 지금은 합친 결과가 적용된 상태예요.</p>' +
+      '<p class="body-sm text-muted">이 기기와 메이트 기기가 같은 항목을 다르게 바꿨어요. 항목별로 어느 쪽을 살릴지 고를 수 있어요.</p>' +
       '<div class="conflict-list">' +
       syncConflict.keys
         .map(function (c) {
@@ -6704,7 +6805,13 @@
             esc(c.local) +
             '</span><span>메이트: ' +
             esc(c.remote) +
-            '</span></div>'
+            '</span><span class="conflict-pick">' +
+            '<button class="chip chip-sm" type="button" data-conflict-pick="local" data-k="' +
+            esc(c.k) +
+            '">내 것</button>' +
+            '<button class="chip chip-sm" type="button" data-conflict-pick="remote" data-k="' +
+            esc(c.k) +
+            '">메이트 것</button></span></div>'
           );
         })
         .join('') +
@@ -6718,6 +6825,29 @@
         ? null
         : ((conflictDialog._once = true),
           function (e) {
+            var pick = e.target.closest('[data-conflict-pick]');
+            if (pick && syncConflict) {
+              var pk = pick.dataset.k || '';
+              var src = pick.dataset.conflictPick === 'local' ? syncConflict.pre : syncConflict.remote;
+              if (src && src[pk] !== undefined) {
+                S[pk] = src[pk];
+                save('mateon.' + pk, S[pk]);
+                syncConflict.keys = syncConflict.keys.filter(function (c) {
+                  return c.k !== pk;
+                });
+                scheduleSyncPush();
+                if (syncConflict.keys.length) {
+                  openConflict();
+                  showToast('선택을 적용했어요', { type: 'good' });
+                } else {
+                  syncConflict = null;
+                  conflictDialog.close();
+                  render();
+                  showToast('충돌을 모두 정리했어요', { type: 'good' });
+                }
+              }
+              return;
+            }
             if (e.target.closest('[data-conflict-close]') || e.target.closest('[data-conflict-keep]')) {
               conflictDialog.close();
               return;
@@ -7025,7 +7155,7 @@
       });
       return;
     }
-    if (window.Blob && window.URL && window.URL.createObjectURL) {
+    if (typeof Blob === 'function' && typeof URL.createObjectURL === 'function') {
       var blob = new Blob([text], { type: 'application/json;charset=utf-8' });
       var a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
@@ -7713,7 +7843,7 @@
     } catch (eLoad) {
       /* 로드 실패 시 캔버스 경로로 폴백 */
     }
-    if (MS && document.createElement) {
+    if (MS && typeof document.createElement === 'function') {
       try {
         var node = buildResultCardDom(r, c, el, rl);
         document.body.appendChild(node);
@@ -7794,6 +7924,76 @@
       esc(webBaseURL().replace(/^https?:\/\//, '')) +
       '</p>';
     return node;
+  }
+
+  /* 이번 달 리포트를 공유 카드 이미지로 — 지출/체크인/집안일 요약 */
+  async function shareMonthReport() {
+    var mk = dateStr(Date.now()).slice(0, 7);
+    var pmk = dateStr(Date.now() - 32 * 86400000).slice(0, 7);
+    var mTotal = ML.monthStats(S.expenses, mk).total;
+    var pTotal = ML.monthStats(S.expenses, pmk).total;
+    var mFrom = new Date(mk + '-01').getTime(),
+      pFrom = new Date(pmk + '-01').getTime();
+    var mCi = S.checkins.filter(function (c) {
+      return c.ts >= mFrom;
+    }).length;
+    var pCi = S.checkins.filter(function (c) {
+      return c.ts >= pFrom && c.ts < mFrom;
+    }).length;
+    var mChore = 0;
+    Object.keys(S.choreLog || {}).forEach(function (k) {
+      var wm = isoWeekMonday(k);
+      if (wm && wm.getTime() + 7 * 86400000 > mFrom) mChore += Object.keys(S.choreLog[k]).length;
+    });
+    showToast('리포트 카드를 만들고 있어요');
+    var MS = null;
+    try {
+      MS = await loadVendor('js/vendor/modern-screenshot.js', 'MateScreenshot');
+    } catch (eLoad) {
+      /* 폴백 없음 — 토스트로 안내 */
+    }
+    if (!MS) {
+      showToast('이미지를 만들 수 없어요. 연결을 확인해 주세요');
+      return;
+    }
+    var diff = mTotal - pTotal;
+    var node = document.createElement('div');
+    node.className = 'share-card-dom month-card';
+    node.innerHTML =
+      '<div class="sc-brand"><img src="assets/logo-symbol.svg" alt="" width="26" height="26"><span>MATE:ON</span></div>' +
+      '<div class="sc-code">MONTHLY REPORT</div>' +
+      '<h2 class="sc-name">' +
+      esc(+mk.slice(5, 7) + '월의 우리') +
+      '</h2>' +
+      '<div class="mc-rows">' +
+      '<div class="mc-row"><span>💸 함께 쓴 지출</span><strong>' +
+      esc(ML.fmtWon(mTotal)) +
+      (pTotal ? '<small>전월 대비 ' + (diff > 0 ? '+' : '') + esc(ML.fmtWon(diff)) + '</small>' : '') +
+      '</strong></div>' +
+      '<div class="mc-row"><span>💌 주간 체크인</span><strong>' +
+      mCi +
+      '회' +
+      (pCi ? '<small>전월 ' + pCi + '회</small>' : '') +
+      '</strong></div>' +
+      '<div class="mc-row"><span>🧹 집안일 완료</span><strong>' +
+      mChore +
+      '건</strong></div>' +
+      '</div>' +
+      '<p class="sc-foot">' +
+      esc((S.me && S.me.name ? S.me.name : '나') + (S.partner ? ' · ' + (S.partner.name || '메이트') : '')) +
+      ' · ' +
+      esc(webBaseURL().replace(/^https?:\/\//, '')) +
+      '</p>';
+    document.body.appendChild(node);
+    try {
+      if (document.fonts && document.fonts.ready) await document.fonts.ready;
+      var dataUrl = await MS.domToPng(node, { scale: 2 });
+      exportDataUrl(dataUrl, 'mateon-report-' + mk + '.png');
+    } catch (e) {
+      showToast('리포트 이미지를 만들지 못했어요');
+    } finally {
+      node.remove();
+    }
   }
 
   function exportDataUrl(dataUrl, filename) {
@@ -8305,7 +8505,8 @@
         }
         var mergedN = 0;
         var cKeys = [],
-          cPre = {};
+          cPre = {},
+          cRemote = {};
         var KEY_LABELS = {
           expenses: '지출',
           settled: '정산 기록',
@@ -8354,6 +8555,7 @@
               if (cur != null && KEY_LABELS[k]) {
                 cKeys.push({ k: k, label: KEY_LABELS[k], local: syncItemCount(cur), remote: syncItemCount(data[k]) });
                 cPre[k] = cur;
+                cRemote[k] = data[k];
               }
               S[k] = data[k];
               save(key, data[k]);
@@ -8362,7 +8564,7 @@
             }
           }
         });
-        if (cKeys.length) syncConflict = { ts: Date.now(), keys: cKeys, pre: cPre };
+        if (cKeys.length) syncConflict = { ts: Date.now(), keys: cKeys, pre: cPre, remote: cRemote };
         if (mergedN) {
           if (!S.syncStat || typeof S.syncStat.ts !== 'number') S.syncStat = { ts: 0, ok: true };
           S.syncStat.merged = (S.syncStat.merged || 0) + mergedN;
@@ -8623,6 +8825,18 @@
     });
     if (S.notifs.length > 50) S.notifs = S.notifs.slice(0, 50);
     save('mateon.notifs', S.notifs);
+    syncAppBadge();
+  }
+  /* PWA/설치 앱 아이콘 배지 — 미읽음 알림 수를 아이콘에 표시 */
+  function syncAppBadge() {
+    try {
+      var nav = /** @type {any} */ (navigator);
+      var n = unreadNotifs();
+      if (nav.setAppBadge) {
+        if (n > 0) nav.setAppBadge(n).catch(function () {});
+        else if (nav.clearAppBadge) nav.clearAppBadge().catch(function () {});
+      }
+    } catch (e) {}
   }
   var NOTIF_TABS = [
     { k: 'all', t: '전체' },
@@ -8925,8 +9139,10 @@
   }
 
   app.addEventListener('click', function (e) {
-    var el = e.target.closest('[data-action]');
-    if (!el || el.disabled) return;
+    var et = /** @type {HTMLElement} */ (e.target);
+    /* 가드 아래에서 non-null로 다룬다 — 클로저(find/filter) 안에서도 narrowing이 유지되도록 */
+    var el = /** @type {HTMLElement} */ (et && et.closest ? et.closest('[data-action]') : null);
+    if (!el || /** @type {any} */ (el).disabled) return;
     var act = el.dataset.action;
 
     if (act === 'home') {
@@ -10370,6 +10586,8 @@
       S.llStep = 0;
       S.llScore = null;
       render();
+    } else if (act === 'month-share') {
+      shareMonthReport();
     } else if (act === 'year-copy') {
       var yy = new Date().getFullYear();
       var yF = new Date(yy, 0, 1).getTime();
@@ -11180,6 +11398,17 @@
       dqEl.value = dateStr(dq.getTime());
       if (dqEl.id === 'exp-date') S.expDate = dqEl.value;
       else if (dqEl.id === 'ev-date') S.calDay = dqEl.value;
+    } else if (act === 'voice-in') {
+      /* 음성 입력 토글 — 이미 듣는 중이면 중지, 아니면 시작 */
+      if (S.voiceOn === (el.dataset.for || '')) {
+        if (_voiceRec) {
+          try {
+            _voiceRec.stop();
+          } catch (e) {}
+        }
+        S.voiceOn = null;
+        render();
+      } else startVoice(el.dataset.for || '');
     } else if (act === 'cal-add-day') {
       /* 선택한 날짜로 폼을 채우고 폼으로 스크롤 */
       render();
@@ -11318,9 +11547,41 @@
       }
       S.anniv.push({ id: uid(), title: atitle.slice(0, 20), date: adate });
       save('mateon.anniv', S.anniv);
+      /* 마일스톤 자동 제안 — 과거 날짜면 다가오는 100일/주년 단위를 칩으로 제안 */
+      var aBase = new Date(adate + 'T12:00:00').getTime();
+      var aSince = Math.floor((Date.now() - aBase) / 86400000);
+      S.annivSuggest = null;
+      if (aSince > 0) {
+        var sugg = [];
+        [100, 200, 300, 365, 400, 500, 600, 700, 730, 800, 900, 1000, 1095].forEach(function (d) {
+          var ts = aBase + d * 86400000;
+          if (ts > Date.now() - 86400000 && sugg.length < 3) {
+            var label = d % 365 === 0 ? Math.round(d / 365) + '주년' : d + '일';
+            var dup = S.anniv.some(function (x) {
+              return x.date === dateStr(ts);
+            });
+            if (!dup) sugg.push({ title: atitle.slice(0, 14) + ' ' + label, date: dateStr(ts) });
+          }
+        });
+        if (sugg.length) S.annivSuggest = sugg;
+      }
       showToast('기념일을 등록했어요');
       render();
       scheduleSyncPush();
+    } else if (act === 'anniv-suggest') {
+      var si = +el.dataset.v || 0;
+      var sg = (S.annivSuggest || [])[si];
+      if (!sg) return;
+      S.anniv.push({ id: uid(), title: sg.title, date: sg.date });
+      save('mateon.anniv', S.anniv);
+      S.annivSuggest.splice(si, 1);
+      if (!S.annivSuggest.length) S.annivSuggest = null;
+      showToast(sg.title + '을(를) 함께 등록했어요');
+      render();
+      scheduleSyncPush();
+    } else if (act === 'anniv-suggest-skip') {
+      S.annivSuggest = null;
+      render();
     } else if (act === 'anniv-del') {
       var aid = el.dataset.v;
       if (S.delArm2 !== 'anniv-del:' + aid) {
@@ -11821,7 +12082,7 @@
       return;
     }
     /* 포커스 트랩 — 모달이 열려 있을 때 Tab이 배경으로 새지 않게 */
-    if (e.key === 'Tab' && document.querySelector) {
+    if (e.key === 'Tab' && typeof document.querySelector === 'function') {
       var dlg = activeDialog();
       if (dlg) {
         var f = dlg.querySelectorAll('button, input, [href], select, textarea, [tabindex]:not([tabindex="-1"])');
@@ -11905,21 +12166,23 @@
 
   // 이름 입력 동기화
   app.addEventListener('input', function (e) {
+    var t = /** @type {HTMLInputElement} */ (e.target);
+    if (!t) return;
     /* 입력 시작하면 오류 표시 해제 */
-    if (e.target.classList && e.target.classList.contains('input-error')) {
-      e.target.classList.remove('input-error');
-      e.target.removeAttribute('aria-invalid');
+    if (t.classList && t.classList.contains('input-error')) {
+      t.classList.remove('input-error');
+      t.removeAttribute('aria-invalid');
     }
     /* 폼 드래프트 — 라우트를 나가도 입력값이 유지되도록 상태에 반영 */
-    if (e.target.id === 'exp-amt') S.expAmt = e.target.value;
-    if (e.target.id === 'exp-memo') S.expMemo = e.target.value;
-    if (e.target.id === 'pf-name') S.profile.name = e.target.value;
-    if (e.target.id === 'exp-q') {
+    if (t.id === 'exp-amt') S.expAmt = t.value;
+    if (t.id === 'exp-memo') S.expMemo = t.value;
+    if (t.id === 'pf-name') S.profile.name = t.value;
+    if (t.id === 'exp-q') {
       /* 지출 검색: 키 입력마다 목록만 다시 그리고 포커스·커서를 복원한다 */
-      S.expQuery = e.target.value;
-      var caret = e.target.selectionStart;
+      S.expQuery = t.value;
+      var caret = t.selectionStart;
       render();
-      var again = document.getElementById('exp-q');
+      var again = /** @type {HTMLInputElement|null} */ (document.getElementById('exp-q'));
       if (again) {
         again.focus();
         try {
@@ -11927,33 +12190,35 @@
         } catch (err) {}
       }
     }
-    if (e.target.id === 'gs-q') {
+    if (t.id === 'gs-q') {
       /* 전역 검색 — 리렌더 없이 결과만 갱신해 입력 포커스를 유지한다 */
       var gres = document.getElementById('gs-results');
-      if (gres) gres.innerHTML = searchResultsHTML(e.target.value.trim());
+      if (gres) gres.innerHTML = searchResultsHTML(t.value.trim());
     }
-    if (e.target.id === 'exp-amt') {
+    if (t.id === 'exp-amt') {
       /* 금액 입력 시 읽기 쉬운 한국어 금액 힌트 */
       var hint = document.getElementById('exp-amt-hint');
       if (hint) {
-        var av = Math.round(+String(e.target.value).replace(/[^\d.]/g, '') || 0);
+        var av = Math.round(+String(t.value).replace(/[^\d.]/g, '') || 0);
         hint.textContent = av > 0 ? ML.fmtWonShort(av) + ' (' + av.toLocaleString('ko-KR') + '원)' : '';
       }
     }
-    if (e.target.id === 'partner-link') {
-      S.connectionInput = e.target.value;
+    if (t.id === 'partner-link') {
+      S.connectionInput = t.value;
       S.pendingPartner = null;
-      var confirm = document.querySelectorAll('[data-action="confirm-partner"]')[0];
+      var confirm = /** @type {HTMLButtonElement|undefined} */ (document.querySelectorAll('[data-action="confirm-partner"]')[0]);
       if (confirm) confirm.disabled = true;
     }
   });
 
   app.addEventListener('change', function (e) {
-    if (e.target.id === 'chore-proof-file') {
-      var pf2 = e.target.files && e.target.files[0];
+    var t = /** @type {HTMLInputElement} */ (e.target);
+    if (!t) return;
+    if (t.id === 'chore-proof-file') {
+      var pf2 = t.files && t.files[0];
       var pTarget = S.proofTarget;
       S.proofTarget = null;
-      e.target.value = '';
+      t.value = '';
       if (pf2 && pTarget) {
         var wk2 = isoWeekKey();
         var log2 = S.choreLog[wk2] || (S.choreLog[wk2] = {});
@@ -11979,20 +12244,20 @@
       }
       return;
     }
-    if (e.target.id === 'exp-receipt') {
-      var rf = e.target.files && e.target.files[0];
+    if (t.id === 'exp-receipt') {
+      var rf = t.files && t.files[0];
       var rcptTarget = S.rcptFor;
       S.rcptFor = null;
-      e.target.value = '';
+      t.value = '';
       if (rf) {
         if (rcptTarget) attachReceiptToExpense(rcptTarget, rf);
         else scanReceipt(rf);
       }
       return;
     }
-    if (e.target.id !== 'backup-file') return;
-    var file = e.target.files && e.target.files[0];
-    e.target.value = '';
+    if (t.id !== 'backup-file') return;
+    var file = t.files && t.files[0];
+    t.value = '';
     readBackupFile(file);
   });
 
@@ -12446,7 +12711,7 @@
 
   /* ================= 스플래시 (총 ~1초: 선명해지기 620ms + 페이드 320ms) ================= */
   (function dismissSplash() {
-    var sp = document.getElementById('splash');
+    var sp = /** @type {HTMLElement} */ (document.getElementById('splash'));
     if (!sp) return;
     setTimeout(function () {
       sp.classList.add('bye');
@@ -12578,7 +12843,7 @@
           .then(function (reg) {
             if (!reg) return;
             reg.addEventListener('updatefound', function () {
-              var nw = reg.installing;
+              var nw = /** @type {ServiceWorker} */ (reg.installing);
               if (!nw) return;
               nw.addEventListener('statechange', function () {
                 if (nw.state === 'installed' && navigator.serviceWorker.controller) {

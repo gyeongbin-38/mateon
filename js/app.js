@@ -7,7 +7,7 @@
   var root = document.documentElement;
 
   /* ---------- Toast ---------- */
-  var toast = document.getElementById('toast');
+  var toast = /** @type {HTMLElement} */ (document.getElementById('toast'));
   var toastTimer = null;
 
   function showToast(message) {
@@ -97,7 +97,8 @@
   }
 
   document.addEventListener('click', function (e) {
-    var el = e.target.closest('[data-copy]');
+    var et = /** @type {HTMLElement} */ (e.target);
+    var el = et && et.closest ? et.closest('[data-copy]') : null;
     if (el) copyText(el.dataset.copy);
   });
 
@@ -131,8 +132,8 @@
   }
 
   /* ---------- 구독 폼 데모 ---------- */
-  var form = document.getElementById('subscribeForm');
-  var emailInput = document.getElementById('sub-email');
+  var form = /** @type {HTMLFormElement} */ (document.getElementById('subscribeForm'));
+  var emailInput = /** @type {HTMLInputElement} */ (document.getElementById('sub-email'));
 
   if (form) {
     form.addEventListener('submit', function (e) {

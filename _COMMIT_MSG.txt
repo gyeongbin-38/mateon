@@ -1,0 +1,16 @@
+Add UX batch 4: app badge, per-item sync conflicts, voice input, strictNullChecks on all js
+
+Features:
+- syncAppBadge: navigator.setAppBadge mirrors unread notification count
+- Sync conflict dialog now offers per-item local/remote choice buttons
+- Anniversary milestones: past-date anniversaries suggest 100d/1y+ milestones
+- Monthly report share card: DOM screenshot -> PNG via native share or download
+- Voice input buttons on expense memo + shopping input (SpeechRecognition, feature-detected)
+- E2E regression suite +12 checks covering all recent UX features (78/79 checks)
+
+Structural:
+- strictNullChecks now covers every js/*.js file (mateon.js 272 -> 0 errors)
+- globals.d.ts: focus()/click() non-optional on Element so strict calls typecheck
+- S and DOM globals cast non-null to preserve narrowing inside closures
+
+Verified: 344 smoke, E2E chromium 78 + webkit 79, axe 0, lint/tsc/strict 0

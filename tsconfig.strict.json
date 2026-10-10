@@ -15,18 +15,8 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false
   },
-  /* strictNullChecks 단계적 도입 — 외부 의존이 적은 순수 모듈부터 엄격 검사.
-     mateon.js는 건수가 많아 기본 tsconfig로 유지하고 점진 축소한다. */
-  "include": [
-    "js/lifetools.js",
-    "js/secure.js",
-    "js/i18n.js",
-    "js/data.js",
-    "js/config.js",
-    "js/card.js",
-    "js/household.js",
-    "js/appviews.js",
-    "js/globals.d.ts"
-  ],
+  /* strictNullChecks — 전체 js/*.js를 엄격 검사한다.
+     (리프 모듈부터 시작해 mateon.js까지 단계적으로 확장 완료) */
+  "include": ["js/*.js", "js/globals.d.ts"],
   "exclude": ["js/vendor/**", "node_modules/**", "dist/**", "android/**", "ios/**", "release/**", "ota/**"]
 }

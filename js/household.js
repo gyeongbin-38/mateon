@@ -54,7 +54,8 @@ window.MateHouse = (function () {
       '<div class="rl">🧹 집안일 완료 ' +
       mChore +
       '건</div>' +
-      '</div></div>'
+      '</div>' +
+      '<button class="btn btn-tertiary btn-sm" data-action="month-share" type="button" style="margin-top:8px">리포트 카드로 공유</button></div>'
     );
   }
 

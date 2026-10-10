@@ -4,26 +4,26 @@
 
 ## 명령
 
-| 작업        | 명령                                                                                                                                                                              |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 개발 서버   | `npm run dev` (server.js)                                                                                                                                                         |
-| 테스트      | `npm test` = test-score + test-smoke (344개 DOM 스텁) + test-lifetools (34개 순수함수) + test-sw + test-qr                                                                        |
-| E2E         | `npm run e2e` — Playwright 실브라우저 66개 (브라우저 캐시 `C:\tools\ms-playwright`), `npm run e2e:webkit` — WebKit 동일 스위트                                                    |
-| 린트        | `npm run lint` — ESLint flat config (`eslint.config.js`, 오류 0 유지)                                                                                                             |
-| 타입 검사   | `npm run typecheck` — `tsc --noEmit --checkJs` (`tsconfig.json`, `js/globals.d.ts` 전역 선언); `npm run typecheck:strict` — `tsconfig.strict.json` strictNullChecks (리프 모듈만) |
-| 접근성      | `npm run a11y` — `scripts/a11y-scan.mjs` axe WCAG 2.2 AA, light/dark 7라우트 (Playwright 브라우저 필요)                                                                           |
-| 포맷        | `npm run format` / `format:check` — Prettier (`.prettierrc.json`, 2칸·세미콜론·작은따옴표)                                                                                        |
-| CI          | `.github/workflows/ci.yml` — push/PR 시 lint + typecheck + format + build + test + size + e2e(chromium+webkit)                                                                    |
-| 번들 크기   | `npm run size` — js/css/html/벤더 예산 체크 (release-check에 포함)                                                                                                                |
-| 빌드        | `npm run build` → `dist/` (esbuild가 `native/bridge.js` → `dist/js/native.js` 번들)                                                                                               |
-| SW 검증     | `node test-sw.js`                                                                                                                                                                 |
-| 출시 검증   | `npm run release:check` (strict; 외부 계정 의존 항목은 실패 예정)                                                                                                                 |
-| OTA 번들    | `npm run ota` → `ota/mateon-<assetVersion>.zip` + `latest.json`                                                                                                                   |
-| Play 시뮬   | `npm run play:sim` — `scripts/play-submission.js` 콘솔 제출 양식 순서로 준비도 점검 (44개 항목)                                                                                   |
-| 스크린샷    | `npm run shots` / `npm run shots:en` — ko/en 스토어 스크린샷 → `release/screenshots(-en)/`                                                                                        |
-| 출시 런북   | `release/README.md` — 지원 이메일·App Links·iOS 빌드·sync-worker 배포·내부 테스트·실기기 검증 체크리스트                                                                          |
-| WebP 재생성 | `node scripts/make-webp.js` (sharp 필요)                                                                                                                                          |
-| 벤더 재생성 | `node scripts/vendor-libs.js` — esbuild로 `js/vendor/` 재생성 (driver, modern-screenshot, tinybase, tesseract, qrcode)                                                            |
+| 작업        | 명령                                                                                                                                                                                                  |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 개발 서버   | `npm run dev` (server.js)                                                                                                                                                                             |
+| 테스트      | `npm test` = test-score + test-smoke (344개 DOM 스텁) + test-lifetools (34개 순수함수) + test-sw + test-qr                                                                                            |
+| E2E         | `npm run e2e` — Playwright 실브라우저 66개 (브라우저 캐시 `C:\tools\ms-playwright`), `npm run e2e:webkit` — WebKit 동일 스위트                                                                        |
+| 린트        | `npm run lint` — ESLint flat config (`eslint.config.js`, 오류 0 유지)                                                                                                                                 |
+| 타입 검사   | `npm run typecheck` — `tsc --noEmit --checkJs` (`tsconfig.json`, `js/globals.d.ts` 전역 선언); `npm run typecheck:strict` — `tsconfig.strict.json` strictNullChecks **전체 js/\*.js** (0 errors 유지) |
+| 접근성      | `npm run a11y` — `scripts/a11y-scan.mjs` axe WCAG 2.2 AA, light/dark 7라우트 (Playwright 브라우저 필요)                                                                                               |
+| 포맷        | `npm run format` / `format:check` — Prettier (`.prettierrc.json`, 2칸·세미콜론·작은따옴표)                                                                                                            |
+| CI          | `.github/workflows/ci.yml` — push/PR 시 lint + typecheck + format + build + test + size + e2e(chromium+webkit)                                                                                        |
+| 번들 크기   | `npm run size` — js/css/html/벤더 예산 체크 (release-check에 포함)                                                                                                                                    |
+| 빌드        | `npm run build` → `dist/` (esbuild가 `native/bridge.js` → `dist/js/native.js` 번들)                                                                                                                   |
+| SW 검증     | `node test-sw.js`                                                                                                                                                                                     |
+| 출시 검증   | `npm run release:check` (strict; 외부 계정 의존 항목은 실패 예정)                                                                                                                                     |
+| OTA 번들    | `npm run ota` → `ota/mateon-<assetVersion>.zip` + `latest.json`                                                                                                                                       |
+| Play 시뮬   | `npm run play:sim` — `scripts/play-submission.js` 콘솔 제출 양식 순서로 준비도 점검 (44개 항목)                                                                                                       |
+| 스크린샷    | `npm run shots` / `npm run shots:en` — ko/en 스토어 스크린샷 → `release/screenshots(-en)/`                                                                                                            |
+| 출시 런북   | `release/README.md` — 지원 이메일·App Links·iOS 빌드·sync-worker 배포·내부 테스트·실기기 검증 체크리스트                                                                                              |
+| WebP 재생성 | `node scripts/make-webp.js` (sharp 필요)                                                                                                                                                              |
+| 벤더 재생성 | `node scripts/vendor-libs.js` — esbuild로 `js/vendor/` 재생성 (driver, modern-screenshot, tinybase, tesseract, qrcode)                                                                                |
 
 ## 배포 버전 동기화 규칙
 

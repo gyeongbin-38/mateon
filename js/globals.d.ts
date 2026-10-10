@@ -38,8 +38,11 @@ interface Element {
   value?: any;
   dataset?: any;
   disabled?: any;
-  focus?(options?: any): void;
-  click?(): void;
+  /* Element에도 focus/click이 있다고 선언해야 strictNullChecks에서
+     querySelector 결과의 x.focus()가 'possibly undefined'로 잡히지 않는다.
+     (optional이면 HTMLOrSVGElement의 실제 선언과 머지돼 호출 불가로 잡힘) */
+  focus(options?: any): void;
+  click(): void;
 }
 interface HTMLElement {
   value?: any;

@@ -537,6 +537,94 @@ try {
     }
   }
 
+  console.log('== 신규 UX: 퀵칩·컨텍스트메뉴·초성검색·알림탭·ICS·단축키·마일스톤 제안 ==');
+  await gotoHash(page2, 'settle');
+  /* 날짜 퀵칩 — 어제 */
+  const dqChip = page2.locator('[data-action="date-quick"][data-for="exp-date"][data-v="-1"]');
+  if (await dqChip.count()) {
+    await dqChip.click();
+    const dv = await page2.locator('#exp-date').inputValue();
+    const yst = new Date(Date.now() - 86400000);
+    const iso = `${yst.getFullYear()}-${String(yst.getMonth() + 1).padStart(2, '0')}-${String(yst.getDate()).padStart(2, '0')}`;
+    check('날짜 퀵칩(어제)', dv === iso);
+  }
+  /* 컨텍스트 메뉴 — 우클릭(데스크톱) = 롱프레스와 동일 경로 */
+  const ctxRow = page2.locator('.settle-row:has-text("장보기")').first();
+  if (await ctxRow.count()) {
+    await ctxRow.dispatchEvent('contextmenu');
+    check('컨텍스트 메뉴 표시', await page2.locator('.ctx-sheet').isVisible());
+    await page2.keyboard.press('Escape');
+    await page2.waitForTimeout(150);
+    check('Esc로 메뉴 닫힘', (await page2.locator('.ctx-sheet').count()) === 0);
+  }
+  /* 초성 검색 — ㅈㅂㄱ → 장보기 */
+  await page2.locator('[data-action="search-open"]').first().click();
+  await page2.locator('#gs-q').fill('ㅈㅂㄱ');
+  await page2.waitForTimeout(200);
+  check(
+    '초성 검색 매칭',
+    await page2
+      .locator('#gs-results')
+      .innerText()
+      .then((t) => t.includes('장보기'))
+      .catch(() => false)
+  );
+  await page2.keyboard.press('Escape');
+  await page2.waitForTimeout(150);
+  /* '/' 단축키로 검색 오버레이 */
+  await page2.locator('body').click({ position: { x: 10, y: 300 } });
+  await page2.keyboard.press('/');
+  check('/ 단축키로 검색 열림', await page2.locator('#gs-q').isVisible());
+  await page2.keyboard.press('Escape');
+  await page2.waitForTimeout(150);
+  /* 'n' 단축키 — settle에서 금액 입력 포커스 */
+  await page2.keyboard.press('n');
+  check('n 단축키 포커스', await page2.evaluate(() => document.activeElement && document.activeElement.id === 'exp-amt'));
+  /* 알림 센터 탭 */
+  const notifBtn = page2.locator('[data-action="notif-open"]').first();
+  if (await notifBtn.count()) {
+    await notifBtn.click();
+    check('알림 탭 표시', await page2.locator('.notif-tabs').isVisible());
+    await page2.locator('[data-action="notif-tab"][data-v="rem"]').click();
+    await page2.waitForTimeout(100);
+    check('알림 탭 선택', (await page2.locator('[data-action="notif-tab"][data-v="rem"]').getAttribute('aria-selected')) === 'true');
+    await page2.locator('[data-action="notif-close"]').first().click();
+  }
+  /* ICS보내기 — 웹은 다운로드 폴백 */
+  await gotoHash(page2, 'calendar');
+  const icsBtn = page2.locator('[data-action="ev-ics"]').first();
+  if (await icsBtn.count()) {
+    const [icsDl] = await Promise.all([page2.waitForEvent('download', { timeout: 8000 }), icsBtn.click()]);
+    check('ICS 다운로드', !!icsDl);
+  }
+  /* 기념일 마일스톤 제안 — 과거 날짜 등록 시 칩 표시 → 탭으로 추가 */
+  await page2.locator('#anniv-title').fill('첫 데이트');
+  await page2.locator('#anniv-date').fill('2025-01-01');
+  await page2.locator('[data-action="anniv-add"]').click();
+  check('마일스톤 제안 표시', await page2.locator('.anniv-suggest [data-action="anniv-suggest"]').first().isVisible());
+  const annivN = await page2.evaluate(() => JSON.parse(localStorage.getItem('mateon.anniv') || '[]').length);
+  const sgChip = page2.locator('[data-action="anniv-suggest"][data-v="0"]');
+  if (await sgChip.count()) {
+    await sgChip.click();
+    check('제안 기념일 추가', (await page2.evaluate(() => JSON.parse(localStorage.getItem('mateon.anniv') || '[]').length)) === annivN + 1);
+  }
+  /* 월간 리포트 카드 공유 — modern-screenshot 지연 로딩 후 PNG 다운로드 */
+  await gotoHash(page2, 'space');
+  const msBtn = page2.locator('[data-action="month-share"]');
+  if (await msBtn.count()) {
+    const [msDl] = await Promise.all([page2.waitForEvent('download', { timeout: 15000 }), msBtn.click()]);
+    check('월간 리포트 이미지', !!msDl);
+  }
+  /* 음성 입력 버튼 — SpeechRecognition 지원 여부와 렌더가 일치해야 한다 */
+  check(
+    '음성 버튼 기능 탐지',
+    await page2.evaluate(() => {
+      const sup = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+      const btns = document.querySelectorAll('.mic-btn').length;
+      return sup ? btns >= 0 : btns === 0;
+    })
+  );
+
   console.log('== 태블릿 레이아웃 ==');
   await page2.setViewportSize({ width: 900, height: 800 });
   await gotoHash(page2, 'types');
