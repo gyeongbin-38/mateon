@@ -168,9 +168,15 @@ try {
   check('궁합 리포트', /궁합|리포트|갈등/.test(await page2.locator('body').innerText()));
 
   console.log('== 합의서 ==');
+  await page2.locator('[data-action="rules"]').first().click();
+  await page2.locator('[data-action="proposal-toggle"]').first().click();
+  await page2.locator('[data-action="rules-review"]').click();
+  for (const who of ['me', 'partner']) await page2.locator(`[data-action="proposal-approve"][data-who="${who}"]`).first().click();
   const agree = page2.locator('[data-action="agreement"]').first();
   if (await agree.count()) {
     await agree.click();
+    await page2.waitForURL((url) => url.hash === '#/agreement');
+    await page2.locator('[data-action="sign"]').first().waitFor({ state: 'visible' });
     const signBtn = page2.locator('[data-action="sign"]').first();
     if (await signBtn.count()) {
       for (const w of ['me', 'partner']) {
@@ -178,7 +184,11 @@ try {
         if (await b.count()) await b.click();
       }
       const save = page2.locator('[data-action="save-agree"]');
-      if (await save.count()) await save.click();
+      if (await save.count()) {
+        await save.click();
+        await page2.waitForURL((url) => url.hash === '#/agreement-complete');
+        await page2.locator('.flow-success h2').waitFor({ state: 'visible' });
+      }
     }
     check('합의서 화면', /합의/.test(await page2.locator('body').innerText()));
   }
@@ -199,6 +209,7 @@ try {
   }
   /* 체크리스트 실제 토글 */
   await gotoHash(page2, 'checklist');
+  await page2.locator('[data-action="prep-start"]').click();
   const ck = page2.locator('[data-action="check"]').first();
   if (await ck.count()) {
     await ck.click();
@@ -249,6 +260,7 @@ try {
     await editBtn.click();
     await page2.locator('#exp-amt').fill('12000');
     await page2.locator('[data-action="exp-add"]').click();
+    await page2.waitForFunction(() => JSON.parse(localStorage.getItem('mateon.expenses') || '[]').some((x) => x.memo === '장보기' && x.amount === 12000));
     check(
       '지출 수정 저장',
       await page2.evaluate(() => JSON.parse(localStorage.getItem('mateon.expenses') || '[]').some((x) => x.memo === '장보기' && x.amount === 12000))
@@ -271,6 +283,7 @@ try {
     const budIn = page2.locator('.budget-in').first();
     await budIn.fill('500000');
     await page2.locator('[data-action="budget-set"]').click();
+    await page2.waitForFunction(() => Object.values(JSON.parse(localStorage.getItem('mateon.budgets') || '{}')).some((v) => v === 500000));
     check('예산 저장', await page2.evaluate(() => Object.values(JSON.parse(localStorage.getItem('mateon.budgets') || '{}')).some((v) => v === 500000)));
   }
 

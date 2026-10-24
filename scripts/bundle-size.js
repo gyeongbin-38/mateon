@@ -1,9 +1,9 @@
 /* 번들 크기 예산 체크 — release-check에서 호출
-   기준: js 합계 < 640KB, css 합계 < 220KB, index.html < 20KB, 벤더 합계 < 1.2MB */
+   기준: js 합계 < 656KB (단계별 준비·규칙 조율 추가), css 합계 < 220KB, index.html < 20KB, 벤더 합계 < 1.2MB */
 const fs = require('fs');
 const path = require('path');
 
-const BUDGET = { js: 640 * 1024, css: 220 * 1024, html: 20 * 1024, vendor: 1200 * 1024 };
+const BUDGET = { js: 656 * 1024, css: 220 * 1024, html: 20 * 1024, vendor: 1200 * 1024 };
 let total = { js: 0, css: 0, html: 0, vendor: 0 };
 let fail = false;
 

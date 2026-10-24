@@ -1,5 +1,5 @@
-const CACHE = 'mateon-v26';
-const VERSION = '20261010-01';
+const CACHE = 'mateon-v27';
+const VERSION = '20261025-01';
 const ASSETS = [
   '.',
   'index.html',
@@ -8,6 +8,7 @@ const ASSETS = [
   'css/styles.css',
   'css/mateon.css',
   'css/home.css',
+  'css/flows.css',
   'css/pretendard.css',
   'js/config.js',
   'js/data.js',
@@ -23,6 +24,7 @@ const ASSETS = [
   'js/i18n.js',
   'js/household.js',
   'js/appviews.js',
+  'js/preparation.js',
   'js/mateon.js',
   'assets/icon-192.png',
   'assets/icon-512.png',

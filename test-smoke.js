@@ -87,6 +87,8 @@ eval(
     '\n' +
     fs.readFileSync('js/appviews.js', 'utf8') +
     '\n' +
+    fs.readFileSync('js/preparation.js', 'utf8') +
+    '\n' +
     fs.readFileSync('js/mateon.js', 'utf8') +
     '\n;globalThis.__d={QUESTIONS,CHARACTERS,DOMAINS,SAMPLE_RESULTS,TALK_STARTERS,LIFE_QUESTIONS,LOVE_MAP_QUESTIONS};'
 );
@@ -196,7 +198,7 @@ async function answerAll() {
   check('캐릭터 ID 유효', me.charId >= 1 && me.charId <= 16);
   check('결과에 원본 캐릭터 이미지 연결', lastHTML.includes('assets/character-sheet.png') && lastHTML.includes('character-art'));
   check('주요 행동을 상세 수치보다 먼저 배치', lastHTML.indexOf('data-action="saveimg"') < lastHTML.indexOf('result-details'));
-  check('수치 상세는 펼치기 제공', lastHTML.includes('<details class="card result-details"') && lastHTML.includes('<summary>'));
+  check('수치 상세는 펼치기 제공', lastHTML.includes('class="card result-details"') && lastHTML.includes('<summary>'));
   check('응답 일치도 의미 안내', lastHTML.includes('진단 정확도를 뜻하지 않아요'));
 
   console.log('== 4. 초대 링크 인코딩 ==');
@@ -262,18 +264,19 @@ async function answerAll() {
   click('report');
   check('리포트 렌더', lastHTML.includes('우리 둘 궁합 리포트'));
   check('갈등 예측 표시', lastHTML.includes('생활 갈등 예측'));
-  check('규칙 추천 표시', lastHTML.includes('생활규칙'));
+  check('규칙 추천 표시', lastHTML.includes('추천한 규칙'));
   check('매트릭스 양측 표시', lastHTML.includes('matrix'));
   check('리포트 링크 버튼', lastHTML.includes('리포트 링크 복사'));
-  check('선택 개수 배지', lastHTML.includes('선택 '));
-  check('규칙 토글 상태', lastHTML.includes('aria-pressed'));
+  check('규칙 선택 화면 진입', lastHTML.includes('규칙 선택하고 조율하기'));
+  check('추천은 읽기 전용', !lastHTML.includes('data-action="rule"'));
   check('비판정 안내', lastHTML.includes('참고 자료'));
 
   console.log('== 6-1. 커스텀 규칙 추가 ==');
   fakeInput('custom-rule-in', '화요일 저녁은 각자 자유시간');
   click('add-rule');
+  click('rules');
   check('커스텀 규칙 렌더', lastHTML.includes('화요일 저녁은 각자 자유시간'));
-  check('직접 추가 배지', lastHTML.includes('직접 추가'));
+  check('직접 제안 입력', lastHTML.includes('직접 규칙 제안하기'));
   check('커스텀 규칙 저장', JSON.parse(store['mateon.customRules'] || '[]').length === 1);
 
   console.log('== 6-2. 대화 스타터 (샘플 상대로 차이 보장) ==');
@@ -283,6 +286,17 @@ async function answerAll() {
   check('질문 카드 렌더', lastHTML.includes('talk-q'));
 
   console.log('== 7. 합의서 ==');
+  click('rules');
+  check('각자 제안 화면', lastHTML.includes('규칙 제안자') && lastHTML.includes('각자 지키고 싶은 규칙'));
+  click('proposal-toggle', { v: '화요일 저녁은 각자 자유시간' });
+  click('proposal-person', { v: 'partner' });
+  click('proposal-toggle', { v: '공동구매는 사전에 서로 상의해요' });
+  click('rules-review');
+  check('조항 확인 전 서명 이동 불가', lastHTML.includes('data-action="agreement" disabled'));
+  const reviewRules = JSON.parse(store['mateon.ruleDraft'])
+    .rows.filter((r) => r.me || r.partner)
+    .map((r) => r.text);
+  for (const text of reviewRules) for (const who of ['me', 'partner']) click('proposal-approve', { v: text, who });
   click('agreement');
   check('합의서 렌더', lastHTML.includes('우리집 생활 합의서'));
   check('서명 전 저장 불가', lastHTML.includes('두 분 모두 동의하면'));
@@ -291,18 +305,29 @@ async function answerAll() {
   check('서명 후 저장 가능', lastHTML.includes('합의서 저장하기'));
   click('save-agree');
   check('합의서 저장됨', !!store['mateon.agreement']);
+  check('합의 완료 화면', lastHTML.includes('개 조항 합의 완료'));
   const savedAgreement = JSON.parse(store['mateon.agreement']);
   check(
     '합의서 페어 식별자 저장',
     savedAgreement.meCharId === JSON.parse(store['mateon.me']).charId && savedAgreement.partnerCharId === JSON.parse(store['mateon.partner']).charId
   );
+  click('agreement');
   check('비법적 문서 안내', lastHTML.includes('법적 효력은 없어요'));
   reloadApp('', '#/agreement');
   check('새로고침 후 저장 규칙 복원', lastHTML.includes('화요일 저녁은 각자 자유시간') && lastHTML.includes('저장된 규칙을 불러왔어요'));
   check('저장 합의서 서명 복원', (lastHTML.match(/sign-box signed/g) || []).length === 2);
   check('합의서 초기 버전 표시', lastHTML.includes('v1'));
   click('report');
-  click('rule', { v: savedAgreement.rules[0] });
+  click('rules');
+  const removedProposal = JSON.parse(store['mateon.ruleDraft']).rows.find((r) => r.final === savedAgreement.rules[0]);
+  for (const who of ['me', 'partner'])
+    if (removedProposal[who]) {
+      click('proposal-person', { v: who });
+      click('proposal-toggle', { v: removedProposal.text });
+    }
+  click('rules-review');
+  for (const row of JSON.parse(store['mateon.ruleDraft']).rows.filter((r) => r.me || r.partner))
+    for (const who of ['me', 'partner']) if (!row[who === 'me' ? 'okMe' : 'okPartner']) click('proposal-approve', { v: row.text, who });
   click('agreement');
   check('합의서 변경 비교 표시', lastHTML.includes('저장된 합의서와 다른 선택이에요') && lastHTML.includes('제외됨 1'));
   check('변경 후 재서명 필요', lastHTML.includes('두 분 모두 동의하면'));
@@ -317,7 +342,7 @@ async function answerAll() {
   const updatedAgreement = JSON.parse(store['mateon.agreement']);
   check('변경 합의서 버전 증가', updatedAgreement.rev === 2 && updatedAgreement.updated && !updatedAgreement.rules.includes(savedAgreement.rules[0]));
   click('space');
-  check('우리 공간에서 저장 합의서 연결', lastHTML.includes('저장된 합의서 보기'));
+  check('우리 공간에서 저장 합의서 연결', lastHTML.includes('합의한 규칙 확인·수정하기'));
 
   console.log('== 8. 초대 링크 난독화 (v3) ==');
   const m = inviteMatch;
@@ -355,6 +380,8 @@ async function answerAll() {
   console.log('== 10. 입주 체크리스트 ==');
   click('checklist');
   check('체크리스트 렌더', lastHTML.includes('입주 체크리스트'));
+  check('필요한 준비 선택 화면', lastHTML.includes('선택한 항목으로 시작'));
+  click('prep-start');
   click('check', { v: '계약·서류:0' });
   check('항목 체크 저장', lastHTML.includes('checked') && store['mateon.checklist']);
 
@@ -496,7 +523,7 @@ async function answerAll() {
   check('저장한 대화 렌더링과 이스케이프', lastHTML.includes('&lt;script&gt;') && !lastHTML.includes('<script>alert'));
   click('checklist');
   window.__mateon.handleBack();
-  check('상세 뒤로가기는 우리 공간', location.hash === '#/space');
+  check('체크리스트 뒤로가기는 홈', location.hash === '#/home');
   const storedBeforeInvite = JSON.stringify(store);
   check('앱 초대 딥링크 처리', window.__mateon.acceptNativeLink('mateon://invite?data=' + encodeResult(SAMPLE_RESULTS.me)));
   check('앱 초대 온보딩', location.hash === '#/onboarding' && lastHTML.includes('초대했어요'));
@@ -621,7 +648,7 @@ async function answerAll() {
 
   console.log('== 23. 주간 체크인 ==');
   nav('#/checkin');
-  check('체크인 화면 렌더', lastHTML.includes('이번 주 체크인') && lastHTML.includes('mood-btn'));
+  check('체크인 화면 렌더', lastHTML.includes('주간 체크인') && lastHTML.includes('mood-btn'));
   click('ci-mood', { v: '4' });
   check('기분 선택 저장', JSON.parse(store['mateon.checkins'] || '[]')[0].mood === 4);
   fakeInput('ci-fix', '주말엔 같이 청소하기');
@@ -633,7 +660,7 @@ async function answerAll() {
 
   console.log('== 24. 갈등 가이드 ==');
   nav('#/conflict');
-  check('갈등 화면 렌더', lastHTML.includes('갈등이 생겼을 때') && lastHTML.includes('어떤 일이 있었나요'));
+  check('갈등 화면 렌더', lastHTML.includes('갈등 가이드') && lastHTML.includes('어떤 일이 있었나요'));
   click('cg-domain', { v: 'B' });
   click('cg-next');
   check('멈추기 단계', lastHTML.includes('각자 정리 시간') || lastHTML.includes('정리 시간'));
@@ -656,7 +683,7 @@ async function answerAll() {
 
   console.log('== 25. 커스텀 체크리스트 ==');
   nav('#/checklist');
-  check('직접 추가 섹션', lastHTML.includes('직접 추가한 항목'));
+  check('직접 추가 입력', lastHTML.includes('우리집 준비 항목 추가') || lastHTML.includes('필요한 항목 변경'));
   fakeInput('cl-custom-in', '벌레 퇴치제 사기');
   click('cl-add');
   check('커스텀 항목 추가', lastHTML.includes('벌레 퇴치제 사기'));

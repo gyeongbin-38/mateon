@@ -72,7 +72,7 @@ const appGlobals = {
 module.exports = [
   { ignores: ['node_modules/**', 'dist/**', 'android/**', 'ios/**', 'js/vendor/**', 'ota/**', 'tmp-*.js', 'release/**', '.devin/**'] },
   {
-    files: ['js/mateon.js', 'js/secure.js', 'js/lifetools.js', 'js/household.js', 'js/appviews.js', 'sw.js', 'js/config.js'],
+    files: ['js/mateon.js', 'js/secure.js', 'js/lifetools.js', 'js/household.js', 'js/appviews.js', 'js/preparation.js', 'sw.js', 'js/config.js'],
     languageOptions: {
       ecmaVersion: 2020,
       sourceType: 'script',

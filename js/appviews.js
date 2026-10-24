@@ -178,7 +178,7 @@ window.MateViews = (function () {
         '<div class="type-grid" style="margin-top:24px">' +
         cells +
         '</div>' +
-        '<div class="cta-col"><button class="btn btn-tertiary btn-md" data-action="home" type="button">홈으로</button></div>'
+        ''
     );
   }
 
@@ -207,9 +207,6 @@ window.MateViews = (function () {
 
     X.shell(
       '' +
-        '<div class="survey-top"><button class="back-btn" data-action="types" type="button" aria-label="도감으로">' +
-        '<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>' +
-        '<span class="progress-num">유형 도감</span></div>' +
         '<div class="card char-hero result-hero">' +
         '<span class="char-code">' +
         c.code +

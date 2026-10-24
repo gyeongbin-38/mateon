@@ -693,15 +693,14 @@
       '' +
       '<header class="app-header"><div class="app-header-inner">' +
       (detail
-        ? '<button class="icon-button app-back" data-action="back" type="button" aria-label="이전 화면">' +
-          mobileIcon('back') +
-          '</button><span class="app-screen-title">' +
-          esc((ROUTE_TITLES[r] || 'MATE:ON').split(' — ')[0]) +
-          '</span>'
-        : '<button class="logo" data-action="home" type="button" aria-label="MATE:ON 홈">' +
-          logoSVG(40) +
-          '<span class="wordmark" translate="no">MATE<span class="wm-on">:ON</span></span>' +
-          '</button>') +
+        ? '<button class="icon-button app-back" data-action="back" type="button" aria-label="이전 화면">' + mobileIcon('back') + '</button>'
+        : r === 'home'
+          ? '<button class="logo" data-action="home" type="button" aria-label="MATE:ON 홈">' +
+            logoSVG(40) +
+            '<span class="wordmark" translate="no">MATE<span class="wm-on">:ON</span></span>' +
+            '</button>'
+          : '') +
+      (r === 'home' ? '' : '<h1 class="app-screen-title">' + esc(screenTitle(r)) + '</h1>') +
       '<button class="icon-button" data-action="search-open" type="button" aria-label="검색">' +
       '<svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>' +
       /* 알림 센터 — 읽지 않은 알림이 있으면 점 표시 */
@@ -719,6 +718,13 @@
     );
   }
 
+  function screenTitle(route) {
+    if (route === 'partner-result') return '메이트 진단 결과';
+    if (route === 'result') return '내 진단 결과';
+    if (route === 'invite') return '메이트 연결 · 초대';
+    return (ROUTE_TITLES[route] || 'MATE:ON').split(' — ')[0];
+  }
+
   /* ---- 하단 네비게이션 ---- */
   var NAV_ICONS = {
     home: '<svg aria-hidden="true" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/></svg>',
@@ -732,10 +738,26 @@
 
   function navActive(nav) {
     var r = currentRoute();
-    if (nav === 'home') return ['home', 'onboarding', 'survey', 'result', 'invite', 'report', 'lifecheck'].indexOf(r) >= 0;
+    if (nav === 'home') return ['home', 'onboarding', 'survey', 'result', 'partner-result', 'invite', 'report', 'lifecheck'].indexOf(r) >= 0;
     if (nav === 'types') return r === 'types' || r === 'type-detail';
     if (nav === 'space')
-      return ['space', 'checklist', 'agreement', 'settle', 'shopping', 'lovemap', 'chores', 'calendar', 'checkin', 'conflict'].indexOf(r) >= 0;
+      return (
+        [
+          'space',
+          'checklist',
+          'rules',
+          'rules-review',
+          'agreement',
+          'agreement-complete',
+          'settle',
+          'shopping',
+          'lovemap',
+          'chores',
+          'calendar',
+          'checkin',
+          'conflict',
+        ].indexOf(r) >= 0
+      );
     if (nav === 'settings') return r === 'settings' || r === 'privacy' || r === 'terms';
     return false;
   }
@@ -750,6 +772,7 @@
     ).t(k);
   }
   function bottomNavHTML() {
+    if (['onboarding', 'survey', 'lifecheck'].indexOf(currentRoute()) >= 0) return '';
     var i18n = window.MateI18n || {
       t: function (k) {
         return k;
@@ -825,7 +848,10 @@
     if (sameRoute && sig === lastShellContent) return;
     app.innerHTML =
       '<div class="app-shell' +
-      (r === 'home' ? ' is-home' : '') +
+      (r === 'home' ? ' is-home' : ' has-page-title') +
+      (['onboarding', 'survey', 'lifecheck'].indexOf(r) >= 0 ? ' is-focus-flow' : '') +
+      '" data-route="' +
+      esc(r) +
       '">' +
       headerHTML() +
       (offline ? '<div class="offline-bar" role="status">' + esc(T('offline.banner')) + '</div>' : '') +
@@ -1035,6 +1061,7 @@
     );
   }
   function checklistStats() {
+    if (MP) return MP.checklistStats();
     var total = 0,
       done = 0;
     CHECKLIST.forEach(function (g) {
@@ -1604,8 +1631,8 @@
     var stats = checklistStats();
     var notes = load('mateon.talks') || {};
     var savedAg = savedAgreementForPair();
-    var rulesAction = S.me && S.partner ? (savedAg ? 'agreement' : 'report') : 'demo';
-    var rulesLabel = savedAg ? '저장된 합의서 보기' : S.me && S.partner ? '서로 편안한 기준을 정해요' : '샘플로 먼저 살펴보기';
+    var rulesAction = 'rules';
+    var rulesLabel = savedAg ? '합의한 규칙 확인·수정하기' : '각자 제안하고 함께 조율해요';
     var checkinDone = thisCheckin();
     var lifeTools =
       '<div class="mobile-section-head"><h2>' +
@@ -1893,6 +1920,20 @@
     matrixHTML: matrixHTML,
     T: T,
     go: go,
+  });
+  var MP = window.MatePrep;
+  MP.bind({
+    S: S,
+    esc: esc,
+    shell: shell,
+    load: load,
+    save: save,
+    go: go,
+    render: render,
+    toast: showToast,
+    payerName: payerName,
+    agreementRules: agreementRules,
+    savedAgreement: savedAgreementForPair,
   });
   function monthReportHTML() {
     return MH.monthReportHTML();
@@ -2252,7 +2293,6 @@
       return;
     }
     var c = charById(r.charId);
-    var c2 = charById(r.char2Id);
     var isMine = S.flow === 'me';
     var noteIcon =
       '<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>';
@@ -2277,14 +2317,14 @@
         '<button class="btn btn-primary btn-lg" data-action="report" type="button">우리 둘 궁합 리포트 보기</button>' +
         '<button class="btn btn-secondary btn-md" data-action="saveimg" type="button">결과 카드 이미지 저장</button>' +
         '<button class="btn btn-secondary btn-md" data-action="share" type="button">결과 공유하기</button>' +
-        '<button class="btn btn-tertiary btn-md" data-action="retry" type="button">다시 진단하기</button></div>';
+        '</div>';
     } else if (isMine) {
       ctas =
         '<div class="cta-col">' +
         '<button class="btn btn-primary btn-lg" data-action="invite" type="button">상대 초대하고 궁합 보기</button>' +
         '<button class="btn btn-secondary btn-md" data-action="saveimg" type="button">결과 카드 이미지 저장</button>' +
         '<button class="btn btn-secondary btn-md" data-action="share" type="button">결과 공유하기</button>' +
-        '<button class="btn btn-tertiary btn-md" data-action="retry" type="button">다시 진단하기</button></div>';
+        '</div>';
     } else {
       ctas =
         '<div class="cta-col">' +
@@ -2340,7 +2380,7 @@
     }
 
     var typesLink =
-      '<div class="cta-col" style="margin-top:16px"><button class="btn btn-tertiary btn-md" data-action="types" type="button">16유형 도감 보기</button></div>';
+      '<div class="cta-col" style="margin-top:16px"><button class="btn btn-tertiary btn-md" data-action="types" type="button">16개 유형 탐색하기</button></div>';
 
     shell(
       '<div class="result-page">' +
@@ -2364,9 +2404,9 @@
         '<span class="badge badge-neutral">응답 일치도 ' +
         esc(r.conf) +
         '</span>' +
-        (c2 && c2.id !== c.id
-          ? '<button class="similar-type" data-action="type" data-id="' + c2.id + '" type="button">비슷한 유형 · ' + esc(c2.name) + ' →</button>'
-          : '') +
+        '</div>' +
+        '<div class="result-card-actions"><button class="btn btn-secondary btn-md" data-action="result-detail" type="button">상세 정보보기</button>' +
+        (isMine ? '<button class="btn btn-tertiary btn-md" data-action="retry" type="button">다시 진단하기</button>' : '') +
         '</div>' +
         '</div>' +
         '<p class="result-context">20문항에서 발견한 생활 성향이에요. 응답 일치도는 유형 간 점수 차이를 요약한 것으로, 진단 정확도를 뜻하지 않아요.</p>' +
@@ -2381,7 +2421,9 @@
             (S.shareName !== false ? '포함 · 눌러서 제외' : '제외 · 눌러서 포함') +
             '</button></div>'
           : '') +
-        '<details class="card result-details" style="margin-top:16px"><summary>나의 성향 좌표 · 수치와 해석</summary>' +
+        '<details id="result-details" class="card result-details" style="margin-top:16px"><summary>' +
+        (isMine ? '나의' : '메이트의') +
+        ' 성향 좌표 · 수치와 해석</summary>' +
         '<div class="gauge-block">' +
         gaugeHTML('생활 교류 활성도 (E)', r.eAvg, false) +
         gaugeHTML('생활 자극 민감도 (R)', r.rAvg, true) +
@@ -2392,7 +2434,9 @@
         '<p class="caption text-muted" style="margin-top:16px">수치는 순위나 궁합 점수가 아니라, 20개 응답에서 나타난 성향의 위치예요. 결과는 판정이 아니라 대화를 돕는 참고 도구예요.</p>' +
         '</details>' +
         '<div class="card" style="margin-top:16px">' +
-        '<h4 class="card-title">같이 살면 나는 이런 사람</h4>' +
+        '<h4 class="card-title">' +
+        (isMine ? '같이 살면 나는 이런 사람' : '같이 살면 메이트는 이런 사람') +
+        '</h4>' +
         '<ul class="trait-list">' +
         c.traits
           .map(function (t) {
@@ -2409,7 +2453,9 @@
         '</span></div>' +
         '</div>' +
         '<div class="card" style="margin-top:16px">' +
-        '<h4 class="card-title">동거인이 실제로 보게 되는 나</h4>' +
+        '<h4 class="card-title">' +
+        (isMine ? '동거인이 실제로 보게 되는 나' : '함께 살며 보게 되는 메이트') +
+        '</h4>' +
         '<div class="view-vs">' +
         '<div class="vs-side"><span class="vs-label">내 생각</span>' +
         esc(c.selfView) +
@@ -2421,13 +2467,17 @@
         '</div>' +
         '</div>' +
         '<div class="card" style="margin-top:16px">' +
-        '<h4 class="card-title">갈등이 생겼을 때의 내 흐름</h4>' +
+        '<h4 class="card-title">' +
+        (isMine ? '갈등이 생겼을 때의 내 흐름' : '갈등이 생겼을 때 메이트의 흐름') +
+        '</h4>' +
         '<div class="seq">' +
         seq +
         '</div>' +
         '</div>' +
         '<div class="card" style="margin-top:16px">' +
-        '<h4 class="card-title">내가 예민해지는 순간 Top 3</h4>' +
+        '<h4 class="card-title">' +
+        (isMine ? '내가 예민해지는 순간 Top 3' : '메이트가 예민해지는 순간 Top 3') +
+        '</h4>' +
         '<ol class="trigger-list">' +
         c.triggers
           .map(function (t) {
@@ -2437,7 +2487,9 @@
         '</ol>' +
         '</div>' +
         '<div class="card" style="margin-top:16px">' +
-        '<h4 class="card-title">나와 살 때 사용설명서</h4>' +
+        '<h4 class="card-title">' +
+        (isMine ? '나와 살 때 사용설명서' : '메이트와 살 때 사용설명서') +
+        '</h4>' +
         '<div class="do-grid">' +
         '<div class="do-col do"><h5>이렇게 해주세요</h5><ul>' +
         c.dos
@@ -2456,7 +2508,9 @@
         '</div>' +
         '</div>' +
         '<div class="card" style="margin-top:16px">' +
-        '<h4 class="card-title">나를 편하게 만드는 집</h4>' +
+        '<h4 class="card-title">' +
+        (isMine ? '나를 편하게 만드는 집' : '메이트를 편하게 만드는 집') +
+        '</h4>' +
         '<div class="comfort-chips">' +
         c.comfort
           .map(function (t) {
@@ -2609,7 +2663,7 @@
         ' (' +
         pc.code +
         ')</p></div>' +
-        '<button class="btn btn-primary btn-sm" data-action="report" type="button">리포트 보기</button>' +
+        '<button class="btn btn-primary btn-sm" data-action="partner-result" type="button">메이트 결과 보기</button>' +
         '<button class="btn btn-tertiary btn-sm" data-action="unlink" type="button">연결 해제</button></div>';
     }
 
@@ -2637,9 +2691,8 @@
 
     shell(
       '' +
-        '<p class="eyebrow caption">Step 2</p>' +
-        '<h2 class="view-title">이번에는 우리 둘의 생활을 맞춰볼까요?</h2>' +
-        '<p class="view-desc body-md">상대도 진단을 마치면 두 분의 궁합 리포트가 완성돼요.<br>같은 점보다, 다른 점을 먼저 알아볼게요.</p>' +
+        '<section class="page-intro"><h2>메이트와 연결하고<br>우리의 생활을 맞춰봐요</h2>' +
+        '<p>받은 결과 링크를 연결하거나 내 초대 링크를 보내세요. 두 사람의 진단이 모이면 궁합과 생활 기준을 함께 확인할 수 있어요.</p></section>' +
         '<div class="view-stack">' +
         partnerDone +
         connectionHTML() +
@@ -2780,9 +2833,6 @@
       .slice(0, 3);
 
     // 추천 규칙: gap 있는 도메인의 규칙 + 기본 규칙
-    var gapDomains = gapped.map(function (r) {
-      return r.d.id;
-    });
     var allRules = recommendedRules(me, you);
     var savedAg = shared ? null : savedAgreementForPair();
     if (!shared && !S.rulesReady) {
@@ -3018,60 +3068,14 @@
         '</div></div>';
     }
 
-    var totalRules = allRules.length + S.customRules.length;
     var rulesHTML =
-      '<div class="sec-head"><h3>우리 둘에게 맞는 생활규칙</h3><span class="badge badge-brand">선택 ' +
-      S.checkedRules.length +
-      ' / ' +
-      totalRules +
-      '</span></div>' +
-      '<p class="body-sm text-muted" style="margin-bottom:12px">차이가 큰 영역을 중심으로 추천했어요. 우리집 합의서에 담을 규칙을 골라보세요.</p>' +
-      '<div class="view-stack" style="margin-top:0">' +
+      '<ul class="agreed-list">' +
       allRules
         .map(function (r) {
-          var checked = S.checkedRules.indexOf(r.text) >= 0;
-          var rec = gapDomains.indexOf(r.domain) >= 0;
-          return (
-            '<button class="rule-item' +
-            (checked ? ' checked' : '') +
-            '" data-action="rule" data-v="' +
-            esc(r.text) +
-            '" type="button" aria-pressed="' +
-            checked +
-            '">' +
-            '<span class="rule-check"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>' +
-            '<span>' +
-            esc(r.text) +
-            '</span>' +
-            (rec ? '<span class="badge badge-brand rule-area">추천</span>' : '<span class="rule-area">' + esc(r.area) + '</span>') +
-            '</button>'
-          );
+          return '<li>' + esc(r.text) + '</li>';
         })
         .join('') +
-      S.customRules
-        .map(function (t) {
-          var checked = S.checkedRules.indexOf(t) >= 0;
-          return (
-            '<button class="rule-item' +
-            (checked ? ' checked' : '') +
-            '" data-action="rule" data-v="' +
-            esc(t) +
-            '" type="button" aria-pressed="' +
-            checked +
-            '">' +
-            '<span class="rule-check"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>' +
-            '<span>' +
-            esc(t) +
-            '</span><span class="badge badge-info rule-area">직접 추가</span></button>'
-          );
-        })
-        .join('') +
-      '</div>' +
-      '<div class="custom-rule"><input id="custom-rule-in" class="input" maxlength="60" autocomplete="off" placeholder="우리만의 규칙 직접 추가 (예: 화요일 저녁은 각자 자유시간)">' +
-      '<button class="btn btn-secondary btn-md" data-action="add-rule" type="button">추가</button></div>' +
-      '<div class="cta-col"><button class="btn btn-primary btn-lg" data-action="agreement" type="button">우리집 합의서 만들기 (' +
-      S.checkedRules.length +
-      '개)</button></div>';
+      '</ul>';
 
     var bottomCTA = shared
       ? '<div class="cta-col"><button class="btn btn-primary btn-lg" data-action="pair-start" type="button">나도 진단해서 우리 리포트 만들기</button></div>'
@@ -3101,7 +3105,11 @@
         commHTML +
         lifeCmpHTML +
         talkHTML +
-        (shared ? '' : rulesHTML) +
+        (shared
+          ? ''
+          : '<section class="card flow-entry"><h3>우리집 생활 규칙</h3><p>각자 필요한 규칙을 제안하고, 조항을 조율한 뒤 함께 동의해요.</p><button class="mobile-primary" data-action="rules" type="button">규칙 선택하고 조율하기</button><details><summary>리포트에서 추천한 규칙 보기</summary>' +
+            rulesHTML +
+            '</details></section>') +
         bottomCTA +
         '<p class="caption text-muted" style="text-align:center;margin-top:8px">이 리포트는 확정적인 판정이 아니라, 함께 살 준비를 돕는 참고 자료예요.</p>'
     );
@@ -3122,6 +3130,7 @@
       go('home');
       return;
     }
+    MP.restoreRules();
     var ag = savedAgreementForPair();
     if (ag && !S.rulesReady) {
       S.checkedRules = ag.rules.slice();
@@ -3135,6 +3144,7 @@
     var dateStr = ag && !differs ? ag.date : todayStr;
     var version = ag ? ag.rev || 1 : 0;
     var done = S.signs.me && S.signs.partner;
+    var reviewed = MP.rulesApproved();
 
     var ruleRows = rules.length
       ? rules
@@ -3249,29 +3259,37 @@
         '<div class="agree-signs">' +
         '<button class="sign-box' +
         (S.signs.me ? ' signed' : '') +
-        '" data-action="sign" data-who="me" type="button">' +
+        '" data-action="sign" data-who="me" type="button"' +
+        (!reviewed ? ' disabled' : '') +
+        '>' +
         esc(S.me.name || '나') +
         (S.signs.me ? ' · 동의함' : ' · 서명하기') +
         '</button>' +
         '<button class="sign-box' +
         (S.signs.partner ? ' signed' : '') +
-        '" data-action="sign" data-who="partner" type="button">' +
+        '" data-action="sign" data-who="partner" type="button"' +
+        (!reviewed ? ' disabled' : '') +
+        '>' +
         esc(S.partner.name || '상대') +
         (S.signs.partner ? ' · 동의함' : ' · 서명하기') +
         '</button>' +
         '</div>' +
         '</div>' +
+        '<p class="flow-note">같은 기기에서 각자 조항을 확인하고 본인의 서명 버튼을 눌러 주세요.</p>' +
+        (!reviewed
+          ? '<div class="card"><p>서명하기 전에 각 조항을 두 사람이 확인해 주세요.</p><button class="mobile-primary" data-action="rules-review" type="button">조항 조율·확인하기</button></div>'
+          : '') +
         savedNote +
         diffHTML +
         '<div class="cta-col">' +
-        (done && rules.length
+        (done && reviewed && rules.length
           ? '<button class="btn btn-primary btn-lg" data-action="save-agree" type="button">' + saveLabel + '</button>'
           : '<button class="btn btn-primary btn-lg" type="button" disabled>' + saveLabel + '</button>') +
         '<button class="btn btn-secondary btn-md" data-action="agree-img" type="button">합의서 이미지로 저장</button>' +
         '<button class="btn btn-secondary btn-md" data-action="agree-ics" type="button">한 달 뒤 점검일 캘린더 추가</button>' +
         '<button class="btn btn-secondary btn-md" data-action="copy-agree" type="button">합의서 텍스트 복사</button>' +
         '<button class="btn btn-secondary btn-md" data-action="print" type="button">인쇄/PDF로 저장</button>' +
-        '<button class="btn btn-tertiary btn-md" data-action="report" type="button">리포트로 돌아가기</button>' +
+        '<button class="btn btn-tertiary btn-md" data-action="rules" type="button">규칙 다시 선택하기</button>' +
         '</div>' +
         '<p class="caption text-muted" style="text-align:center;margin-top:8px">생활 합의를 돕는 문서이며, 법적 효력은 없어요.</p>'
     );
@@ -3381,156 +3399,13 @@
     save('mateon.' + target, S[target]);
     S.lifeQ = 0;
     S.lifeAnswers = [];
-    go('result');
+    go(S.flow === 'partner' ? 'partner-result' : 'result');
     showToast('실무 성향이 저장됐어요');
   }
 
   /* ================= View: 입주 체크리스트 ================= */
   function vChecklist() {
-    var total = 0,
-      done = 0;
-    CHECKLIST.forEach(function (g) {
-      g.items.forEach(function (t, i) {
-        total++;
-        if (S.checklist[g.cat + ':' + i]) done++;
-      });
-    });
-    S.customChecklist.forEach(function (x) {
-      total++;
-      if (S.checklist['own:' + x.id]) done++;
-    });
-    var pctDone = total ? Math.round((done / total) * 100) : 0;
-
-    /* 입주일을 알면 카테고리별로 언제 하면 좋은지 표시해준다 */
-    var MOVE_WINDOWS = { '계약·서류': [45, 14], '집·공간': [21, 7], 생활용품: [14, 3], '비용·관리': [14, 7], '함께 정할 것': [30, 1] };
-    var today0 = new Date();
-    today0.setHours(0, 0, 0, 0);
-    var dLeft = S.moveDate ? Math.ceil((new Date(S.moveDate + 'T00:00:00').getTime() - today0.getTime()) / 86400000) : null;
-    var moveBanner = S.moveDate
-      ? '<div class="settle-hero mint" style="margin-bottom:14px"><span>입주일 ' +
-        esc(ML.dateLabel(new Date(S.moveDate + 'T00:00:00').getTime())) +
-        '</span>' +
-        '<strong>' +
-        (dLeft !== null && dLeft > 0 ? 'D-' + dLeft : dLeft === 0 ? '오늘 입주!' : '입주 완료') +
-        '</strong>' +
-        '<p>' +
-        (dLeft !== null && dLeft > 0 ? '각 카테고리 옆에 권장 시기를 표시해 뒀어요.' : '늦은 항목부터 하나씩 해봐요.') +
-        '</p></div>'
-      : '';
-
-    var groups = CHECKLIST.map(function (g) {
-      var catDone = g.items.filter(function (t, i) {
-        return S.checklist[g.cat + ':' + i];
-      }).length;
-      var winTag = '';
-      if (dLeft !== null && MOVE_WINDOWS[g.cat]) {
-        var w = MOVE_WINDOWS[g.cat];
-        /* dLeft는 남은 일수 — 창 [멀리, 가까이] 안에 있으면 "지금" */
-        var now = dLeft <= w[0] && dLeft >= w[1],
-          late = dLeft < w[1] && catDone < g.items.length;
-        winTag =
-          '<span class="pantry-d ' +
-          (late ? 'expired' : now ? 'week' : 'ok') +
-          '" style="margin-left:6px">' +
-          (late ? '늦었어요' : now ? '지금 할 차례' : 'D-' + w[0] + '~' + w[1]) +
-          '</span>';
-      }
-      return (
-        '<div class="check-cat"><h4>' +
-        esc(g.cat) +
-        winTag +
-        '</h4><span class="cat-count">' +
-        catDone +
-        '/' +
-        g.items.length +
-        '</span></div>' +
-        g.items
-          .map(function (t, i) {
-            var key = g.cat + ':' + i;
-            var on = !!S.checklist[key];
-            return (
-              '<button class="rule-item' +
-              (on ? ' checked' : '') +
-              '" data-action="check" data-v="' +
-              esc(key) +
-              '" type="button">' +
-              '<span class="rule-check"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>' +
-              '<span' +
-              (on ? ' style="text-decoration:line-through;opacity:.6"' : '') +
-              '>' +
-              esc(t) +
-              '</span></button>'
-            );
-          })
-          .join('')
-      );
-    }).join('');
-
-    var customDone = S.customChecklist.filter(function (x) {
-      return S.checklist['own:' + x.id];
-    }).length;
-    var customHTML =
-      '<div class="check-cat"><h4>직접 추가한 항목</h4><span class="cat-count">' +
-      customDone +
-      '/' +
-      S.customChecklist.length +
-      '</span></div>' +
-      (S.customChecklist.length
-        ? S.customChecklist
-            .map(function (x) {
-              var key = 'own:' + x.id;
-              var on = !!S.checklist[key];
-              return (
-                '<div class="rule-item-wrap"><button class="rule-item' +
-                (on ? ' checked' : '') +
-                '" data-action="check" data-v="' +
-                esc(key) +
-                '" type="button">' +
-                '<span class="rule-check"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>' +
-                '<span' +
-                (on ? ' style="text-decoration:line-through;opacity:.6"' : '') +
-                '>' +
-                esc(x.text) +
-                '</span></button>' +
-                armBtn('cl-del', x.id, '삭제', '확인') +
-                '</div>'
-              );
-            })
-            .join('')
-        : '<p class="body-sm text-muted" style="margin:4px 0 10px">우리집만의 준비 항목이 있으면 직접 추가해 보세요.</p>') +
-      '<div class="custom-rule"><input id="cl-custom-in" class="input" maxlength="40" autocomplete="off" placeholder="예: 벌레 퇴치제 사기">' +
-      '<button class="btn btn-secondary btn-md" data-action="cl-add" type="button">추가</button></div>';
-
-    shell(
-      '' +
-        '<p class="eyebrow caption">Move-in Checklist</p>' +
-        '<h2 class="view-title">' +
-        esc(T('view.checklist.title')) +
-        '</h2>' +
-        '<p class="view-desc body-md">' +
-        esc(T('view.checklist.desc')) +
-        '</p>' +
-        '<div class="check-progress">' +
-        '<div class="progress"><div class="progress-fill" style="width:' +
-        pctDone +
-        '%"></div></div>' +
-        '<span class="progress-num">' +
-        pctDone +
-        '%</span></div>' +
-        '<div class="custom-rule" style="margin:4px 0 14px"><label class="sr-only" for="move-date-in">입주 예정일</label>' +
-        '<input id="move-date-in" class="input" type="date" value="' +
-        esc(S.moveDate || '') +
-        '" aria-label="입주 예정일">' +
-        '<button class="btn btn-secondary btn-md" data-action="move-date-set" type="button">' +
-        (S.moveDate ? '변경' : '입주일 설정') +
-        '</button>' +
-        (S.moveDate ? '<button class="btn-ghost" data-action="move-date-clear" type="button" aria-label="입주일 지우기">✕</button>' : '') +
-        '</div>' +
-        moveBanner +
-        groups +
-        customHTML +
-        '<div class="cta-col"><button class="btn btn-tertiary btn-md" data-action="home" type="button">홈으로</button></div>'
-    );
+    MP.vChecklist();
   }
 
   /* ================= 생활 도구 공통 ================= */
@@ -3541,7 +3416,7 @@
     return w === 'me' ? (S.me && S.me.name) || '나' : (S.partner && S.partner.name) || '메이트';
   }
   function listPageHead(over, title, desc) {
-    return '<p class="app-overline">' + esc(over) + '</p><h1 class="mobile-title">' + esc(title) + '</h1><p class="mobile-subtitle">' + esc(desc) + '</p>';
+    return '<p class="mobile-subtitle page-description">' + esc(desc) + '</p>';
   }
   /* 음성 입력 마이크 — SpeechRecognition 지원 시에만 렌더 */
   function micBtnHTML(forId) {
@@ -5901,6 +5776,8 @@
     { k: 'mateon.agreement', t: '우리집 합의서' },
     { k: 'mateon.history', t: '진단 이력' },
     { k: 'mateon.checklist', t: '입주 체크리스트' },
+    { k: 'mateon.checklistPlan', t: '선택한 준비 항목·임시저장' },
+    { k: 'mateon.ruleDraft', t: '생활 규칙 제안·조율 초안' },
     { k: 'mateon.talks', t: '나의 대화 기록' },
     { k: 'mateon.customRules', t: '직접 추가한 규칙' },
     { k: 'mateon.draft.me', t: '진행 중인 설문 (나)' },
@@ -6040,6 +5917,7 @@
   }
 
   function validBackupValue(key, value) {
+    if (key === 'mateon.checklistPlan' || key === 'mateon.ruleDraft') return MP.validDraft(key, value);
     if (key === 'mateon.me' || key === 'mateon.partner') return validStoredResult(value);
     if (key === 'mateon.agreement') return validAgreement(value);
     if (key === 'mateon.history') return Array.isArray(value) && value.length <= 10 && value.every(validHistoryEntry);
@@ -7185,6 +7063,8 @@
     'mateon.events',
     'mateon.coupons',
     'mateon.checklist',
+    'mateon.checklistPlan',
+    'mateon.ruleDraft',
     'mateon.pantry',
     'mateon.anniv',
   ];
@@ -8274,6 +8154,7 @@
     'mateon.choreLog',
     'mateon.agreement',
     'mateon.checklist',
+    'mateon.checklistPlan',
     'mateon.customChecklist',
     'mateon.talks',
     'mateon.customRules',
@@ -9072,7 +8953,7 @@
         S.flow = 'partner';
       }
       resetRulesForNewPartner();
-      go('result');
+      go(S.flow === 'partner' ? 'partner-result' : 'result');
     } else {
       S.me = out;
       save('mateon.me', out);
@@ -9144,6 +9025,7 @@
     var el = /** @type {HTMLElement} */ (et && et.closest ? et.closest('[data-action]') : null);
     if (!el || /** @type {any} */ (el).disabled) return;
     var act = el.dataset.action;
+    if (MP.handle(act || '', el)) return;
 
     if (act === 'home') {
       S.flow = 'me';
@@ -9238,6 +9120,17 @@
     } else if (act === 'result') {
       S.flow = 'me';
       go('result');
+    } else if (act === 'partner-result') {
+      S.flow = 'partner';
+      go('partner-result');
+    } else if (act === 'result-detail') {
+      var resultDetails = document.getElementById('result-details');
+      if (resultDetails) {
+        resultDetails.setAttribute('open', '');
+        resultDetails.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        var summary = resultDetails.querySelector('summary');
+        if (summary) summary.focus({ preventScroll: true });
+      }
     } else if (act === 'retry') {
       resetSurvey();
       S.flow = 'me';
@@ -9332,10 +9225,18 @@
       showToast('저장된 합의서로 되돌렸어요');
       render();
     } else if (act === 'sign') {
+      if (!MP.rulesApproved()) {
+        showToast('각 조항을 두 사람이 먼저 확인해 주세요');
+        return;
+      }
       var who = el.dataset.who;
       S.signs[who] = !S.signs[who];
       render();
     } else if (act === 'save-agree') {
+      if (!MP.rulesApproved() || !S.signs.me || !S.signs.partner) {
+        showToast('조항 확인과 두 사람의 서명이 필요해요');
+        return;
+      }
       var today = new Date();
       var todayLabel = today.getFullYear() + '년 ' + (today.getMonth() + 1) + '월 ' + today.getDate() + '일';
       var prevAgreement = savedAgreementForPair();
@@ -9357,7 +9258,7 @@
       };
       save('mateon.agreement', S.agreement);
       showToast(changed ? '합의서 v' + S.agreement.rev + '으로 업데이트했어요' : '우리집 합의서가 저장됐어요');
-      render();
+      go('agreement-complete');
     } else if (act === 'copy-agree') {
       copyText(agreementText(), '합의서가 복사됐어요');
     }
@@ -11814,6 +11715,7 @@
       }
       S.customChecklist.push({ id: uid(), text: cltext.slice(0, 40) });
       save('mateon.customChecklist', S.customChecklist);
+      MP.addedChecklist(S.customChecklist[S.customChecklist.length - 1].id);
       render();
     } else if (act === 'cl-del') {
       var clid = el.dataset.v;
@@ -12287,9 +12189,13 @@
     }
     var parents = {
       survey: 'onboarding',
+      'partner-result': 'invite',
       'type-detail': 'types',
-      checklist: 'space',
-      agreement: 'report',
+      checklist: 'home',
+      rules: 'space',
+      'rules-review': 'rules',
+      agreement: 'rules-review',
+      'agreement-complete': 'space',
       privacy: 'settings',
       terms: 'settings',
       lifecheck: 'result',
@@ -12384,9 +12290,13 @@
     onboarding: '시작하기 — MATE:ON',
     survey: '동거 성향 진단 — MATE:ON',
     result: '내 진단 결과 — MATE:ON',
+    'partner-result': '메이트 진단 결과 — MATE:ON',
     invite: '상대 초대 — MATE:ON',
     report: '우리 둘 궁합 리포트 — MATE:ON',
     agreement: '우리집 생활 합의서 — MATE:ON',
+    rules: '생활 규칙 제안 — MATE:ON',
+    'rules-review': '생활 규칙 조율 — MATE:ON',
+    'agreement-complete': '생활 규칙 합의 완료 — MATE:ON',
     types: '16유형 도감 — MATE:ON',
     'type-detail': '유형 상세 — MATE:ON',
     lifecheck: '실무 성향 체크 — MATE:ON',
@@ -12458,7 +12368,12 @@
       S.delArm = null;
       S.resetArm = false;
     }
-    document.title = T('doc.' + route) !== 'doc.' + route ? T('doc.' + route) : ROUTE_TITLES[route] || 'MATE:ON';
+    document.title =
+      route === 'result' || route === 'invite'
+        ? screenTitle(route) + ' — MATE:ON'
+        : T('doc.' + route) !== 'doc.' + route
+          ? T('doc.' + route)
+          : ROUTE_TITLES[route] || 'MATE:ON';
     /* 네이티브 아이콘 배지 — 미완료 할 일 수 */
     if (window.MateNative && window.MateNative.setBadge) {
       try {
@@ -12485,7 +12400,12 @@
       case 'survey':
         vSurvey();
         break;
+      case 'partner-result':
+        S.flow = 'partner';
+        vResult();
+        break;
       case 'result':
+        S.flow = 'me';
         vResult();
         break;
       case 'invite':
@@ -12496,6 +12416,15 @@
         break;
       case 'agreement':
         vAgreement();
+        break;
+      case 'rules':
+        MP.vRules(false);
+        break;
+      case 'rules-review':
+        MP.vRules(true);
+        break;
+      case 'agreement-complete':
+        MP.vAgreementComplete();
         break;
       case 'types':
         vTypes();

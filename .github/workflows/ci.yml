@@ -35,4 +35,5 @@ jobs:
       - run: npx playwright install chromium webkit --with-deps
       - run: npm run e2e
       - run: npm run e2e:webkit
+      - run: npm run e2e:feedback
       - run: npm run a11y

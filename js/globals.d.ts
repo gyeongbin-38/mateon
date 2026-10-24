@@ -4,6 +4,7 @@ declare const MateSecure: any;
 declare const MateNative: any;
 declare const MateHouse: any;
 declare const MateViews: any;
+declare const MatePrep: any;
 declare const MateI18n: any;
 declare const MateCard: any;
 declare const MateScreenshot: any;
@@ -59,6 +60,7 @@ interface Window {
   MateNative: any;
   MateHouse: any;
   MateViews: any;
+  MatePrep: any;
   MateI18n: any;
   MateCard: any;
   MateScreenshot: any;

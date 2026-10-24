@@ -22,7 +22,9 @@ vm.createContext(context);
 vm.runInContext(fs.readFileSync('sw.js', 'utf8') + '\nglobalThis.shell=SHELL;', context);
 const html = fs.readFileSync('index.html', 'utf8');
 const refs = [...html.matchAll(/(?:src|href)="((?:js|css)\/[^\"]+)"/g)].map((m) => m[1]);
-assert.equal(refs.length, 17);
+assert.equal(refs.length, 19);
+assert.equal(new Set(refs).size, refs.length, 'Each local resource should load once');
+assert(refs.some((r) => r.startsWith('js/preparation.js?')) && refs.some((r) => r.startsWith('css/flows.css?')), 'Preparation flows must be available offline');
 refs.forEach((ref) => assert(context.shell.includes(ref), 'Versioned resource must be precached: ' + ref));
 async function request(path, mode = 'cors') {
   let response;
