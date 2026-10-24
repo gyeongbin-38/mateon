@@ -14,5 +14,6 @@ ios/App/build/
 .env.*
 .DS_Store
 artifacts/
+tmp/
 ota/  
 e2e-*.png  
