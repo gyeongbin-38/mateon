@@ -93,7 +93,7 @@ eval(
     '\n;globalThis.__d={QUESTIONS,CHARACTERS,DOMAINS,SAMPLE_RESULTS,TALK_STARTERS,LIFE_QUESTIONS,LOVE_MAP_QUESTIONS};'
 );
 
-const { QUESTIONS, CHARACTERS, SAMPLE_RESULTS, TALK_STARTERS, LOVE_MAP_QUESTIONS } = globalThis.__d;
+const { QUESTIONS, CHARACTERS, SAMPLE_RESULTS, TALK_STARTERS, LIFE_QUESTIONS, LOVE_MAP_QUESTIONS } = globalThis.__d;
 const { encodeResult, decodeResult, resultFromCode, encodeInvite, decodeInvite, resultFromLink, isoWeekKey } = window.__mateon;
 
 function nav(hash) {
@@ -400,6 +400,25 @@ async function answerAll() {
   }
 
   console.log('== 12. 진단 이력 ==');
+  {
+    const oldMe = store['mateon.me'];
+    const oldPartner = store['mateon.partner'];
+    const life = (idx) => LIFE_QUESTIONS.map((q) => ({ qid: q.id, area: q.area, level: q.options[idx].level, label: q.options[idx].label }));
+    const myLife = life(0);
+    const theirLife = life(1);
+    theirLife[0] = myLife[0];
+    store['mateon.me'] = JSON.stringify({ ...SAMPLE_RESULTS.me, life: myLife });
+    store['mateon.partner'] = JSON.stringify({ ...SAMPLE_RESULTS.partner, life: theirLife.reverse() });
+    reloadApp('', '#/report');
+    check('생활 기준은 문항 ID로 연결하고 인접한 다른 답도 차이로 표시', (lastHTML.match(/>기준 다름</g) || []).length === 5);
+    check('동일한 생활 응답만 같음으로 표시', (lastHTML.match(/>같음</g) || []).length === 1);
+    store['mateon.partner'] = JSON.stringify({ ...SAMPLE_RESULTS.partner, life: theirLife.slice(1) });
+    reloadApp('', '#/report');
+    check('누락된 생활 응답은 건너뛰고 리포트 유지', lastHTML.includes('생활 기준 비교') && (lastHTML.match(/class="life-row"/g) || []).length === 5);
+    store['mateon.me'] = oldMe;
+    store['mateon.partner'] = oldPartner;
+    reloadApp('', '#/result');
+  }
   const hist = JSON.parse(store['mateon.history'] || '[]');
   check('이력 저장됨', hist.length >= 2);
 

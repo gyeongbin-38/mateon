@@ -3010,12 +3010,16 @@
     var lifeCmpHTML = '';
     if (me.life && you.life) {
       lifeCmpHTML =
-        '<div class="sec-head"><h3>실무 영역 미리보기</h3><span class="badge badge-info">청결·비용 등</span></div>' +
+        '<div class="sec-head"><h3>생활 기준 비교</h3><span class="badge badge-info">청결·비용 등</span></div>' +
         '<div class="card"><div class="life-summary">' +
         me.life
-          .map(function (ml, i) {
-            var yl = you.life[i];
-            var diff = Math.abs(ml.level - yl.level) >= 2;
+          .map(function (ml) {
+            var yl = you.life.find(function (answer) {
+              return answer.qid === ml.qid;
+            });
+            if (!yl) return '';
+            // 선택지는 순서 척도가 아니므로 인접한 답도 서로 다른 기준이다.
+            var diff = ml.level !== yl.level;
             var ins = LIFE_INSIGHTS[ml.area];
             return (
               '<div class="life-row" style="align-items:flex-start">' +
@@ -3028,7 +3032,7 @@
               ' · <span class="lr-you">' +
               esc(yl.label) +
               '</span></span>' +
-              (diff ? '<span class="badge badge-warning">기준 다름</span>' : '<span class="badge badge-success">비슷</span>') +
+              (diff ? '<span class="badge badge-warning">기준 다름</span>' : '<span class="badge badge-success">같음</span>') +
               '</div>' +
               (diff ? '<p class="gap-desc" style="padding:0 16px 12px">' + esc(ins.gap) + '</p>' : '')
             );
